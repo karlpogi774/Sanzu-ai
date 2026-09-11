@@ -2,10 +2,10 @@ const axios = require("axios");
 
 module.exports.config = {
   name: "ryuk",
-  version: "18.0.0",
+  version: "19.0.0",
   hasPermission: 0,
   credits: "Ryuk Pogi & Gemini",
-  description: "Always-on cloud bot with auto dog react (🐶) on all chats, target roasting, and self-react.",
+  description: "Always-on cloud bot with auto dog react (🐶) on all chats, target roasting, and GUARANTEED auto self-react.",
   usePrefix: true,
   commandCategory: "Fun",
   usages: "/ryuk on | off | target <@mention/UID/clear> | setnick <name> | setgname <name> | status",
@@ -99,13 +99,6 @@ const lastResponseTime = new Map();
 const COOLDOWN_DELAY = 3000;
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-function safeReact(api, emoji, msgID) {
-  if (!msgID) return;
-  api.setMessageReaction(emoji, msgID, (err) => {
-    if (err) console.log(`[React Error Ignored]: ${err.message || err}`);
-  }, true);
-}
-
 loadData();
 
 // ===== EVENT HANDLER =====
@@ -141,10 +134,10 @@ module.exports.handleEvent = async function ({ api, event }) {
 
   if (!body || senderID === api.getCurrentUserID() || body.toLowerCase().startsWith("/ryuk")) return;
 
-  // AUTO-REACT ASO (🐶) SA LAHAT NG MAG-CHAT
-  safeReact(api, DOG_EMOJI, messageID);
+  // AUTO DOG REACT (🐶) SA MGA CHAT SA GC
+  api.setMessageReaction(DOG_EMOJI, messageID, (err) => {}, true);
 
-  // KUNG MAY TARGET: HINDI MAG-REREPLY SA TEXT KUNG HINDI SIYA ANG TARGET
+  // KUNG MAY SPECIFIC TARGET: HUWAG MAG-REPLY KUNG HINDI SIYA ANG TARGET
   if (targetUser && String(senderID) !== String(targetUser)) return;
 
   const now = Date.now();
@@ -157,16 +150,19 @@ module.exports.handleEvent = async function ({ api, event }) {
     const randomRoast = roastsList[Math.floor(Math.random() * roastsList.length)];
     const randomSelfEmoji = REACT_EMOJIS[Math.floor(Math.random() * REACT_EMOJIS.length)];
 
-    await sleep(1500);
+    await sleep(1000);
 
-    // AUTO REPLY AT SELF-REACT SA REPLIES NG BOT
+    // SEND BOT REPLY + GUARANTEED SELF-REACT ON BOT'S REPLY
     api.sendMessage({
       body: randomRoast,
       mentions: [{ tag: `@${senderID}`, id: senderID }]
     }, threadID, (err, info) => {
       if (!err && info && info.messageID) {
+        // 1-second delay para ma-confirm muna ng FB server ang message bago lalagyan ng self reaction
         setTimeout(() => {
-          safeReact(api, randomSelfEmoji, info.messageID);
+          api.setMessageReaction(randomSelfEmoji, info.messageID, (reactErr) => {
+            if (reactErr) console.log(`[Self-React Retry Error]:`, reactErr);
+          }, true);
         }, 1000);
       }
     }, messageID);
@@ -192,7 +188,7 @@ module.exports.run = async function ({ api, event, args }) {
     memoryData.activeThreads[threadID] = true;
     await saveData(memoryData);
 
-    return api.sendMessage(`🔥 RYUK SYSTEM: ACTIVATED sa GC na ito! Auto Dog React (🐶) enabled.`, threadID, messageID);
+    return api.sendMessage(`🔥 RYUK SYSTEM: ACTIVATED sa GC na ito! Auto Dog React (🐶) at Auto Self-React are fully active.`, threadID, messageID);
   }
 
   // /ryuk off
@@ -280,6 +276,7 @@ module.exports.run = async function ({ api, event, args }) {
       `🔥 RYUK SYSTEM STATUS:\n` +
       `Active: ${activeHere ? "YES 🟢" : "NO 🔴"}\n` +
       `Auto Chat React: 🐶 (EVERYONE)\n` +
+      `Self React: 🔥, 💀, 🤣 (ON BOT REPLIES)\n` +
       `Roast Target: ${target}\n` +
       `Locked GC Name: "${targetGcName}"\n` +
       `Locked Nickname: "${targetNickname}"`,
