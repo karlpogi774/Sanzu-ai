@@ -1,12 +1,13 @@
 const fs = require("fs");
 const path = require("path");
+const axios = require("axios");
 
 module.exports.config = {
   name: "activate",
-  version: "5.2.0",
+  version: "7.0.0",
   hasPermission: 0,
   credits: "sinzu",
-  description: "Infinite global Tagalog auto-roast running continuously even with slash commands, with targeted quote reply, 1s slow-motion duration, custom lines, and mass renaming.",
+  description: "Infinite global Tagalog auto-roast with safe slow-motion nickname changer, 2s reply delay, TTS voice chat, AI images, and custom lines.",
   usePrefix: true,
   commandCategory: "Fun",
   usages: "/activate on | off | status | add <text> | listlines | setnick | setgname",
@@ -61,15 +62,25 @@ function isActive() {
 
 // ===== SLOW-MOTION & ANTI-SPAM SYSTEM =====
 const lastResponseTime = new Map();
-const COOLDOWN_DELAY = 1000; // 1 Second Slow Motion Duration
+const COOLDOWN_DELAY = 2000; // 2 Seconds Slow Motion Duration for Auto Reply
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// Helper: Stream helper for image/audio attachments
+async function getStreamFromUrl(url) {
+  const res = await axios({
+    url,
+    method: "GET",
+    responseType: "stream"
+  });
+  return res.data;
+}
 
 // ===== EVENT HANDLER =====
 module.exports.handleEvent = async function ({ api, event }) {
   const { threadID, senderID, body, messageID } = event;
 
-  // Ignore empty messages, bot's own messages, and the /activate command itself
+  // Anti-Spam: Ignore empty messages, bot's own messages, and the /activate command itself
   if (!body || senderID === api.getCurrentUserID() || body.toLowerCase().startsWith("/activate")) return;
 
   if (!isActive()) return;
@@ -77,7 +88,7 @@ module.exports.handleEvent = async function ({ api, event }) {
   const now = Date.now();
   const lastTime = lastResponseTime.get(threadID) || 0;
 
-  // SLOW MOTION ANTI-RESTRICTION: 1-Second Cooldown Check
+  // SLOW MOTION ANTI-RESTRICTION: 2-Second Cooldown Check
   if (now - lastTime < COOLDOWN_DELAY) {
     return;
   }
@@ -93,16 +104,45 @@ module.exports.handleEvent = async function ({ api, event }) {
     const randomRoast = roastsList[Math.floor(Math.random() * roastsList.length)];
     const randomEmoji = REACT_EMOJIS[Math.floor(Math.random() * REACT_EMOJIS.length)];
 
-    // Typing Delay (1 Second slow-motion buffer)
-    await sleep(1000);
+    // Typing Delay (2 Seconds slow-motion buffer)
+    await sleep(2000);
 
-    // AUTO REPLY WITH DIRECT QUOTE/REPLY TO MESSAGE
-    api.sendMessage({
+    // AI Image Generator URL & Google Tagalog Voice Chat TTS
+    const encodedPrompt = encodeURIComponent("funny meme reaction, anime meme, viral internet joke, high resolution");
+    const aiImageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=512&height=512&nologo=true`;
+    
+    const encodedRoast = encodeURIComponent(randomRoast);
+    const voiceAudioUrl = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodedRoast}&tl=tl&client=tw-ob`;
+
+    // Fetch streams for media attachments
+    const attachments = [];
+    try {
+      const imgStream = await getStreamFromUrl(aiImageUrl);
+      attachments.push(imgStream);
+    } catch (e) {
+      console.error("AI Image fetch error:", e.message);
+    }
+
+    try {
+      const audioStream = await getStreamFromUrl(voiceAudioUrl);
+      attachments.push(audioStream);
+    } catch (e) {
+      console.error("Voice TTS fetch error:", e.message);
+    }
+
+    // Prepare message payload
+    const msgPayload = {
       body: randomRoast,
       mentions: [{ tag: `@${senderID}`, id: senderID }]
-    }, threadID, async (err, info) => {
+    };
+
+    if (attachments.length > 0) {
+      msgPayload.attachment = attachments;
+    }
+
+    // AUTO REPLY WITH DIRECT QUOTE/REPLY TO MESSAGE
+    api.sendMessage(msgPayload, threadID, async (err, info) => {
       if (!err && info && info.messageID) {
-        // Safe delay before auto self-react (500ms)
         await sleep(500);
         api.setMessageReaction(randomEmoji, info.messageID, (reactErr) => {
           if (reactErr) console.error("Self-react error:", reactErr);
@@ -131,7 +171,8 @@ module.exports.run = async function ({ api, event, args }) {
       `🔥 TAGALOG GLOBAL AUTO-ROAST: ON\n\n` +
       `Duration: INFINITE ♾️\n` +
       `Mode: Auto Reply (Direct Quote)\n` +
-      `Anti-Spam Delay: SLOW MOTION (1s Cooldown)\n` +
+      `Anti-Spam Delay: SLOW MOTION (2s Cooldown)\n` +
+      `Media: AI Generated Image + Tagalog Voice Chat Audio\n` +
       `Slash Command Handling: Continuous execution enabled\n` +
       `Auto Self-React: ACTIVE\n\n` +
       `Gamitin ang /activate off para i-stop.`,
@@ -155,8 +196,8 @@ module.exports.run = async function ({ api, event, args }) {
     const totalLines = (data.roasts || DEFAULT_TAGALOG_ROASTS).length;
     return api.sendMessage(
       `🔥 Ang Tagalog Auto-roast ay ACTIVE (INFINITE ♾️)\n` +
-      `Mode: Reply to Message Enabled\n` +
-      `Anti-Spam: 1s Slow Motion Cooldown\n` +
+      `Mode: Reply with Voice + AI Image\n` +
+      `Anti-Spam: 2s Slow Motion Cooldown\n` +
       `Kabuuan ng mga linya: ${totalLines}`,
       threadID,
       messageID
@@ -187,21 +228,30 @@ module.exports.run = async function ({ api, event, args }) {
     return api.sendMessage(msg, threadID, messageID);
   }
 
-  // Set All Members' Nicknames
+  // SAFE SLOW-MOTION SETNICK (Anti-Account Restriction)
   if (sub === "setnick") {
     try {
       const threadInfo = await api.getThreadInfo(threadID);
       const participantIDs = threadInfo.participantIDs;
 
-      api.sendMessage(`⏳ Binabago ang nicknames ng lahat ng ${participantIDs.length} miyembro papuntang "Jehosh Pogi"...`, threadID);
+      api.sendMessage(
+        `🛡️ SAFE SLOW-MOTION NICKNAME CHANGE\n` +
+        `Miyembro: ${participantIDs.length}\n` +
+        `Delay: 5 to 7 seconds kada tao para iwas-ban ang account.\n` +
+        `Manatiling kalmado, binabago na ang nicknames...`, 
+        threadID
+      );
 
       for (const userID of participantIDs) {
-        await sleep(500);
+        // Safe Slow Motion Delay: Random delay between 5000ms (5s) and 7000ms (7s)
+        const safeDelay = Math.floor(Math.random() * 2000) + 5000;
+        await sleep(safeDelay);
+
         api.changeNickname("Jehosh Pogi", threadID, userID, (err) => {
           if (err) console.error(`Failed nickname change for ${userID}:`, err);
         });
       }
-      return api.sendMessage("✅ Tagumpay na nabago ang lahat ng nicknames papuntang 'Jehosh Pogi'.", threadID, messageID);
+      return api.sendMessage("✅ Tagumpay na nabago ang lahat ng nicknames sa 'Jehosh Pogi' nang ligtas sa restriction!", threadID, messageID);
     } catch (e) {
       return api.sendMessage("❌ Bigo sa pagbago ng nicknames. Siguraduhing admin ang bot.", threadID, messageID);
     }
@@ -220,12 +270,12 @@ module.exports.run = async function ({ api, event, args }) {
 
   return api.sendMessage(
     `Mga Paggamit (Usage):\n` +
-    `/activate on — Simulan ang infinite Tagalog auto-roast (1s Slow Motion)\n` +
+    `/activate on — Simulan ang infinite Tagalog auto-roast (2s Slow Motion)\n` +
     `/activate off — Itigil ang auto-roast\n` +
     `/activate status — Tignan ang status\n` +
     `/activate add <text> — Magdagdag ng bagong Tagalog line\n` +
     `/activate listlines — Ilista ang lahat ng linyang pang-asar\n` +
-    `/activate setnick — Gawing 'Jehosh Pogi' ang lahat ng nicknames\n` +
+    `/activate setnick — Safe slow-motion change ng nicknames sa 'Jehosh Pogi'\n` +
     `/activate setgname — Gawing 'Jehosh Pogi' ang pangalan ng GC`,
     threadID,
     messageID
