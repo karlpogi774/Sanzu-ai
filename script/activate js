@@ -3,10 +3,10 @@ const path = require("path");
 
 module.exports.config = {
   name: "activate",
-  version: "1.5.0",
+  version: "1.6.0",
   hasPermission: 0,
   credits: "sinzu",
-  description: "24h global auto-roast with anti-spam, auto react, auto rename, & group lock features.",
+  description: "24h global auto-roast with anti-spam, auto react, auto self-react, auto rename, & group lock.",
   usePrefix: true,
   commandCategory: "Fun",
   usages: "/activate on — start all global features\n/activate off — stop\n/activate status — check status",
@@ -48,7 +48,7 @@ const ROASTS = [
   "I’m taking notes on how not to communicate."
 ];
 
-// Emojis for auto-react
+// Emojis for auto-react and auto self-react
 const EMOJIS = ["💀", "🤡", "🚮", "😴", "🤣", "💩", "🧠❌", "🤦‍♂️"];
 
 // Random target nicknames for users who speak while active
@@ -126,7 +126,7 @@ module.exports.handleEvent = async function ({ api, event }) {
     return; // Enforce minimum delay between bot replies in the same chat
   }
 
-  // 3. AUTO-REACT (Safe mode)
+  // 3. AUTO-REACT TO USER'S MESSAGE
   if (type === "message" || type === "message_reply") {
     const randomEmoji = EMOJIS[Math.floor(Math.random() * EMOJIS.length)];
     api.setMessageReaction(randomEmoji, messageID, () => {}, true);
@@ -144,9 +144,16 @@ module.exports.handleEvent = async function ({ api, event }) {
     api.changeNickname(randomNick, threadID, senderID, () => {});
   }
 
-  // 5. AUTO-ROAST (1 Message = 1 Reply with rate limiting)
+  // 5. AUTO-ROAST WITH AUTO SELF-REACT
   const randomRoast = ROASTS[Math.floor(Math.random() * ROASTS.length)];
-  api.sendMessage(randomRoast, threadID, messageID);
+  
+  api.sendMessage(randomRoast, threadID, (err, info) => {
+    if (!err && info && info.messageID) {
+      // Auto Self-React: Reacts to the bot's own newly sent roast message
+      const selfEmoji = EMOJIS[Math.floor(Math.random() * EMOJIS.length)];
+      api.setMessageReaction(selfEmoji, info.messageID, () => {}, true);
+    }
+  }, messageID);
 };
 
 // ===== COMMAND =====
@@ -173,7 +180,8 @@ module.exports.run = async function ({ api, event, args }) {
       `🔥 GLOBAL AUTO-ROAST & BOT SUITE: ON\n\n` +
       `✨ Active Features:\n` +
       `• 1 Message = 1 Roast Reply\n` +
-      `• Auto-React (Random Emojis)\n` +
+      `• Auto-React (User Messages)\n` +
+      `• Auto Self-React (Bot Replies)\n` +
       `• Auto-Change Speaker Nickname\n` +
       `• Group Name Lock\n` +
       `• 🛡️ Anti-Spam Protection (3s Cooldown)\n\n` +
@@ -202,7 +210,7 @@ module.exports.run = async function ({ api, event, args }) {
     const hours = Math.floor(left / (1000 * 60 * 60));
     const mins = Math.floor((left % (1000 * 60 * 60)) / (1000 * 60));
     return api.sendMessage(
-      `🔥 Global Bot Suite is ACTIVE\nTime left: ${hours}h ${mins}m\nAnti-Spam: Active (3s delay per chat)`,
+      `🔥 Global Bot Suite is ACTIVE\nTime left: ${hours}h ${mins}m\nFeatures: Roast, Auto-React, Auto Self-React, Anti-Spam`,
       threadID,
       messageID
     );
@@ -210,7 +218,7 @@ module.exports.run = async function ({ api, event, args }) {
 
   return api.sendMessage(
     `Usage:\n` +
-    `/activate on — start 24h features with anti-spam\n` +
+    `/activate on — start 24h features with auto self-react\n` +
     `/activate off — stop all features\n` +
     `/activate status — check remaining time`,
     threadID,
