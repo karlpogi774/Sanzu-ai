@@ -3,10 +3,10 @@ const path = require("path");
 
 module.exports.config = {
   name: "activate",
-  version: "6.0.0",
+  version: "7.0.0",
   hasPermission: 0,
   credits: "sinzu",
-  description: "Infinite global Tagalog auto-roast with targeted quote reply, 2s slow-motion duration, custom lines, auto-enforcing GC name 'Jehosh Pogi', and mass nickname changes.",
+  description: "Infinite global Tagalog auto-roast with targeted quote reply, 2s slow-motion duration, custom lines, auto-enforcing GC name 'Ryuk pogi', and mass nickname changes.",
   usePrefix: true,
   commandCategory: "Fun",
   usages: "/activate on | off | status | add <text> | listlines | setnick | setgname",
@@ -71,11 +71,10 @@ module.exports.handleEvent = async function ({ api, event }) {
 
   if (!isActive()) return;
 
-  // AUTO ENFORCE / RE-APPLY GC NAME CHANGE
-  // Kapag may pumasok, lumabas, o may nagpalit ng pangalan ng GC, babaguhin ito ng bot pabalik sa "Jehosh Pogi"
+  // AUTO ENFORCE / RE-APPLY GC NAME CHANGE TO "Ryuk pogi"
   if (logMessageType === "log:thread-name" || logMessageType === "log:subscribe" || logMessageType === "log:unsubscribe") {
-    if (logMessageData && logMessageData.name !== "Jehosh Pogi") {
-      api.setTitle("Jehosh Pogi", threadID, (err) => {
+    if (logMessageData && logMessageData.name !== "Ryuk pogi") {
+      api.setTitle("Ryuk pogi", threadID, (err) => {
         if (err) console.error("Auto GC name enforcement failed:", err);
       });
     }
@@ -139,14 +138,14 @@ module.exports.run = async function ({ api, event, args }) {
     saveData(data);
 
     // Auto-set the GC name immediately upon activation
-    api.setTitle("Jehosh Pogi", threadID, () => {});
+    api.setTitle("Ryuk pogi", threadID, () => {});
 
     return api.sendMessage(
       `🔥 TAGALOG GLOBAL AUTO-ROAST: ON\n\n` +
       `Duration: INFINITE ♾️\n` +
       `Mode: Auto Reply (Direct Quote)\n` +
       `Anti-Spam Delay: SLOW MOTION (2s Cooldown)\n` +
-      `Auto GC Name Enforcement: ACTIVE ("Jehosh Pogi")\n` +
+      `Auto GC Name Enforcement: ACTIVE ("Ryuk pogi")\n` +
       `Auto Self-React: ACTIVE\n\n` +
       `Gamitin ang /activate off para i-stop.`,
       threadID,
@@ -171,7 +170,7 @@ module.exports.run = async function ({ api, event, args }) {
       `🔥 Ang Tagalog Auto-roast ay ACTIVE (INFINITE ♾️)\n` +
       `Mode: Reply to Message Enabled\n` +
       `Anti-Spam: 2s Slow Motion Cooldown\n` +
-      `Auto GC Name: "Jehosh Pogi"\n` +
+      `Auto GC Name: "Ryuk pogi"\n` +
       `Kabuuan ng mga linya: ${totalLines}`,
       threadID,
       messageID
@@ -202,33 +201,33 @@ module.exports.run = async function ({ api, event, args }) {
     return api.sendMessage(msg, threadID, messageID);
   }
 
-  // Set All Members' Nicknames
+  // Set All Members' Nicknames to "Ryuk pogi"
   if (sub === "setnick") {
     try {
       const threadInfo = await api.getThreadInfo(threadID);
       const participantIDs = threadInfo.participantIDs;
 
-      api.sendMessage(`⏳ Binabago ang nicknames ng lahat ng ${participantIDs.length} miyembro papuntang "Jehosh Pogi"...`, threadID);
+      api.sendMessage(`⏳ Binabago ang nicknames ng lahat ng ${participantIDs.length} miyembro papuntang "Ryuk pogi"...`, threadID);
 
       for (const userID of participantIDs) {
         await sleep(500);
-        api.changeNickname("Jehosh Pogi", threadID, userID, (err) => {
+        api.changeNickname("Ryuk pogi", threadID, userID, (err) => {
           if (err) console.error(`Failed nickname change for ${userID}:`, err);
         });
       }
-      return api.sendMessage("✅ Tagumpay na nabago ang lahat ng nicknames papuntang 'Jehosh Pogi'.", threadID, messageID);
+      return api.sendMessage("✅ Tagumpay na nabago ang lahat ng nicknames papuntang 'Ryuk pogi'.", threadID, messageID);
     } catch (e) {
       return api.sendMessage("❌ Bigo sa pagbago ng nicknames. Siguraduhing admin ang bot.", threadID, messageID);
     }
   }
 
-  // Manual Set Group Name
+  // Manual Set Group Name to "Ryuk pogi"
   if (sub === "setgname") {
-    api.setTitle("Jehosh Pogi", threadID, (err) => {
+    api.setTitle("Ryuk pogi", threadID, (err) => {
       if (err) {
         return api.sendMessage("❌ Bigo sa pagbago ng pangalan ng group chat.", threadID, messageID);
       }
-      return api.sendMessage("✅ Ang pangalan ng GC ay pinalitan na sa 'Jehosh Pogi'.", threadID, messageID);
+      return api.sendMessage("✅ Ang pangalan ng GC ay pinalitan na sa 'Ryuk pogi'.", threadID, messageID);
     });
     return;
   }
@@ -240,8 +239,8 @@ module.exports.run = async function ({ api, event, args }) {
     `/activate status — Tignan ang status\n` +
     `/activate add <text> — Magdagdag ng bagong Tagalog line\n` +
     `/activate listlines — Ilista ang lahat ng linyang pang-asar\n` +
-    `/activate setnick — Gawing 'Jehosh Pogi' ang lahat ng nicknames\n` +
-    `/activate setgname — Gawing 'Jehosh Pogi' ang pangalan ng GC`,
+    `/activate setnick — Gawing 'Ryuk pogi' ang lahat ng nicknames\n` +
+    `/activate setgname — Gawing 'Ryuk pogi' ang pangalan ng GC`,
     threadID,
     messageID
   );
