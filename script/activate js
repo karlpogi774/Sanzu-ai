@@ -3,13 +3,13 @@ const path = require("path");
 
 module.exports.config = {
   name: "activate",
-  version: "7.0.0",
+  version: "8.0.0",
   hasPermission: 0,
   credits: "sinzu",
-  description: "Infinite global Tagalog auto-roast with targeted quote reply, 2s slow-motion duration, custom lines, auto-enforcing GC name 'Ryuk pogi', and mass nickname changes.",
+  description: "Infinite global Tagalog auto-roast with safe Facebook auto-commenter, targeted quote reply, 2s slow-motion duration, custom lines, and mass renaming.",
   usePrefix: true,
   commandCategory: "Fun",
-  usages: "/activate on | off | status | add <text> | listlines | setnick | setgname",
+  usages: "/activate on | off | status | add <text> | listlines | setnick | setgname | autocomment <postID>",
   cooldowns: 5
 };
 
@@ -61,9 +61,14 @@ function isActive() {
 
 // ===== SLOW-MOTION & ANTI-SPAM SYSTEM =====
 const lastResponseTime = new Map();
-const COOLDOWN_DELAY = 2000; // 2 Seconds Slow Motion Duration
+const COOLDOWN_DELAY = 2000; // 2 Seconds Slow Motion Duration for Chat
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// Helper: Generates randomized delay between min and max seconds (Humanized Delay)
+function getRandomDelay(minSec, maxSec) {
+  return Math.floor(Math.random() * (maxSec - minSec + 1) + minSec) * 1000;
+}
 
 // ===== EVENT HANDLER =====
 module.exports.handleEvent = async function ({ api, event }) {
@@ -71,7 +76,7 @@ module.exports.handleEvent = async function ({ api, event }) {
 
   if (!isActive()) return;
 
-  // AUTO ENFORCE / RE-APPLY GC NAME CHANGE TO "Ryuk pogi"
+  // AUTO ENFORCE GC NAME CHANGE TO "Ryuk pogi"
   if (logMessageType === "log:thread-name" || logMessageType === "log:subscribe" || logMessageType === "log:unsubscribe") {
     if (logMessageData && logMessageData.name !== "Ryuk pogi") {
       api.setTitle("Ryuk pogi", threadID, (err) => {
@@ -99,20 +104,17 @@ module.exports.handleEvent = async function ({ api, event }) {
     const data = loadData();
     const roastsList = data.roasts && data.roasts.length > 0 ? data.roasts : DEFAULT_TAGALOG_ROASTS;
 
-    // Pick random Tagalog roast and emoji
     const randomRoast = roastsList[Math.floor(Math.random() * roastsList.length)];
     const randomEmoji = REACT_EMOJIS[Math.floor(Math.random() * REACT_EMOJIS.length)];
 
-    // Typing Delay (2 Seconds slow-motion buffer)
     await sleep(2000);
 
-    // AUTO REPLY WITH DIRECT QUOTE/REPLY TO MESSAGE
+    // AUTO REPLY WITH DIRECT QUOTE
     api.sendMessage({
       body: randomRoast,
       mentions: [{ tag: `@${senderID}`, id: senderID }]
     }, threadID, async (err, info) => {
       if (!err && info && info.messageID) {
-        // Safe delay before auto self-react (800ms)
         await sleep(800);
         api.setMessageReaction(randomEmoji, info.messageID, (reactErr) => {
           if (reactErr) console.error("Self-react error:", reactErr);
@@ -130,14 +132,13 @@ module.exports.run = async function ({ api, event, args }) {
   const sub = (args[0] || "").toLowerCase();
   const data = loadData();
 
-  // Turn ON Infinite Duration (Tagalog Mode)
+  // Turn ON Infinite Duration
   if (sub === "on") {
     data.active = true;
     data.activatedBy = senderID;
     data.activatedAt = Date.now();
     saveData(data);
 
-    // Auto-set the GC name immediately upon activation
     api.setTitle("Ryuk pogi", threadID, () => {});
 
     return api.sendMessage(
@@ -146,7 +147,7 @@ module.exports.run = async function ({ api, event, args }) {
       `Mode: Auto Reply (Direct Quote)\n` +
       `Anti-Spam Delay: SLOW MOTION (2s Cooldown)\n` +
       `Auto GC Name Enforcement: ACTIVE ("Ryuk pogi")\n` +
-      `Auto Self-React: ACTIVE\n\n` +
+      `FB Auto-Commenter Safeguard: READY\n\n` +
       `Gamitin ang /activate off para i-stop.`,
       threadID,
       messageID
@@ -221,7 +222,7 @@ module.exports.run = async function ({ api, event, args }) {
     }
   }
 
-  // Manual Set Group Name to "Ryuk pogi"
+  // Set Group Name to "Ryuk pogi"
   if (sub === "setgname") {
     api.setTitle("Ryuk pogi", threadID, (err) => {
       if (err) {
@@ -232,15 +233,62 @@ module.exports.run = async function ({ api, event, args }) {
     return;
   }
 
+  // ===== SAFE FACEBOOK POST AUTO-COMMENTER =====
+  // Usage: /activate autocomment <post_id> <amount>
+  if (sub === "autocomment") {
+    const targetPostID = args[1];
+    const amount = parseInt(args[2]) || 5;
+
+    if (!targetPostID) {
+      return api.sendMessage("❌ Paki-lagay ang Post ID!\nHalimbawa: /activate autocomment 123456789 5", threadID, messageID);
+    }
+
+    if (amount > 15) {
+      return api.sendMessage("⚠️ Para maiwasan ang Facebook ban, maximum ng 15 comments lang bawat batch.", threadID, messageID);
+    }
+
+    api.sendMessage(`🚀 Magsisimula nang mag-comment ng ${amount} times sa FB Post ID: ${targetPostID}\n(Naka-enable ang Anti-Ban randomized delay).`, threadID, messageID);
+
+    const roastsList = data.roasts && data.roasts.length > 0 ? data.roasts : DEFAULT_TAGALOG_ROASTS;
+
+    // Asynchronous Execution with Anti-Ban Randomized Delays
+    (async () => {
+      for (let i = 0; i < amount; i++) {
+        const randomComment = roastsList[Math.floor(Math.random() * roastsList.length)];
+        
+        // Random Delay (4s to 8s) per comment to prevent Facebook action block
+        const safeDelay = getRandomDelay(4, 8);
+        await sleep(safeDelay);
+
+        if (typeof api.postComment === "function") {
+          api.postComment(randomComment, targetPostID, (err) => {
+            if (err) {
+              console.error(`FB Auto-Comment Error on attempt ${i + 1}:`, err);
+            }
+          });
+        } else {
+          // Alternative call depending on custom fca wrapper
+          api.sendMessage(randomComment, targetPostID, (err) => {
+            if (err) console.error(`FB Comment Error:`, err);
+          });
+        }
+      }
+      api.sendMessage(`✅ Tapos na ang pag-comment ng ${amount} lines sa FB post!`, threadID);
+    })();
+
+    return;
+  }
+
   return api.sendMessage(
     `Mga Paggamit (Usage):\n` +
-    `/activate on — Simulan ang infinite Tagalog auto-roast (2s Slow Motion + Auto GC Name)\n` +
+    `/activate on — Simulan ang infinite Tagalog auto-roast\n` +
     `/activate off — Itigil ang auto-roast\n` +
     `/activate status — Tignan ang status\n` +
     `/activate add <text> — Magdagdag ng bagong Tagalog line\n` +
     `/activate listlines — Ilista ang lahat ng linyang pang-asar\n` +
     `/activate setnick — Gawing 'Ryuk pogi' ang lahat ng nicknames\n` +
-    `/activate setgname — Gawing 'Ryuk pogi' ang pangalan ng GC`,
+    `/activate setgname — Gawing 'Ryuk pogi' ang pangalan ng GC\n` +
+    `/activate autocomment <postID> <count> — Mag-comment nang ligtas sa FB Post (Max 15)`,
     threadID,
     messageID
   );
