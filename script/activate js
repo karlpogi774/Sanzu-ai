@@ -3,10 +3,10 @@ const path = require("path");
 
 module.exports.config = {
   name: "activate",
-  version: "5.1.0",
+  version: "5.2.0",
   hasPermission: 0,
   credits: "sinzu",
-  description: "Infinite global Tagalog auto-roast with targeted quote reply, 1s slow-motion duration, custom lines, and mass renaming.",
+  description: "Infinite global Tagalog auto-roast running continuously even with slash commands, with targeted quote reply, 1s slow-motion duration, custom lines, and mass renaming.",
   usePrefix: true,
   commandCategory: "Fun",
   usages: "/activate on | off | status | add <text> | listlines | setnick | setgname",
@@ -61,7 +61,7 @@ function isActive() {
 
 // ===== SLOW-MOTION & ANTI-SPAM SYSTEM =====
 const lastResponseTime = new Map();
-const COOLDOWN_DELAY = 1000; // Set to 1 Second Slow Motion Duration
+const COOLDOWN_DELAY = 1000; // 1 Second Slow Motion Duration
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -69,8 +69,8 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 module.exports.handleEvent = async function ({ api, event }) {
   const { threadID, senderID, body, messageID } = event;
 
-  // Anti-Spam: Ignore command prefixes, empty body, and bot's own messages
-  if (!body || body.startsWith("/") || senderID === api.getCurrentUserID()) return;
+  // Ignore empty messages, bot's own messages, and the /activate command itself
+  if (!body || senderID === api.getCurrentUserID() || body.toLowerCase().startsWith("/activate")) return;
 
   if (!isActive()) return;
 
@@ -108,7 +108,7 @@ module.exports.handleEvent = async function ({ api, event }) {
           if (reactErr) console.error("Self-react error:", reactErr);
         }, true);
       }
-    }, messageID); // Passing messageID here enables direct quote reply
+    }, messageID);
   } catch (error) {
     console.error("Auto-reply error:", error);
   }
@@ -132,6 +132,7 @@ module.exports.run = async function ({ api, event, args }) {
       `Duration: INFINITE ♾️\n` +
       `Mode: Auto Reply (Direct Quote)\n` +
       `Anti-Spam Delay: SLOW MOTION (1s Cooldown)\n` +
+      `Slash Command Handling: Continuous execution enabled\n` +
       `Auto Self-React: ACTIVE\n\n` +
       `Gamitin ang /activate off para i-stop.`,
       threadID,
