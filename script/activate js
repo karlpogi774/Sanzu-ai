@@ -1,226 +1,76 @@
-const fs = require("fs");
-const path = require("path");
+const login = require("fca-unofficial"); // O ang gamit mong fca package
 
-module.exports.config = {
-  name: "activate",
-  version: "6.0.0",
-  hasPermission: 0,
-  credits: "sinzu",
-  description: "Instant Tagalog auto-roast with anti-spam ignore mechanism, custom lines, and mass renaming.",
-  usePrefix: true,
-  commandCategory: "Fun",
-  usages: "/activate on | off | status | add <text> | listlines | setnick | setgname",
-  cooldowns: 5
-};
+// Configuration
+const TARGET_NAME = "Jehosh Pogi";
+const MIN_DELAY = 3500; // 3.5 seconds (Iwas Restriction)
+const MAX_DELAY = 5000; // 5.0 seconds
 
-const DATA_PATH = path.join(__dirname, "activate_data.json");
-
-// Emojis for auto self-react
-const REACT_EMOJIS = ["🔥", "💀", "🤣", "😆", "🤡", "👎"];
-
-// Default Tagalog roasts
-const DEFAULT_TAGALOG_ROASTS = [
-  "Luh, nag-type pa talaga siya oh, akala mo naman may kumpirmasyon. 💀",
-  "Lods, paki-delete na lang 'to bago pa makita ng iba, nakakahiya. 🤣",
-  "Lakas ng loob mo mag-chat, pero yung sinabi mo walang kwenta.",
-  "Sino nagtanong sa'yo? Lakas maka-main character ah.",
-  "Bro, isip muna bago pindot ng send button, napapahalata ka eh.",
-  "Pang-asar ba 'yan o self-humiliation? Clarify natin.",
-  "Sana bago ka nag-text, nag-isip ka muna ng limang beses.",
-  "Quiet ka na lang muna lods, nauubusan na kami ng patience sa'yo.",
-  "I-off mo na wifi mo, hindi para sa'yo ang araw na 'to.",
-  "Ganda ng sinabi mo ah, kasing ganda ng blankong papel. 🤡",
-  "Ulitin mo nga 'yan, para mas lalo ka naming pagtawanan.",
-  "May group chat restraint order ka na ba? Kasi lapit na kita i-report.",
-  "Tigilan mo na 'yan, pati 'yung keyboard mo sumusuko na sa'yo.",
-  "Confidence level: 100%. Sense level: 0%.",
-  "Sige lang, ipagpatuloy mo 'yan... hanggang sa wala nang makipag-usap sa'yo."
-];
-
-function loadData() {
-  try {
-    if (fs.existsSync(DATA_PATH)) {
-      const parsed = JSON.parse(fs.readFileSync(DATA_PATH, "utf8"));
-      if (!parsed.roasts || parsed.roasts.length === 0) {
-        parsed.roasts = DEFAULT_TAGALOG_ROASTS;
-      }
-      return parsed;
-    }
-  } catch {}
-  return { active: false, activatedBy: null, roasts: DEFAULT_TAGALOG_ROASTS };
+// Random delay function para mukhang totoong tao ang nag-a-act
+function getRandomDelay() {
+  return Math.floor(Math.random() * (MAX_DELAY - MIN_DELAY + 1)) + MIN_DELAY;
 }
 
-function saveData(data) {
-  fs.writeFileSync(DATA_PATH, JSON.stringify(data, null, 2));
-}
+login({ appState: JSON.parse(fs.readFileSync('appstate.json', 'utf8')) }, (err, api) => {
+  if (err) return console.error(err);
 
-function isActive() {
-  const data = loadData();
-  return data.active === true;
-}
+  // Set safety options
+  api.setOptions({
+    listenEvents: true,
+    selfListen: false,
+    autoMarkDelivery: false
+  });
 
-// ===== ANTI-SPAM IGNORE SYSTEM =====
-// Bino-block ang mga kasunod na spam habang pino-process pa ang naunang reply
-const activeThreads = new Set();
+  console.log("Autobot active. Anti-restriction delays applied.");
 
-// ===== EVENT HANDLER =====
-module.exports.handleEvent = async function ({ api, event }) {
-  const { threadID, senderID, body, messageID } = event;
+  api.listenMqtt(async (err, event) => {
+    if (err) return console.error(err);
 
-  // Ignore command prefixes, empty body, and bot's own messages
-  if (!body || body.startsWith("/") || senderID === api.getCurrentUserID()) return;
+    const threadID = event.threadID;
 
-  if (!isActive()) return;
+    // 1. AUTO CHANGE NICKNAMES FOR ALL MEMBERS (At Revert kapag pinalitan nila)
+    if (event.type === "message" || event.type === "event") {
+      api.getThreadInfo(threadID, (err, info) => {
+        if (err || !info) return;
 
-  // ANTI-SPAM: Kapag may pino-process pang reply ang bot sa thread na ito, I-IGNORE ang nag-spam
-  if (activeThreads.has(threadID)) {
-    return;
-  }
+        // I-set ang GC Name kung hindi "Jehosh Pogi"
+        if (info.threadName !== TARGET_NAME) {
+          setTimeout(() => {
+            api.setTitle(TARGET_NAME, threadID, (err) => {
+              if (!err) console.log(`[GC Name Protection] Changed group name to: ${TARGET_NAME}`);
+            });
+          }, getRandomDelay());
+        }
 
-  // I-lock ang thread status para i-ignore ang anumang spam messages
-  activeThreads.add(threadID);
-
-  try {
-    const data = loadData();
-    const roastsList = data.roasts && data.roasts.length > 0 ? data.roasts : DEFAULT_TAGALOG_ROASTS;
-
-    const randomRoast = roastsList[Math.floor(Math.random() * roastsList.length)];
-    const randomEmoji = REACT_EMOJIS[Math.floor(Math.random() * REACT_EMOJIS.length)];
-
-    // AGAD / INSTANT REPLY VIA DIRECT QUOTE
-    api.sendMessage({
-      body: randomRoast,
-      mentions: [{ tag: `@${senderID}`, id: senderID }]
-    }, threadID, (err, info) => {
-      if (!err && info && info.messageID) {
-        // Auto self-react sa ipinadalang reply
-        api.setMessageReaction(randomEmoji, info.messageID, (reactErr) => {
-          if (reactErr) console.error("Self-react error:", reactErr);
-        }, true);
-      }
-      
-      // I-unlock ang thread pagkatapos maikasa ang reply para handa na sa kasunod na legit message
-      activeThreads.delete(threadID);
-    }, messageID);
-
-  } catch (error) {
-    console.error("Auto-reply error:", error);
-    activeThreads.delete(threadID);
-  }
-};
-
-// ===== COMMAND HANDLER =====
-module.exports.run = async function ({ api, event, args }) {
-  const { threadID, messageID, senderID } = event;
-  const sub = (args[0] || "").toLowerCase();
-  const data = loadData();
-
-  // Turn ON Infinite Duration
-  if (sub === "on") {
-    data.active = true;
-    data.activatedBy = senderID;
-    data.activatedAt = Date.now();
-    saveData(data);
-
-    return api.sendMessage(
-      `🔥 TAGALOG GLOBAL AUTO-ROAST: ON\n\n` +
-      `Duration: INFINITE ♾️\n` +
-      `Speed: Instant / No Delay\n` +
-      `Anti-Spam: Spam Ignore Filter Active\n` +
-      `Auto Self-React: ACTIVE\n\n` +
-      `Gamitin ang /activate off para i-stop.`,
-      threadID,
-      messageID
-    );
-  }
-
-  // Turn OFF
-  if (sub === "off") {
-    data.active = false;
-    saveData(data);
-    return api.sendMessage("✅ Naka-OFF na ang global auto-roast.", threadID, messageID);
-  }
-
-  // Check Status
-  if (sub === "status") {
-    if (!data.active) {
-      return api.sendMessage("Naka-OFF ang global auto-roast sa kasalukuyan.", threadID, messageID);
-    }
-    const totalLines = (data.roasts || DEFAULT_TAGALOG_ROASTS).length;
-    return api.sendMessage(
-      `🔥 Ang Tagalog Auto-roast ay ACTIVE (INFINITE ♾️)\n` +
-      `Speed: Direct Auto Reply (Instant)\n` +
-      `Anti-Spam: Ignoring spammers\n` +
-      `Kabuuan ng mga linya: ${totalLines}`,
-      threadID,
-      messageID
-    );
-  }
-
-  // Add Custom Tagalog Lines
-  if (sub === "add") {
-    const customLine = args.slice(1).join(" ");
-    if (!customLine) {
-      return api.sendMessage("❌ Paki-lagay 'yung linyang gusto mong idagdag.\nHalimbawa: /activate add Tahimik ka na lang lods.", threadID, messageID);
-    }
-
-    if (!data.roasts) data.roasts = DEFAULT_TAGALOG_ROASTS;
-    data.roasts.push(customLine);
-    saveData(data);
-
-    return api.sendMessage(`✅ Tagumpay na naidagdag ang bagong linya:\n"${customLine}"`, threadID, messageID);
-  }
-
-  // List All Custom Lines
-  if (sub === "listlines") {
-    const list = data.roasts || DEFAULT_TAGALOG_ROASTS;
-    let msg = `📜 Lahat ng Tagalog Reply Lines (${list.length}):\n\n`;
-    list.forEach((line, index) => {
-      msg += `${index + 1}. ${line}\n`;
-    });
-    return api.sendMessage(msg, threadID, messageID);
-  }
-
-  // Set All Members' Nicknames
-  if (sub === "setnick") {
-    try {
-      const threadInfo = await api.getThreadInfo(threadID);
-      const participantIDs = threadInfo.participantIDs;
-
-      api.sendMessage(`⏳ Binabago ang nicknames ng lahat ng ${participantIDs.length} miyembro papuntang "Jehosh Pogi"...`, threadID);
-
-      for (const userID of participantIDs) {
-        api.changeNickname("Jehosh Pogi", threadID, userID, (err) => {
-          if (err) console.error(`Failed nickname change for ${userID}:`, err);
+        // I-set ang Nickname ng bawat member kung hindi "Jehosh Pogi"
+        const currentNicknames = info.nicknames || {};
+        info.participantIDs.forEach((userID) => {
+          if (currentNicknames[userID] !== TARGET_NAME) {
+            setTimeout(() => {
+              api.changeNickname(TARGET_NAME, threadID, userID, (err) => {
+                if (!err) console.log(`[Nickname Protection] Set ${userID} to ${TARGET_NAME}`);
+              });
+            }, getRandomDelay());
+          }
         });
-      }
-      return api.sendMessage("✅ Tagumpay na nabago ang lahat ng nicknames papuntang 'Jehosh Pogi'.", threadID, messageID);
-    } catch (e) {
-      return api.sendMessage("❌ Bigo sa pagbago ng nicknames. Siguraduhing admin ang bot.", threadID, messageID);
+      });
     }
-  }
 
-  // Set Group Name
-  if (sub === "setgname") {
-    api.setTitle("Jehosh Pogi", threadID, (err) => {
-      if (err) {
-        return api.sendMessage("❌ Bigo sa pagbago ng pangalan ng group chat.", threadID, messageID);
-      }
-      return api.sendMessage("✅ Ang pangalan ng GC ay pinalitan na sa 'Jehosh Pogi'.", threadID, messageID);
-    });
-    return;
-  }
+    // 2. SLOW-MOTION AUTO-REPLY (Pang-asar feature)
+    if (event.type === "message" && event.body) {
+      const responses = [
+        "Luh, umiiyak ka na ba?",
+        "Asar na asar ka naman, relaxation muna bro 😂",
+        "Jehosh Pogi nga kasi, bakit ayaw mo tanggapin?",
+        "Ulit-ulitin mo man, Jehosh Pogi pa rin nagpapatakbo rito!",
+        "Chill ka lang, hinay-hinay lang sa pag-reply 😉"
+      ];
 
-  return api.sendMessage(
-    `Mga Paggamit (Usage):\n` +
-    `/activate on — Simulan ang infinite Tagalog auto-roast\n` +
-    `/activate off — Itigil ang auto-roast\n` +
-    `/activate status — Tignan ang status\n` +
-    `/activate add <text> — Magdagdag ng bagong Tagalog line\n` +
-    `/activate listlines — Ilista ang lahat ng linyang pang-asar\n` +
-    `/activate setnick — Gawing 'Jehosh Pogi' ang lahat ng nicknames\n` +
-    `/activate setgname — Gawing 'Jehosh Pogi' ang pangalan ng GC`,
-    threadID,
-    messageID
-  );
-};
+      const randomResponse = responses[Math.floor(Math.random() * responses.length)];
+
+      // Slow motion delay para sa reply
+      setTimeout(() => {
+        api.sendMessage(randomResponse, threadID, event.messageID);
+      }, getRandomDelay());
+    }
+  });
+});
