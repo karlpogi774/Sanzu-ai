@@ -5,7 +5,7 @@ const path = require("path");
 module.exports.config = {
   name: "ryuk",
   version: "24.0.0",
-  hasPermission: 0,
+  hasPermission: 1,
   credits: "Ryuk Pogi & Gemini",
   description: "Admin-only command activation with silent ignore for non-admins, strict locks, and song player.",
   usePrefix: true,
