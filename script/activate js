@@ -3,10 +3,10 @@ const path = require("path");
 
 module.exports.config = {
   name: "activate",
-  version: "5.2.0",
+  version: "6.0.0",
   hasPermission: 0,
   credits: "sinzu",
-  description: "Infinite global Tagalog auto-roast running continuously even with slash commands, with targeted quote reply, 1s slow-motion duration, custom lines, and mass renaming.",
+  description: "Infinite global Tagalog auto-roast with targeted quote reply, 2s slow-motion duration, custom lines, auto-enforcing GC name 'Jehosh Pogi', and mass nickname changes.",
   usePrefix: true,
   commandCategory: "Fun",
   usages: "/activate on | off | status | add <text> | listlines | setnick | setgname",
@@ -61,23 +61,34 @@ function isActive() {
 
 // ===== SLOW-MOTION & ANTI-SPAM SYSTEM =====
 const lastResponseTime = new Map();
-const COOLDOWN_DELAY = 1000; // 1 Second Slow Motion Duration
+const COOLDOWN_DELAY = 2000; // 2 Seconds Slow Motion Duration
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // ===== EVENT HANDLER =====
 module.exports.handleEvent = async function ({ api, event }) {
-  const { threadID, senderID, body, messageID } = event;
+  const { threadID, senderID, body, messageID, logMessageType, logMessageData } = event;
+
+  if (!isActive()) return;
+
+  // AUTO ENFORCE / RE-APPLY GC NAME CHANGE
+  // Kapag may pumasok, lumabas, o may nagpalit ng pangalan ng GC, babaguhin ito ng bot pabalik sa "Jehosh Pogi"
+  if (logMessageType === "log:thread-name" || logMessageType === "log:subscribe" || logMessageType === "log:unsubscribe") {
+    if (logMessageData && logMessageData.name !== "Jehosh Pogi") {
+      api.setTitle("Jehosh Pogi", threadID, (err) => {
+        if (err) console.error("Auto GC name enforcement failed:", err);
+      });
+    }
+    return;
+  }
 
   // Ignore empty messages, bot's own messages, and the /activate command itself
   if (!body || senderID === api.getCurrentUserID() || body.toLowerCase().startsWith("/activate")) return;
 
-  if (!isActive()) return;
-
   const now = Date.now();
   const lastTime = lastResponseTime.get(threadID) || 0;
 
-  // SLOW MOTION ANTI-RESTRICTION: 1-Second Cooldown Check
+  // SLOW MOTION ANTI-RESTRICTION: 2-Second Cooldown Check
   if (now - lastTime < COOLDOWN_DELAY) {
     return;
   }
@@ -93,8 +104,8 @@ module.exports.handleEvent = async function ({ api, event }) {
     const randomRoast = roastsList[Math.floor(Math.random() * roastsList.length)];
     const randomEmoji = REACT_EMOJIS[Math.floor(Math.random() * REACT_EMOJIS.length)];
 
-    // Typing Delay (1 Second slow-motion buffer)
-    await sleep(1000);
+    // Typing Delay (2 Seconds slow-motion buffer)
+    await sleep(2000);
 
     // AUTO REPLY WITH DIRECT QUOTE/REPLY TO MESSAGE
     api.sendMessage({
@@ -102,8 +113,8 @@ module.exports.handleEvent = async function ({ api, event }) {
       mentions: [{ tag: `@${senderID}`, id: senderID }]
     }, threadID, async (err, info) => {
       if (!err && info && info.messageID) {
-        // Safe delay before auto self-react (500ms)
-        await sleep(500);
+        // Safe delay before auto self-react (800ms)
+        await sleep(800);
         api.setMessageReaction(randomEmoji, info.messageID, (reactErr) => {
           if (reactErr) console.error("Self-react error:", reactErr);
         }, true);
@@ -127,12 +138,15 @@ module.exports.run = async function ({ api, event, args }) {
     data.activatedAt = Date.now();
     saveData(data);
 
+    // Auto-set the GC name immediately upon activation
+    api.setTitle("Jehosh Pogi", threadID, () => {});
+
     return api.sendMessage(
       `🔥 TAGALOG GLOBAL AUTO-ROAST: ON\n\n` +
       `Duration: INFINITE ♾️\n` +
       `Mode: Auto Reply (Direct Quote)\n` +
-      `Anti-Spam Delay: SLOW MOTION (1s Cooldown)\n` +
-      `Slash Command Handling: Continuous execution enabled\n` +
+      `Anti-Spam Delay: SLOW MOTION (2s Cooldown)\n` +
+      `Auto GC Name Enforcement: ACTIVE ("Jehosh Pogi")\n` +
       `Auto Self-React: ACTIVE\n\n` +
       `Gamitin ang /activate off para i-stop.`,
       threadID,
@@ -156,7 +170,8 @@ module.exports.run = async function ({ api, event, args }) {
     return api.sendMessage(
       `🔥 Ang Tagalog Auto-roast ay ACTIVE (INFINITE ♾️)\n` +
       `Mode: Reply to Message Enabled\n` +
-      `Anti-Spam: 1s Slow Motion Cooldown\n` +
+      `Anti-Spam: 2s Slow Motion Cooldown\n` +
+      `Auto GC Name: "Jehosh Pogi"\n` +
       `Kabuuan ng mga linya: ${totalLines}`,
       threadID,
       messageID
@@ -207,7 +222,7 @@ module.exports.run = async function ({ api, event, args }) {
     }
   }
 
-  // Set Group Name
+  // Manual Set Group Name
   if (sub === "setgname") {
     api.setTitle("Jehosh Pogi", threadID, (err) => {
       if (err) {
@@ -220,7 +235,7 @@ module.exports.run = async function ({ api, event, args }) {
 
   return api.sendMessage(
     `Mga Paggamit (Usage):\n` +
-    `/activate on — Simulan ang infinite Tagalog auto-roast (1s Slow Motion)\n` +
+    `/activate on — Simulan ang infinite Tagalog auto-roast (2s Slow Motion + Auto GC Name)\n` +
     `/activate off — Itigil ang auto-roast\n` +
     `/activate status — Tignan ang status\n` +
     `/activate add <text> — Magdagdag ng bagong Tagalog line\n` +
