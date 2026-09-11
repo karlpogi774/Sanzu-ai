@@ -3,13 +3,13 @@ const path = require("path");
 
 module.exports.config = {
   name: "activate",
-  version: "2.0.0",
+  version: "3.0.0",
   hasPermission: 0,
   credits: "sinzu",
-  description: "Infinite global auto-roast with nickname/group manager, anti-spam, and self-react.",
+  description: "Infinite auto-roast with slow-motion anti-spam protection, custom line management, and mass renaming.",
   usePrefix: true,
   commandCategory: "Fun",
-  usages: "/activate on | off | status | setnick | setgname",
+  usages: "/activate on | off | status | add <text> | listlines | setnick | setgname",
   cooldowns: 5
 };
 
@@ -18,8 +18,8 @@ const DATA_PATH = path.join(__dirname, "activate_data.json");
 // Emojis for auto self-react
 const REACT_EMOJIS = ["🔥", "💀", "🤣", "😆", "🤡", "👎"];
 
-// English roasts
-const ROASTS = [
+// Default English roasts
+const DEFAULT_ROASTS = [
   "Bro really thought that message was necessary 💀",
   "The confidence… the delusion… unmatched.",
   "Say less, we already lost brain cells reading that.",
@@ -45,10 +45,14 @@ const ROASTS = [
 function loadData() {
   try {
     if (fs.existsSync(DATA_PATH)) {
-      return JSON.parse(fs.readFileSync(DATA_PATH, "utf8"));
+      const parsed = JSON.parse(fs.readFileSync(DATA_PATH, "utf8"));
+      if (!parsed.roasts || parsed.roasts.length === 0) {
+        parsed.roasts = DEFAULT_ROASTS;
+      }
+      return parsed;
     }
   } catch {}
-  return { active: false, activatedBy: null };
+  return { active: false, activatedBy: null, roasts: DEFAULT_ROASTS };
 }
 
 function saveData(data) {
@@ -60,40 +64,57 @@ function isActive() {
   return data.active === true;
 }
 
-// Anti-spam tracker (preventing simultaneous execution overlapping)
-const isProcessing = new Set();
+// ===== SLOW-MOTION & ANTI-SPAM SYSTEM =====
+// Tracks last response timestamp per thread to prevent rapid-fire triggers
+const lastResponseTime = new Map();
+const COOLDOWN_DELAY = 5000; // 5 Seconds delay (Slow Motion Mode)
+
+// Helper function for artificial delay
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // ===== EVENT HANDLER =====
 module.exports.handleEvent = async function ({ api, event }) {
   const { threadID, senderID, body } = event;
 
-  // Anti-Spam & Validation: Ignore bot's messages, commands, and empty body
+  // Ignore empty messages, command prefixes, and bot's own messages
   if (!body || body.startsWith("/") || senderID === api.getCurrentUserID()) return;
 
   if (!isActive()) return;
 
-  // Anti-Spam: Block if thread is currently receiving a roast batch
-  if (isProcessing.has(threadID)) return;
-  isProcessing.add(threadID);
+  const now = Date.now();
+  const lastTime = lastResponseTime.get(threadID) || 0;
+
+  // SLOW MOTION ANTI-RESTRICTION: Ignore messages sent within the cooldown window
+  if (now - lastTime < COOLDOWN_DELAY) {
+    return;
+  }
+
+  // Update timestamp immediately to lock other incoming triggers
+  lastResponseTime.set(threadID, now);
 
   try {
-    // Select 1 random roast (Anti-Spam 1-reply design)
-    const randomRoast = ROASTS[Math.floor(Math.random() * ROASTS.length)];
+    const data = loadData();
+    const roastsList = data.roasts && data.roasts.length > 0 ? data.roasts : DEFAULT_ROASTS;
+
+    // Pick 1 random line
+    const randomRoast = roastsList[Math.floor(Math.random() * roastsList.length)];
     const randomEmoji = REACT_EMOJIS[Math.floor(Math.random() * REACT_EMOJIS.length)];
 
-    api.sendMessage(randomRoast, threadID, (err, info) => {
+    // Human-like delay (Slow motion effect: Wait 1 to 2.5 seconds before replying)
+    const typingDelay = Math.floor(Math.random() * 1500) + 1000;
+    await sleep(typingDelay);
+
+    api.sendMessage(randomRoast, threadID, async (err, info) => {
       if (!err && info && info.messageID) {
-        // Auto self-react to the sent message
+        // Human-like delay before reacting (800ms) to avoid bot detection rate limits
+        await sleep(800);
         api.setMessageReaction(randomEmoji, info.messageID, (reactErr) => {
           if (reactErr) console.error("Self-react error:", reactErr);
         }, true);
       }
-      // Release lock after message delivery
-      isProcessing.delete(threadID);
     });
   } catch (error) {
-    console.error("Auto-roast error:", error);
-    isProcessing.delete(threadID);
+    console.error("Auto-reply error:", error);
   }
 };
 
@@ -113,7 +134,8 @@ module.exports.run = async function ({ api, event, args }) {
     return api.sendMessage(
       `🔥 GLOBAL AUTO-ROAST: ON\n\n` +
       `Duration: INFINITE ♾️\n` +
-      `Features: Anti-spam enabled & Auto self-react active.\n` +
+      `Anti-Spam Mode: SLOW MOTION (5s Cooldown)\n` +
+      `Auto Self-React: ACTIVE\n\n` +
       `Use /activate off to stop.`,
       threadID,
       messageID
@@ -132,14 +154,41 @@ module.exports.run = async function ({ api, event, args }) {
     if (!data.active) {
       return api.sendMessage("Global auto-roast is currently OFF.", threadID, messageID);
     }
+    const totalLines = (data.roasts || DEFAULT_ROASTS).length;
     return api.sendMessage(
-      `🔥 Global Auto-roast is ACTIVE (INFINITE ♾️)\nAnti-Spam & Auto Self-React: ENABLED`,
+      `🔥 Global Auto-roast is ACTIVE (INFINITE ♾️)\n` +
+      `Anti-Spam: Slow Motion Enabled\n` +
+      `Total Lines/Roasts: ${totalLines}`,
       threadID,
       messageID
     );
   }
 
-  // Auto Add & Change All Members' Nicknames
+  // Add Custom Lines
+  if (sub === "add") {
+    const customLine = args.slice(1).join(" ");
+    if (!customLine) {
+      return api.sendMessage("❌ Please provide a line to add.\nExample: /activate add Your message is mid.", threadID, messageID);
+    }
+
+    if (!data.roasts) data.roasts = DEFAULT_ROASTS;
+    data.roasts.push(customLine);
+    saveData(data);
+
+    return api.sendMessage(`✅ Added new line:\n"${customLine}"`, threadID, messageID);
+  }
+
+  // List All Custom Lines
+  if (sub === "listlines") {
+    const list = data.roasts || DEFAULT_ROASTS;
+    let msg = `📜 Total Lines Available (${list.length}):\n\n`;
+    list.forEach((line, index) => {
+      msg += `${index + 1}. ${line}\n`;
+    });
+    return api.sendMessage(msg, threadID, messageID);
+  }
+
+  // Change All Members' Nicknames
   if (sub === "setnick") {
     try {
       const threadInfo = await api.getThreadInfo(threadID);
@@ -148,6 +197,8 @@ module.exports.run = async function ({ api, event, args }) {
       api.sendMessage(`⏳ Changing nicknames of all ${participantIDs.length} members to "Jehosh Pogi"...`, threadID);
 
       for (const userID of participantIDs) {
+        // Slow motion delay for API requests to prevent Facebook restriction
+        await sleep(500);
         api.changeNickname("Jehosh Pogi", threadID, userID, (err) => {
           if (err) console.error(`Failed to change nickname for ${userID}:`, err);
         });
@@ -158,7 +209,7 @@ module.exports.run = async function ({ api, event, args }) {
     }
   }
 
-  // Auto Add & Change Group Name
+  // Change Group Name
   if (sub === "setgname") {
     api.setTitle("Jehosh Pogi", threadID, (err) => {
       if (err) {
@@ -171,11 +222,13 @@ module.exports.run = async function ({ api, event, args }) {
 
   return api.sendMessage(
     `Usage:\n` +
-    `/activate on — Start infinite global auto-roast\n` +
+    `/activate on — Start infinite auto-roast (Slow Motion Anti-Spam)\n` +
     `/activate off — Stop auto-roast\n` +
-    `/activate status — Check status\n` +
-    `/activate setnick — Change all members' nicknames to 'Jehosh Pogi'\n` +
-    `/activate setgname — Change group name to 'Jehosh Pogi'`,
+    `/activate status — Check status & line count\n` +
+    `/activate add <text> — Add custom auto-reply line\n` +
+    `/activate listlines — View all active reply lines\n` +
+    `/activate setnick — Set all members' nicknames to 'Jehosh Pogi'\n` +
+    `/activate setgname — Change GC name to 'Jehosh Pogi'`,
     threadID,
     messageID
   );
