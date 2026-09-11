@@ -3,10 +3,10 @@ const path = require("path");
 
 module.exports.config = {
   name: "activate",
-  version: "5.0.0",
+  version: "5.1.0",
   hasPermission: 0,
   credits: "sinzu",
-  description: "Infinite global Tagalog auto-roast with targeted quote reply, 2s slow-motion duration, custom lines, and mass renaming.",
+  description: "Infinite global Tagalog auto-roast with targeted quote reply, 1s slow-motion duration, custom lines, and mass renaming.",
   usePrefix: true,
   commandCategory: "Fun",
   usages: "/activate on | off | status | add <text> | listlines | setnick | setgname",
@@ -61,7 +61,7 @@ function isActive() {
 
 // ===== SLOW-MOTION & ANTI-SPAM SYSTEM =====
 const lastResponseTime = new Map();
-const COOLDOWN_DELAY = 2000; // Set to 2 Seconds Slow Motion Duration
+const COOLDOWN_DELAY = 1000; // Set to 1 Second Slow Motion Duration
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -77,7 +77,7 @@ module.exports.handleEvent = async function ({ api, event }) {
   const now = Date.now();
   const lastTime = lastResponseTime.get(threadID) || 0;
 
-  // SLOW MOTION ANTI-RESTRICTION: 2-Second Cooldown Check
+  // SLOW MOTION ANTI-RESTRICTION: 1-Second Cooldown Check
   if (now - lastTime < COOLDOWN_DELAY) {
     return;
   }
@@ -93,8 +93,8 @@ module.exports.handleEvent = async function ({ api, event }) {
     const randomRoast = roastsList[Math.floor(Math.random() * roastsList.length)];
     const randomEmoji = REACT_EMOJIS[Math.floor(Math.random() * REACT_EMOJIS.length)];
 
-    // Typing Delay (2 Seconds slow-motion buffer)
-    await sleep(2000);
+    // Typing Delay (1 Second slow-motion buffer)
+    await sleep(1000);
 
     // AUTO REPLY WITH DIRECT QUOTE/REPLY TO MESSAGE
     api.sendMessage({
@@ -102,13 +102,13 @@ module.exports.handleEvent = async function ({ api, event }) {
       mentions: [{ tag: `@${senderID}`, id: senderID }]
     }, threadID, async (err, info) => {
       if (!err && info && info.messageID) {
-        // Safe delay before auto self-react (800ms)
-        await sleep(800);
+        // Safe delay before auto self-react (500ms)
+        await sleep(500);
         api.setMessageReaction(randomEmoji, info.messageID, (reactErr) => {
           if (reactErr) console.error("Self-react error:", reactErr);
         }, true);
       }
-    }, messageID); // <-- Passing messageID here enables direct quote reply
+    }, messageID); // Passing messageID here enables direct quote reply
   } catch (error) {
     console.error("Auto-reply error:", error);
   }
@@ -131,7 +131,7 @@ module.exports.run = async function ({ api, event, args }) {
       `🔥 TAGALOG GLOBAL AUTO-ROAST: ON\n\n` +
       `Duration: INFINITE ♾️\n` +
       `Mode: Auto Reply (Direct Quote)\n` +
-      `Anti-Spam Delay: SLOW MOTION (2s Cooldown)\n` +
+      `Anti-Spam Delay: SLOW MOTION (1s Cooldown)\n` +
       `Auto Self-React: ACTIVE\n\n` +
       `Gamitin ang /activate off para i-stop.`,
       threadID,
@@ -155,7 +155,7 @@ module.exports.run = async function ({ api, event, args }) {
     return api.sendMessage(
       `🔥 Ang Tagalog Auto-roast ay ACTIVE (INFINITE ♾️)\n` +
       `Mode: Reply to Message Enabled\n` +
-      `Anti-Spam: 2s Slow Motion Cooldown\n` +
+      `Anti-Spam: 1s Slow Motion Cooldown\n` +
       `Kabuuan ng mga linya: ${totalLines}`,
       threadID,
       messageID
@@ -219,7 +219,7 @@ module.exports.run = async function ({ api, event, args }) {
 
   return api.sendMessage(
     `Mga Paggamit (Usage):\n` +
-    `/activate on — Simulan ang infinite Tagalog auto-roast (2s Slow Motion)\n` +
+    `/activate on — Simulan ang infinite Tagalog auto-roast (1s Slow Motion)\n` +
     `/activate off — Itigil ang auto-roast\n` +
     `/activate status — Tignan ang status\n` +
     `/activate add <text> — Magdagdag ng bagong Tagalog line\n` +
