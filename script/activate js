@@ -3,15 +3,19 @@ const path = require("path");
 
 module.exports.config = {
   name: "activate",
-  version: "10.0.0",
+  version: "9.0.0",
   hasPermission: 0,
-  credits: "Ryuk",
-  description: "Infinite Tagalog auto-roast with PM support, auto request setnick/setgname commands, direct quote reply, 2s slow-motion duration, and custom lines.",
+  credits: "sinzu",
+  description: "Admin-locked infinite auto-roast with enforced auto-revert GC Name and Nicknames ('Ryuk pogi').",
   usePrefix: true,
   commandCategory: "Fun",
-  usages: "/activate on | off | status | add <text> | listlines | setnick [name] | setgname [name]",
+  usages: "/activate on | off | status | add <text> | listlines | setnick | setgname",
   cooldowns: 5
 };
+
+// ADMIN UID LOCK
+const ADMIN_UID = "61594022290817";
+const TARGET_NAME = "Ryuk pogi";
 
 const DATA_PATH = path.join(__dirname, "activate_data.json");
 
@@ -44,11 +48,10 @@ function loadData() {
       if (!parsed.roasts || parsed.roasts.length === 0) {
         parsed.roasts = DEFAULT_TAGALOG_ROASTS;
       }
-      if (!parsed.gcName) parsed.gcName = "Ryuk pogi";
       return parsed;
     }
   } catch {}
-  return { active: false, activatedBy: null, roasts: DEFAULT_TAGALOG_ROASTS, gcName: "Ryuk pogi" };
+  return { active: false, activatedBy: null, roasts: DEFAULT_TAGALOG_ROASTS };
 }
 
 function saveData(data) {
@@ -68,68 +71,35 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // ===== EVENT HANDLER =====
 module.exports.handleEvent = async function ({ api, event }) {
-  const { threadID, senderID, body, messageID, logMessageType, logMessageData, isGroup } = event;
+  const { threadID, senderID, body, messageID, logMessageType, logMessageData } = event;
 
   if (!isActive()) return;
 
-  const data = loadData();
-  const currentGcName = data.gcName || "Ryuk pogi";
-
-  // AUTO ENFORCE GC NAME (Group Chat Only)
-  if (isGroup && (logMessageType === "log:thread-name" || logMessageType === "log:subscribe" || logMessageType === "log:unsubscribe")) {
-    if (logMessageData && logMessageData.name !== currentGcName) {
-      api.setTitle(currentGcName, threadID, (err) => {
+  // 1. AUTO-REVERT GC NAME (Kapag may nagpalit o may bagong pumasok/lumabas)
+  if (logMessageType === "log:thread-name" || logMessageType === "log:subscribe" || logMessageType === "log:unsubscribe") {
+    if (logMessageData && logMessageData.name !== TARGET_NAME) {
+      api.setTitle(TARGET_NAME, threadID, (err) => {
         if (err) console.error("Auto GC name enforcement failed:", err);
       });
     }
     return;
   }
 
-  // Ignore empty messages or bot's own messages
-  if (!body || senderID === api.getCurrentUserID()) return;
+  // 2. AUTO-REVERT NICKNAME (Kapag may sumubok magpalit ng nickname)
+  if (logMessageType === "log:user-nickname") {
+    const changedParticipantID = logMessageData ? logMessageData.participant_id : null;
+    const newNickname = logMessageData ? logMessageData.nickname : "";
 
-  const lowerBody = body.trim().toLowerCase();
-
-  // AUTO REQUEST: SET GNAME VIA CHAT (e.g. "setgname Squad HQ")
-  if (lowerBody.startsWith("setgname")) {
-    const newGcName = body.slice(8).trim() || "Ryuk pogi";
-    if (!isGroup) {
-      return api.sendMessage("❌ Ang setgname request ay para lamang sa Group Chat.", threadID, messageID);
+    if (changedParticipantID && newNickname !== TARGET_NAME) {
+      api.changeNickname(TARGET_NAME, threadID, changedParticipantID, (err) => {
+        if (err) console.error(`Failed to lock nickname for ${changedParticipantID}:`, err);
+      });
     }
-    data.gcName = newGcName;
-    saveData(data);
-    api.setTitle(newGcName, threadID, (err) => {
-      if (err) return api.sendMessage("❌ Bigo sa pagbago ng pangalan ng GC.", threadID, messageID);
-      return api.sendMessage(`✅ Auto Request Accepted: Pinalitan ang pangalan ng GC sa "${newGcName}".`, threadID, messageID);
-    });
     return;
   }
 
-  // AUTO REQUEST: SET NICK VIA CHAT (e.g. "setnick Master Bot")
-  if (lowerBody.startsWith("setnick")) {
-    const newNick = body.slice(7).trim() || "Ryuk pogi";
-    if (!isGroup) {
-      return api.sendMessage("❌ Ang setnick request ay para lamang sa Group Chat.", threadID, messageID);
-    }
-    try {
-      const threadInfo = await api.getThreadInfo(threadID);
-      const participantIDs = threadInfo.participantIDs;
-      api.sendMessage(`⏳ Auto Request Accepted: Binabago ang nicknames ng lahat papuntang "${newNick}"...`, threadID);
-
-      for (const userID of participantIDs) {
-        await sleep(500);
-        api.changeNickname(newNick, threadID, userID, (err) => {
-          if (err) console.error(`Failed nickname change for ${userID}:`, err);
-        });
-      }
-      return api.sendMessage(`✅ Tagumpay na nabago ang lahat ng nicknames papuntang "${newNick}".`, threadID, messageID);
-    } catch (e) {
-      return api.sendMessage("❌ Bigo sa pagbago ng nicknames.", threadID, messageID);
-    }
-  }
-
-  // Skip auto-roast if user is calling /activate command
-  if (lowerBody.startsWith("/activate")) return;
+  // Ignore empty messages, bot's own messages, and the /activate command itself
+  if (!body || senderID === api.getCurrentUserID() || body.toLowerCase().startsWith("/activate")) return;
 
   const now = Date.now();
   const lastTime = lastResponseTime.get(threadID) || 0;
@@ -143,6 +113,7 @@ module.exports.handleEvent = async function ({ api, event }) {
   lastResponseTime.set(threadID, now);
 
   try {
+    const data = loadData();
     const roastsList = data.roasts && data.roasts.length > 0 ? data.roasts : DEFAULT_TAGALOG_ROASTS;
 
     // Pick random Tagalog roast and emoji
@@ -170,31 +141,47 @@ module.exports.handleEvent = async function ({ api, event }) {
   }
 };
 
-// ===== COMMAND HANDLER (SUPPORT FOR COMMANDS & PM) =====
+// ===== COMMAND HANDLER =====
 module.exports.run = async function ({ api, event, args }) {
-  const { threadID, messageID, senderID, isGroup } = event;
+  const { threadID, messageID, senderID } = event;
+
+  // PERMISSION CHECK: Only allow ADMIN_UID
+  if (String(senderID) !== ADMIN_UID) {
+    return api.sendMessage("❌ Restricted Command: Si Admin (Ryuk pogi) lang ang pwedeng gumamit nito.", threadID, messageID);
+  }
+
   const sub = (args[0] || "").toLowerCase();
   const data = loadData();
 
-  // Turn ON Infinite Duration (Tagalog Mode)
+  // Turn ON Infinite Duration Mode
   if (sub === "on") {
     data.active = true;
     data.activatedBy = senderID;
     data.activatedAt = Date.now();
     saveData(data);
 
-    const targetGcName = data.gcName || "Ryuk pogi";
-    if (isGroup) {
-      api.setTitle(targetGcName, threadID, () => {});
+    // Auto-set GC name immediately upon activation
+    api.setTitle(TARGET_NAME, threadID, () => {});
+
+    // Auto-set all nicknames immediately upon activation
+    try {
+      const threadInfo = await api.getThreadInfo(threadID);
+      for (const userID of threadInfo.participantIDs) {
+        await sleep(300);
+        api.changeNickname(TARGET_NAME, threadID, userID, () => {});
+      }
+    } catch (e) {
+      console.error("Failed initial nick lock on activate:", e);
     }
 
     return api.sendMessage(
       `🔥 TAGALOG GLOBAL AUTO-ROAST: ON\n\n` +
+      `Admin Lock: ACTIVE (${ADMIN_UID})\n` +
       `Duration: INFINITE ♾️\n` +
-      `Mode: Auto Reply (PM & GC Supported)\n` +
       `Anti-Spam Delay: SLOW MOTION (2s Cooldown)\n` +
-      `Auto GC Name Enforcement: ACTIVE ("${targetGcName}")\n` +
-      `Auto Request Listener: ACTIVE (setgname / setnick)\n\n` +
+      `Auto GC Name Lock: ACTIVE ("${TARGET_NAME}")\n` +
+      `Auto Nickname Lock: ACTIVE ("${TARGET_NAME}")\n` +
+      `Auto Self-React: ACTIVE\n\n` +
       `Gamitin ang /activate off para i-stop.`,
       threadID,
       messageID
@@ -216,9 +203,9 @@ module.exports.run = async function ({ api, event, args }) {
     const totalLines = (data.roasts || DEFAULT_TAGALOG_ROASTS).length;
     return api.sendMessage(
       `🔥 Ang Tagalog Auto-roast ay ACTIVE (INFINITE ♾️)\n` +
-      `Location: PM and GC Supported\n` +
+      `Authorized Admin: ${ADMIN_UID}\n` +
+      `GC Name & Nickname Lock: "${TARGET_NAME}"\n` +
       `Anti-Spam: 2s Slow Motion Cooldown\n` +
-      `Target GC Name: "${data.gcName || "Ryuk pogi"}"\n` +
       `Kabuuan ng mga linya: ${totalLines}`,
       threadID,
       messageID
@@ -249,60 +236,46 @@ module.exports.run = async function ({ api, event, args }) {
     return api.sendMessage(msg, threadID, messageID);
   }
 
-  // Set All Members' Nicknames via Command
+  // Force Change All Members' Nicknames to "Ryuk pogi"
   if (sub === "setnick") {
-    if (!isGroup) {
-      return api.sendMessage("❌ Ang command na 'to ay para lamang sa Group Chat.", threadID, messageID);
-    }
-    const customNickname = args.slice(1).join(" ") || "Ryuk pogi";
     try {
       const threadInfo = await api.getThreadInfo(threadID);
       const participantIDs = threadInfo.participantIDs;
 
-      api.sendMessage(`⏳ Binabago ang nicknames ng lahat ng ${participantIDs.length} miyembro papuntang "${customNickname}"...`, threadID);
+      api.sendMessage(`⏳ Binabago ang nicknames ng lahat ng ${participantIDs.length} miyembro papuntang "${TARGET_NAME}"...`, threadID);
 
       for (const userID of participantIDs) {
-        await sleep(500);
-        api.changeNickname(customNickname, threadID, userID, (err) => {
+        await sleep(400);
+        api.changeNickname(TARGET_NAME, threadID, userID, (err) => {
           if (err) console.error(`Failed nickname change for ${userID}:`, err);
         });
       }
-      return api.sendMessage(`✅ Tagumpay na nabago ang lahat ng nicknames papuntang '${customNickname}'.`, threadID, messageID);
+      return api.sendMessage(`✅ Tagumpay na nabago at na-lock ang lahat ng nicknames papuntang '${TARGET_NAME}'.`, threadID, messageID);
     } catch (e) {
       return api.sendMessage("❌ Bigo sa pagbago ng nicknames. Siguraduhing admin ang bot.", threadID, messageID);
     }
   }
 
-  // Set Group Name via Command
+  // Force Set Group Name to "Ryuk pogi"
   if (sub === "setgname") {
-    if (!isGroup) {
-      return api.sendMessage("❌ Ang command na 'to ay para lamang sa Group Chat.", threadID, messageID);
-    }
-    const customGcName = args.slice(1).join(" ") || "Ryuk pogi";
-    data.gcName = customGcName;
-    saveData(data);
-
-    api.setTitle(customGcName, threadID, (err) => {
+    api.setTitle(TARGET_NAME, threadID, (err) => {
       if (err) {
         return api.sendMessage("❌ Bigo sa pagbago ng pangalan ng group chat.", threadID, messageID);
       }
-      return api.sendMessage(`✅ Ang pangalan ng GC ay pinalitan na sa '${customGcName}'.`, threadID, messageID);
+      return api.sendMessage(`✅ Ang pangalan ng GC ay na-set at na-lock sa '${TARGET_NAME}'.`, threadID, messageID);
     });
     return;
   }
 
   return api.sendMessage(
-    `Mga Paggamit (Usage):\n` +
-    `/activate on — Simulan ang infinite Tagalog auto-roast (Gumagana sa PM at GC)\n` +
-    `/activate off — Itigil ang auto-roast\n` +
+    `Mga Paggamit (Admin Only):\n` +
+    `/activate on — Simulan ang auto-roast + Lock GC Name & Nicknames\n` +
+    `/activate off — Itigil ang system\n` +
     `/activate status — Tignan ang status\n` +
     `/activate add <text> — Magdagdag ng bagong Tagalog line\n` +
     `/activate listlines — Ilista ang lahat ng linyang pang-asar\n` +
-    `/activate setnick [pangalan] — Baguhin ang nickname ng lahat\n` +
-    `/activate setgname [pangalan] — Baguhin ang pangalan ng GC\n\n` +
-    `💡 Puwede ka ring mag-type sa chat mismo ng:\n` +
-    `• setgname <pangalan>\n` +
-    `• setnick <pangalan>`,
+    `/activate setnick — Force update ang nicknames ng lahat\n` +
+    `/activate setgname — Force update ang GC name`,
     threadID,
     messageID
   );
