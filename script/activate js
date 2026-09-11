@@ -3,10 +3,10 @@ const path = require("path");
 
 module.exports.config = {
   name: "activate",
-  version: "4.0.0",
+  version: "6.0.0",
   hasPermission: 0,
   credits: "sinzu",
-  description: "Infinite global Tagalog auto-roast with slow-motion anti-spam, custom Tagalog lines, and mass renaming.",
+  description: "Instant Tagalog auto-roast with anti-spam ignore mechanism, custom lines, and mass renaming.",
   usePrefix: true,
   commandCategory: "Fun",
   usages: "/activate on | off | status | add <text> | listlines | setnick | setgname",
@@ -18,9 +18,9 @@ const DATA_PATH = path.join(__dirname, "activate_data.json");
 // Emojis for auto self-react
 const REACT_EMOJIS = ["🔥", "💀", "🤣", "😆", "🤡", "👎"];
 
-// Default Tagalog roasts (Aasar / Teasing)
+// Default Tagalog roasts
 const DEFAULT_TAGALOG_ROASTS = [
-  "Luh, nag-type pa talaga siya oh, akala mo naman may may kumpirmasyon. 💀",
+  "Luh, nag-type pa talaga siya oh, akala mo naman may kumpirmasyon. 💀",
   "Lods, paki-delete na lang 'to bago pa makita ng iba, nakakahiya. 🤣",
   "Lakas ng loob mo mag-chat, pero yung sinabi mo walang kwenta.",
   "Sino nagtanong sa'yo? Lakas maka-main character ah.",
@@ -59,55 +59,53 @@ function isActive() {
   return data.active === true;
 }
 
-// ===== SLOW-MOTION & ANTI-SPAM SYSTEM =====
-const lastResponseTime = new Map();
-const COOLDOWN_DELAY = 5000; // 5 Seconds Cooldown (Slow Motion Mode para iwas ban)
-
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+// ===== ANTI-SPAM IGNORE SYSTEM =====
+// Bino-block ang mga kasunod na spam habang pino-process pa ang naunang reply
+const activeThreads = new Set();
 
 // ===== EVENT HANDLER =====
 module.exports.handleEvent = async function ({ api, event }) {
-  const { threadID, senderID, body } = event;
+  const { threadID, senderID, body, messageID } = event;
 
-  // Anti-Spam: Ignore command prefixes, empty body, and bot's own messages
+  // Ignore command prefixes, empty body, and bot's own messages
   if (!body || body.startsWith("/") || senderID === api.getCurrentUserID()) return;
 
   if (!isActive()) return;
 
-  const now = Date.now();
-  const lastTime = lastResponseTime.get(threadID) || 0;
-
-  // SLOW MOTION ANTI-RESTRICTION: Ignores triggers if sent within 5 seconds window
-  if (now - lastTime < COOLDOWN_DELAY) {
+  // ANTI-SPAM: Kapag may pino-process pang reply ang bot sa thread na ito, I-IGNORE ang nag-spam
+  if (activeThreads.has(threadID)) {
     return;
   }
 
-  // Set timestamp lock
-  lastResponseTime.set(threadID, now);
+  // I-lock ang thread status para i-ignore ang anumang spam messages
+  activeThreads.add(threadID);
 
   try {
     const data = loadData();
     const roastsList = data.roasts && data.roasts.length > 0 ? data.roasts : DEFAULT_TAGALOG_ROASTS;
 
-    // Pick random Tagalog roast
     const randomRoast = roastsList[Math.floor(Math.random() * roastsList.length)];
     const randomEmoji = REACT_EMOJIS[Math.floor(Math.random() * REACT_EMOJIS.length)];
 
-    // Typing Delay (Slow Motion effect: 1.0 - 2.5s)
-    const typingDelay = Math.floor(Math.random() * 1500) + 1000;
-    await sleep(typingDelay);
-
-    api.sendMessage(randomRoast, threadID, async (err, info) => {
+    // AGAD / INSTANT REPLY VIA DIRECT QUOTE
+    api.sendMessage({
+      body: randomRoast,
+      mentions: [{ tag: `@${senderID}`, id: senderID }]
+    }, threadID, (err, info) => {
       if (!err && info && info.messageID) {
-        // Delay before auto self-react (800ms) to avoid spam restriction
-        await sleep(800);
+        // Auto self-react sa ipinadalang reply
         api.setMessageReaction(randomEmoji, info.messageID, (reactErr) => {
           if (reactErr) console.error("Self-react error:", reactErr);
         }, true);
       }
-    });
+      
+      // I-unlock ang thread pagkatapos maikasa ang reply para handa na sa kasunod na legit message
+      activeThreads.delete(threadID);
+    }, messageID);
+
   } catch (error) {
     console.error("Auto-reply error:", error);
+    activeThreads.delete(threadID);
   }
 };
 
@@ -117,7 +115,7 @@ module.exports.run = async function ({ api, event, args }) {
   const sub = (args[0] || "").toLowerCase();
   const data = loadData();
 
-  // Turn ON Infinite Duration (Tagalog Mode)
+  // Turn ON Infinite Duration
   if (sub === "on") {
     data.active = true;
     data.activatedBy = senderID;
@@ -127,7 +125,8 @@ module.exports.run = async function ({ api, event, args }) {
     return api.sendMessage(
       `🔥 TAGALOG GLOBAL AUTO-ROAST: ON\n\n` +
       `Duration: INFINITE ♾️\n` +
-      `Anti-Spam Mode: SLOW MOTION (5s Cooldown)\n` +
+      `Speed: Instant / No Delay\n` +
+      `Anti-Spam: Spam Ignore Filter Active\n` +
       `Auto Self-React: ACTIVE\n\n` +
       `Gamitin ang /activate off para i-stop.`,
       threadID,
@@ -150,7 +149,8 @@ module.exports.run = async function ({ api, event, args }) {
     const totalLines = (data.roasts || DEFAULT_TAGALOG_ROASTS).length;
     return api.sendMessage(
       `🔥 Ang Tagalog Auto-roast ay ACTIVE (INFINITE ♾️)\n` +
-      `Anti-Spam: Slow Motion Enabled\n` +
+      `Speed: Direct Auto Reply (Instant)\n` +
+      `Anti-Spam: Ignoring spammers\n` +
       `Kabuuan ng mga linya: ${totalLines}`,
       threadID,
       messageID
@@ -190,8 +190,6 @@ module.exports.run = async function ({ api, event, args }) {
       api.sendMessage(`⏳ Binabago ang nicknames ng lahat ng ${participantIDs.length} miyembro papuntang "Jehosh Pogi"...`, threadID);
 
       for (const userID of participantIDs) {
-        // Slow motion delay per member to avoid restriction
-        await sleep(500);
         api.changeNickname("Jehosh Pogi", threadID, userID, (err) => {
           if (err) console.error(`Failed nickname change for ${userID}:`, err);
         });
@@ -215,7 +213,7 @@ module.exports.run = async function ({ api, event, args }) {
 
   return api.sendMessage(
     `Mga Paggamit (Usage):\n` +
-    `/activate on — Simulan ang infinite Tagalog auto-roast (Slow Motion Anti-Spam)\n` +
+    `/activate on — Simulan ang infinite Tagalog auto-roast\n` +
     `/activate off — Itigil ang auto-roast\n` +
     `/activate status — Tignan ang status\n` +
     `/activate add <text> — Magdagdag ng bagong Tagalog line\n` +
