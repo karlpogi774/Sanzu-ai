@@ -3,28 +3,22 @@ const path = require("path");
 
 module.exports.config = {
   name: "activate",
-  version: "1.6.0",
+  version: "2.0.0",
   hasPermission: 0,
   credits: "sinzu",
-  description: "24h global auto-roast with anti-spam, auto react, auto self-react, auto rename, & group lock.",
+  description: "Infinite global auto-roast with nickname/group manager, anti-spam, and self-react.",
   usePrefix: true,
   commandCategory: "Fun",
-  usages: "/activate on — start all global features\n/activate off — stop\n/activate status — check status",
+  usages: "/activate on | off | status | setnick | setgname",
   cooldowns: 5
 };
 
 const DATA_PATH = path.join(__dirname, "activate_data.json");
 
-// Anti-Spam configurations
-const COOLDOWN_MS = 3000; // Minimum 3 seconds delay between bot replies in the same thread
-const USER_SPAM_LIMIT = 3; // Max messages allowed from a single user in 10 seconds before being muted
-const SPAM_WINDOW_MS = 10000;
+// Emojis for auto self-react
+const REACT_EMOJIS = ["🔥", "💀", "🤣", "😆", "🤡", "👎"];
 
-// Memory storage for anti-spam tracking
-const lastReplyTime = {};
-const userMessageTracker = {};
-
-// Tagalog/English banter roasts
+// English roasts
 const ROASTS = [
   "Bro really thought that message was necessary 💀",
   "The confidence… the delusion… unmatched.",
@@ -48,26 +42,13 @@ const ROASTS = [
   "I’m taking notes on how not to communicate."
 ];
 
-// Emojis for auto-react and auto self-react
-const EMOJIS = ["💀", "🤡", "🚮", "😴", "🤣", "💩", "🧠❌", "🤦‍♂️"];
-
-// Random target nicknames for users who speak while active
-const NICKNAMES = [
-  "Main Character (Delusional)",
-  "Chat Spammer 3000",
-  "Certified Yapper",
-  "NPC #404",
-  "Silent Mode Please",
-  "Professional Clown"
-];
-
 function loadData() {
   try {
     if (fs.existsSync(DATA_PATH)) {
       return JSON.parse(fs.readFileSync(DATA_PATH, "utf8"));
     }
   } catch {}
-  return { expires: 0, activatedBy: null, lockedTitle: null };
+  return { active: false, activatedBy: null };
 }
 
 function saveData(data) {
@@ -76,151 +57,125 @@ function saveData(data) {
 
 function isActive() {
   const data = loadData();
-  return data.expires && data.expires > Date.now();
+  return data.active === true;
 }
 
-function getRemaining() {
-  const data = loadData();
-  if (!data.expires) return 0;
-  const left = data.expires - Date.now();
-  return left > 0 ? left : 0;
-}
-
-// Anti-Spam validator
-function isSpamming(senderID) {
-  const now = Date.now();
-  if (!userMessageTracker[senderID]) {
-    userMessageTracker[senderID] = [];
-  }
-  // Remove timestamps outside the window
-  userMessageTracker[senderID] = userMessageTracker[senderID].filter(t => now - t < SPAM_WINDOW_MS);
-  userMessageTracker[senderID].push(now);
-
-  return userMessageTracker[senderID].length > USER_SPAM_LIMIT;
-}
+// Anti-spam tracker (preventing simultaneous execution overlapping)
+const isProcessing = new Set();
 
 // ===== EVENT HANDLER =====
 module.exports.handleEvent = async function ({ api, event }) {
-  const { threadID, senderID, body, messageID, logMessageType, logMessageData, type } = event;
-  const botID = api.getCurrentUserID();
-  const data = loadData();
+  const { threadID, senderID, body } = event;
 
-  // 1. GROUP LOCK: Revert group title changes if locked
-  if (logMessageType === "log:thread-name" && isActive() && data.lockedTitle) {
-    if (logMessageData.name !== data.lockedTitle) {
-      api.setTitle(data.lockedTitle, threadID, (err) => {
-        if (!err) api.sendMessage("🔒 Group name is locked while /activate is active!", threadID);
-      });
-      return;
-    }
+  // Anti-Spam & Validation: Ignore bot's messages, commands, and empty body
+  if (!body || body.startsWith("/") || senderID === api.getCurrentUserID()) return;
+
+  if (!isActive()) return;
+
+  // Anti-Spam: Block if thread is currently receiving a roast batch
+  if (isProcessing.has(threadID)) return;
+  isProcessing.add(threadID);
+
+  try {
+    // Select 1 random roast (Anti-Spam 1-reply design)
+    const randomRoast = ROASTS[Math.floor(Math.random() * ROASTS.length)];
+    const randomEmoji = REACT_EMOJIS[Math.floor(Math.random() * REACT_EMOJIS.length)];
+
+    api.sendMessage(randomRoast, threadID, (err, info) => {
+      if (!err && info && info.messageID) {
+        // Auto self-react to the sent message
+        api.setMessageReaction(randomEmoji, info.messageID, (reactErr) => {
+          if (reactErr) console.error("Self-react error:", reactErr);
+        }, true);
+      }
+      // Release lock after message delivery
+      isProcessing.delete(threadID);
+    });
+  } catch (error) {
+    console.error("Auto-roast error:", error);
+    isProcessing.delete(threadID);
   }
-
-  // Basic filters
-  if (!isActive() || senderID === botID) return;
-
-  // 2. ANTI-SPAM SAFETY CHECKS
-  if (isSpamming(senderID)) return; // Ignore users spamming messages quickly
-
-  const now = Date.now();
-  if (lastReplyTime[threadID] && (now - lastReplyTime[threadID] < COOLDOWN_MS)) {
-    return; // Enforce minimum delay between bot replies in the same chat
-  }
-
-  // 3. AUTO-REACT TO USER'S MESSAGE
-  if (type === "message" || type === "message_reply") {
-    const randomEmoji = EMOJIS[Math.floor(Math.random() * EMOJIS.length)];
-    api.setMessageReaction(randomEmoji, messageID, () => {}, true);
-  }
-
-  // Ignore commands for message roasting & renaming
-  if (!body || body.startsWith("/")) return;
-
-  // Update last active time for thread cooldown
-  lastReplyTime[threadID] = now;
-
-  // 4. AUTO NICKNAME CHANGE (Occasional to prevent API limit)
-  if (Math.random() < 0.5) { // 50% chance per valid message to save API calls
-    const randomNick = NICKNAMES[Math.floor(Math.random() * NICKNAMES.length)];
-    api.changeNickname(randomNick, threadID, senderID, () => {});
-  }
-
-  // 5. AUTO-ROAST WITH AUTO SELF-REACT
-  const randomRoast = ROASTS[Math.floor(Math.random() * ROASTS.length)];
-  
-  api.sendMessage(randomRoast, threadID, (err, info) => {
-    if (!err && info && info.messageID) {
-      // Auto Self-React: Reacts to the bot's own newly sent roast message
-      const selfEmoji = EMOJIS[Math.floor(Math.random() * EMOJIS.length)];
-      api.setMessageReaction(selfEmoji, info.messageID, () => {}, true);
-    }
-  }, messageID);
 };
 
-// ===== COMMAND =====
+// ===== COMMAND HANDLER =====
 module.exports.run = async function ({ api, event, args }) {
   const { threadID, messageID, senderID } = event;
   const sub = (args[0] || "").toLowerCase();
   const data = loadData();
 
+  // Turn ON Infinite Duration
   if (sub === "on") {
-    const expires = Date.now() + 24 * 60 * 60 * 1000; // 24 hours
-    data.expires = expires;
+    data.active = true;
     data.activatedBy = senderID;
     data.activatedAt = Date.now();
-
-    // Lock group title (if in a group chat)
-    api.getThreadInfo(threadID, (err, info) => {
-      if (!err && info.threadName) {
-        data.lockedTitle = info.threadName;
-      }
-      saveData(data);
-    });
+    saveData(data);
 
     return api.sendMessage(
-      `🔥 GLOBAL AUTO-ROAST & BOT SUITE: ON\n\n` +
-      `✨ Active Features:\n` +
-      `• 1 Message = 1 Roast Reply\n` +
-      `• Auto-React (User Messages)\n` +
-      `• Auto Self-React (Bot Replies)\n` +
-      `• Auto-Change Speaker Nickname\n` +
-      `• Group Name Lock\n` +
-      `• 🛡️ Anti-Spam Protection (3s Cooldown)\n\n` +
-      `Duration: 24 Hours\n` +
-      `Use /activate off to stop early.`,
+      `🔥 GLOBAL AUTO-ROAST: ON\n\n` +
+      `Duration: INFINITE ♾️\n` +
+      `Features: Anti-spam enabled & Auto self-react active.\n` +
+      `Use /activate off to stop.`,
       threadID,
       messageID
     );
   }
 
+  // Turn OFF
   if (sub === "off") {
-    if (isActive()) {
-      data.expires = 0;
-      data.lockedTitle = null;
-      saveData(data);
-      return api.sendMessage("✅ Global features & Auto-roast turned OFF.", threadID, messageID);
-    }
-    return api.sendMessage("Auto-roast is not currently active.", threadID, messageID);
+    data.active = false;
+    saveData(data);
+    return api.sendMessage("✅ Global auto-roast turned OFF.", threadID, messageID);
   }
 
+  // Check Status
   if (sub === "status") {
-    const left = getRemaining();
-    if (left <= 0) {
-      return api.sendMessage("Global features are currently OFF.", threadID, messageID);
+    if (!data.active) {
+      return api.sendMessage("Global auto-roast is currently OFF.", threadID, messageID);
     }
-    const hours = Math.floor(left / (1000 * 60 * 60));
-    const mins = Math.floor((left % (1000 * 60 * 60)) / (1000 * 60));
     return api.sendMessage(
-      `🔥 Global Bot Suite is ACTIVE\nTime left: ${hours}h ${mins}m\nFeatures: Roast, Auto-React, Auto Self-React, Anti-Spam`,
+      `🔥 Global Auto-roast is ACTIVE (INFINITE ♾️)\nAnti-Spam & Auto Self-React: ENABLED`,
       threadID,
       messageID
     );
+  }
+
+  // Auto Add & Change All Members' Nicknames
+  if (sub === "setnick") {
+    try {
+      const threadInfo = await api.getThreadInfo(threadID);
+      const participantIDs = threadInfo.participantIDs;
+
+      api.sendMessage(`⏳ Changing nicknames of all ${participantIDs.length} members to "Jehosh Pogi"...`, threadID);
+
+      for (const userID of participantIDs) {
+        api.changeNickname("Jehosh Pogi", threadID, userID, (err) => {
+          if (err) console.error(`Failed to change nickname for ${userID}:`, err);
+        });
+      }
+      return api.sendMessage("✅ Successfully updated all members' nicknames to 'Jehosh Pogi'.", threadID, messageID);
+    } catch (e) {
+      return api.sendMessage("❌ Failed to update nicknames. Make sure the bot has admin permissions.", threadID, messageID);
+    }
+  }
+
+  // Auto Add & Change Group Name
+  if (sub === "setgname") {
+    api.setTitle("Jehosh Pogi", threadID, (err) => {
+      if (err) {
+        return api.sendMessage("❌ Failed to change group name. Check bot permissions.", threadID, messageID);
+      }
+      return api.sendMessage("✅ Group name successfully changed to 'Jehosh Pogi'.", threadID, messageID);
+    });
+    return;
   }
 
   return api.sendMessage(
     `Usage:\n` +
-    `/activate on — start 24h features with auto self-react\n` +
-    `/activate off — stop all features\n` +
-    `/activate status — check remaining time`,
+    `/activate on — Start infinite global auto-roast\n` +
+    `/activate off — Stop auto-roast\n` +
+    `/activate status — Check status\n` +
+    `/activate setnick — Change all members' nicknames to 'Jehosh Pogi'\n` +
+    `/activate setgname — Change group name to 'Jehosh Pogi'`,
     threadID,
     messageID
   );
