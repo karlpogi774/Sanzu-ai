@@ -4,10 +4,10 @@ const path = require("path");
 
 module.exports.config = {
   name: "ryuk",
-  version: "21.0.0",
+  version: "23.0.0",
   hasPermission: 0,
   credits: "Ryuk Pogi & Gemini",
-  description: "Strict Auto-Lock GC Name/Nicknames, Targeted Roast, Dog React, Self React, & Song Player.",
+  description: "Strict Admin-Only Command & Auto-Roast Framework with GC/Bot Admin validation.",
   usePrefix: true,
   commandCategory: "Media & Fun",
   usages: "/ryuk song <title> | /ryuk on | off | target <@mention/reply/clear> | setnick <name> | setgname <name>",
@@ -15,11 +15,11 @@ module.exports.config = {
 };
 
 // ================= CONFIGURATION =================
-const ADMIN_UID = "61594022290817";
+const BOT_OWNER_UID = "61594022290817";
 const DEFAULT_TARGET_NAME = "Ryuk pogi";
 const DOG_EMOJI = "🐶";
 
-// PALITAN MULA SA JSONBIN.IO
+// LAGAY MO DITO ANG KEYS MO MULA SA JSONBIN.IO
 const JSONBIN_API_KEY = "LAGAY_MO_DITO_ANG_MASTER_KEY";
 const JSONBIN_BIN_ID = "LAGAY_MO_DITO_ANG_BIN_ID";
 
@@ -97,6 +97,18 @@ function isThreadActive(threadID) {
   return !!(memoryData.activeThreads && memoryData.activeThreads[threadID]);
 }
 
+// HELPER FUNCTION: CHECK KUNG ANG SENDER AY GC ADMIN O BOT OWNER
+async function isUserAdmin(api, threadID, senderID) {
+  if (String(senderID) === BOT_OWNER_UID) return true;
+  try {
+    const info = await api.getThreadInfo(threadID);
+    const adminIDs = (info.adminIDs || []).map(a => String(a.id));
+    return adminIDs.includes(String(senderID));
+  } catch (e) {
+    return false;
+  }
+}
+
 const lastResponseTime = new Map();
 const COOLDOWN_DELAY = 2500;
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -113,7 +125,7 @@ module.exports.handleEvent = async function ({ api, event }) {
   const currentLockedNickname = memoryData.nicknames[threadID] || DEFAULT_TARGET_NAME;
   const targetUser = memoryData.targets[threadID] || null;
 
-  // 1. STRICT AUTO-REVERT GC NAME
+  // 1. AUTO-LOCK GC NAME (Bawal palitan ng kahit sino)
   if (logMessageType === "log:thread-name") {
     const newGcName = logMessageData ? logMessageData.name : "";
     if (newGcName !== currentLockedGcName) {
@@ -126,7 +138,7 @@ module.exports.handleEvent = async function ({ api, event }) {
     return;
   }
 
-  // 2. STRICT AUTO-REVERT NICKNAME
+  // 2. AUTO-LOCK NICKNAME (Bawal palitan ng kahit sino)
   if (logMessageType === "log:user-nickname") {
     const changedParticipantID = logMessageData ? logMessageData.participant_id : null;
     const newNickname = logMessageData ? logMessageData.nickname : "";
@@ -140,10 +152,10 @@ module.exports.handleEvent = async function ({ api, event }) {
 
   if (!body || senderID === api.getCurrentUserID() || body.toLowerCase().startsWith("/ryuk")) return;
 
-  // AUTO DOG REACT (🐶) SA CHAT NG MGA USER
+  // AUTO DOG REACT (🐶) SA MGA NORMAL CHATS SA GC
   api.setMessageReaction(DOG_EMOJI, messageID, () => {}, true);
 
-  // KUNG MAY SPECIFIC TARGET: DITO LANG MAG-ROAST KAPAG YUNG TARGET ANG NAG-CHAT
+  // KUNG MAY SPECIFIC TARGET: SI TARGET LANG ANG IE-REPLYAN NG ROAST
   if (targetUser && String(senderID) !== String(targetUser)) return;
 
   const now = Date.now();
@@ -158,7 +170,7 @@ module.exports.handleEvent = async function ({ api, event }) {
 
     await sleep(800);
 
-    // AUTO REPLY + GUARANTEED SELF-REACT
+    // AUTO REPLY + GUARANTEED SELF-REACT ON BOT REPLY
     api.sendMessage({
       body: randomRoast,
       mentions: [{ tag: `@${senderID}`, id: senderID }]
@@ -178,24 +190,26 @@ module.exports.handleEvent = async function ({ api, event }) {
 module.exports.run = async function ({ api, event, args }) {
   const { threadID, messageID, senderID, mentions, messageReply } = event;
 
+  // 🔒 STRICT ADMIN CHECK: KUNG HINDI BOT OWNER O GC ADMIN, SILENTLY IGNORE (HINDI PAPANSININ)
+  const isAdmin = await isUserAdmin(api, threadID, senderID);
+  if (!isAdmin) return; // Dedma lang ang bot sa hindi admin
+
   await loadData();
   const sub = (args[0] || "").toLowerCase();
 
-  // ================= SONG REQUEST PLAYER =================
+  // /ryuk song <title> (ADMINS ONLY)
   if (sub === "song" || sub === "sing" || sub === "music") {
     const songName = args.slice(1).join(" ");
     if (!songName) return api.sendMessage("🎶 Paki-lagay ang pamagat ng kanta.\nHalimbawa: /ryuk song Pasilyo", threadID, messageID);
 
-    api.sendMessage(`🔍 Hinahanap ang kantang "${songName}"... Paki-hintay nang kaunti. 🎵`, threadID, messageID);
-
+    api.sendMessage(`🔍 Hinahanap ang kantang "${songName}"... Paki-hintay. 🎵`, threadID, messageID);
     const cachePath = path.resolve(__dirname, 'cache', `${Date.now()}_song.mp3`);
 
     try {
-      // Free YouTube/Music Search API
       const searchRes = await axios.get(`https://api.popcat.click/song?q=${encodeURIComponent(songName)}`);
       
       if (!searchRes.data || !searchRes.data.url) {
-        return api.sendMessage("❌ Bigo sa paghahanap ng kanta. Subukan ang ibang title.", threadID, messageID);
+        return api.sendMessage("❌ Bigo sa paghahanap ng kanta.", threadID, messageID);
       }
 
       const songData = searchRes.data;
@@ -211,24 +225,19 @@ module.exports.run = async function ({ api, event, args }) {
 
       writer.on('finish', () => {
         api.sendMessage({
-          body: `🎶 **Title:** ${songData.title || songName}\n👤 **Artist:** ${songData.artist || "Unknown"}\n\n▶️ *Enjoy your music from Ryuk System!*`,
+          body: `🎶 **Title:** ${songData.title || songName}\n👤 **Artist:** ${songData.artist || "Unknown"}`,
           attachment: fs.createReadStream(cachePath)
         }, threadID, () => fs.unlinkSync(cachePath), messageID);
       });
 
       writer.on('error', () => {
-        return api.sendMessage("❌ Nagka-error sa pag-download ng audio file.", threadID, messageID);
+        return api.sendMessage("❌ Error downloading audio file.", threadID, messageID);
       });
 
     } catch (e) {
-      return api.sendMessage("❌ May problema sa music provider. Pakisubukan muli mamaya.", threadID, messageID);
+      return api.sendMessage("❌ Music API Error.", threadID, messageID);
     }
     return;
-  }
-
-  // ================= ADMIN CONTROLLED COMMANDS =================
-  if (String(senderID) !== ADMIN_UID) {
-    return api.sendMessage("❌ Restricted: Si Ryuk Pogi lang ang pwedeng mag-control sa settings ng bot.", threadID, messageID);
   }
 
   // /ryuk on
@@ -236,8 +245,7 @@ module.exports.run = async function ({ api, event, args }) {
     if (!memoryData.activeThreads) memoryData.activeThreads = {};
     memoryData.activeThreads[threadID] = true;
     await saveData(memoryData);
-
-    return api.sendMessage(`🔥 RYUK SYSTEM: ACTIVATED sa GC na ito! Auto Dog React (🐶), Strict Locks, at Song Player are ready.`, threadID, messageID);
+    return api.sendMessage(`🔥 RYUK SYSTEM: ACTIVATED. Commands are strictly restricted to Admins.`, threadID, messageID);
   }
 
   // /ryuk off
@@ -249,7 +257,7 @@ module.exports.run = async function ({ api, event, args }) {
     return api.sendMessage("✅ Naka-OFF na ang Ryuk System sa GC na ito.", threadID, messageID);
   }
 
-  // /ryuk setgname <pangalan>
+  // /ryuk setgname <name>
   if (sub === "setgname") {
     const newGcName = args.slice(1).join(" ");
     if (!newGcName) return api.sendMessage("❌ Paki-lagay ang ilo-lock na GC Name.", threadID, messageID);
@@ -259,7 +267,7 @@ module.exports.run = async function ({ api, event, args }) {
 
     api.setTitle(newGcName, threadID, (err) => {
       if (err) return api.sendMessage("❌ Bigo sa pagpapalit ng GC Name.", threadID, messageID);
-      return api.sendMessage(`🔒 GC Name is now STRICTLY LOCKED to: "${newGcName}"`, threadID, messageID);
+      return api.sendMessage(`🔒 GC Name STRICTLY LOCKED to: "${newGcName}"`, threadID, messageID);
     });
     return;
   }
@@ -277,17 +285,17 @@ module.exports.run = async function ({ api, event, args }) {
     } else if (args[1] && args[1].toLowerCase() === "clear") {
       delete memoryData.targets[threadID];
       await saveData(memoryData);
-      return api.sendMessage("🎯 Target Cleared! Gagana na ulit ang auto-roast reply sa LAHAT.", threadID, messageID);
+      return api.sendMessage("🎯 Target Cleared!", threadID, messageID);
     }
 
     if (!targetID) {
-      return api.sendMessage("❌ Paki-tag ang ie-asar, mag-reply sa message niya, o i-paste ang UID.", threadID, messageID);
+      return api.sendMessage("❌ Paki-mention, reply, o lagay ng UID.", threadID, messageID);
     }
 
     memoryData.targets[threadID] = targetID;
     await saveData(memoryData);
 
-    return api.sendMessage(`🎯 TARGET LOCKED: Nakatutok na ang auto-roast kay UID: ${targetID}`, threadID, messageID);
+    return api.sendMessage(`🎯 TARGET LOCKED: UID ${targetID}`, threadID, messageID);
   }
 
   // /ryuk setnick <name>
@@ -302,13 +310,13 @@ module.exports.run = async function ({ api, event, args }) {
       const threadInfo = await api.getThreadInfo(threadID);
       const participantIDs = threadInfo.participantIDs || [];
 
-      api.sendMessage(`⏳ Isina-set at kino-lock ang nickname na "${newNickname}" sa lahat...`, threadID);
+      api.sendMessage(`⏳ Kino-lock ang nickname na "${newNickname}" sa lahat...`, threadID);
 
       for (const userID of participantIDs) {
         await sleep(800);
         api.changeNickname(newNickname, threadID, userID, () => {});
       }
-      return api.sendMessage(`🔒 Successfully locked nicknames to: "${newNickname}"`, threadID, messageID);
+      return api.sendMessage(`🔒 Locked nicknames to: "${newNickname}"`, threadID, messageID);
     } catch (e) {
       return api.sendMessage("❌ Bigo sa pagbago ng nicknames.", threadID, messageID);
     }
@@ -317,32 +325,19 @@ module.exports.run = async function ({ api, event, args }) {
   // /ryuk status
   if (sub === "status") {
     const activeHere = isThreadActive(threadID);
-    const target = memoryData.targets[threadID] ? memoryData.targets[threadID] : "LAHAT (No Specific Target)";
+    const target = memoryData.targets[threadID] ? memoryData.targets[threadID] : "LAHAT (No Target)";
     const targetGcName = memoryData.gcNames[threadID] || DEFAULT_TARGET_NAME;
     const targetNickname = memoryData.nicknames[threadID] || DEFAULT_TARGET_NAME;
 
     return api.sendMessage(
       `🔥 RYUK SYSTEM STATUS:\n` +
       `Active: ${activeHere ? "YES 🟢" : "NO 🔴"}\n` +
+      `Command Access: GC/Bot Admins Only\n` +
       `Locked GC Name: "${targetGcName}"\n` +
       `Locked Nickname: "${targetNickname}"\n` +
-      `Current Roast Target: ${target}\n` +
-      `Song Player: ACTIVE 🎵`,
+      `Target: ${target}`,
       threadID,
       messageID
     );
   }
-
-  return api.sendMessage(
-    `Mga Command ni Ryuk:\n` +
-    `🎵 /ryuk song <title> — Mag-patugtog ng kanta (Kahit sino pwedeng gumamit)\n` +
-    `/ryuk on — Simulan ang script sa GC\n` +
-    `/ryuk off — Itigil ang script\n` +
-    `/ryuk setgname <name> — Lock GC Name (Anti-Change)\n` +
-    `/ryuk target — I-reply ito sa chat ng ta-targetin\n` +
-    `/ryuk setnick <name> — Lock Nickname sa lahat\n` +
-    `/ryuk status — Status check`,
-    threadID,
-    messageID
-  );
 };
