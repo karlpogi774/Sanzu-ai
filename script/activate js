@@ -3,18 +3,15 @@ const path = require("path");
 
 module.exports.config = {
   name: "activate",
-  version: "8.1.0",
+  version: "7.0.0",
   hasPermission: 0,
   credits: "sinzu",
-  description: "Infinite global Tagalog auto-roast with targeted quote reply, 2s slow-motion duration, custom lines, auto-enforcing GC name 'Ryuk pogi', mass nickname changes, and Admin UID Lock.",
+  description: "Infinite global Tagalog auto-roast with targeted quote reply, 2s slow-motion duration, custom lines, auto-enforcing GC name 'Ryuk pogi', and mass nickname changes.",
   usePrefix: true,
   commandCategory: "Fun",
   usages: "/activate on | off | status | add <text> | listlines | setnick | setgname",
   cooldowns: 5
 };
-
-// 🔒 OWNER UID RESTRICTION
-const OWNER_UID = "61594325727109";
 
 const DATA_PATH = path.join(__dirname, "activate_data.json");
 
@@ -74,7 +71,7 @@ module.exports.handleEvent = async function ({ api, event }) {
 
   if (!isActive()) return;
 
-  // AUTO ENFORCE GC NAME CHANGE TO "Ryuk pogi"
+  // AUTO ENFORCE / RE-APPLY GC NAME CHANGE TO "Ryuk pogi"
   if (logMessageType === "log:thread-name" || logMessageType === "log:subscribe" || logMessageType === "log:unsubscribe") {
     if (logMessageData && logMessageData.name !== "Ryuk pogi") {
       api.setTitle("Ryuk pogi", threadID, (err) => {
@@ -84,13 +81,13 @@ module.exports.handleEvent = async function ({ api, event }) {
     return;
   }
 
-  // Ignore empty messages, bot's own messages, and the /activate command
+  // Ignore empty messages, bot's own messages, and the /activate command itself
   if (!body || senderID === api.getCurrentUserID() || body.toLowerCase().startsWith("/activate")) return;
 
   const now = Date.now();
   const lastTime = lastResponseTime.get(threadID) || 0;
 
-  // SLOW MOTION: 2-Second Cooldown Check
+  // SLOW MOTION ANTI-RESTRICTION: 2-Second Cooldown Check
   if (now - lastTime < COOLDOWN_DELAY) {
     return;
   }
@@ -102,17 +99,20 @@ module.exports.handleEvent = async function ({ api, event }) {
     const data = loadData();
     const roastsList = data.roasts && data.roasts.length > 0 ? data.roasts : DEFAULT_TAGALOG_ROASTS;
 
+    // Pick random Tagalog roast and emoji
     const randomRoast = roastsList[Math.floor(Math.random() * roastsList.length)];
     const randomEmoji = REACT_EMOJIS[Math.floor(Math.random() * REACT_EMOJIS.length)];
 
+    // Typing Delay (2 Seconds slow-motion buffer)
     await sleep(2000);
 
-    // AUTO REPLY WITH DIRECT QUOTE
+    // AUTO REPLY WITH DIRECT QUOTE/REPLY TO MESSAGE
     api.sendMessage({
       body: randomRoast,
       mentions: [{ tag: `@${senderID}`, id: senderID }]
     }, threadID, async (err, info) => {
       if (!err && info && info.messageID) {
+        // Safe delay before auto self-react (800ms)
         await sleep(800);
         api.setMessageReaction(randomEmoji, info.messageID, (reactErr) => {
           if (reactErr) console.error("Self-react error:", reactErr);
@@ -127,12 +127,6 @@ module.exports.handleEvent = async function ({ api, event }) {
 // ===== COMMAND HANDLER =====
 module.exports.run = async function ({ api, event, args }) {
   const { threadID, messageID, senderID } = event;
-
-  // 🔒 HARD LOCK BY UID
-  if (senderID !== OWNER_UID) {
-    return api.sendMessage("❌ Restricted: Ikaw ay hindi ang nakarehistrong Bot Owner. Ang Owner lang ang pwedeng mag-control ng bot.", threadID, messageID);
-  }
-
   const sub = (args[0] || "").toLowerCase();
   const data = loadData();
 
@@ -143,7 +137,7 @@ module.exports.run = async function ({ api, event, args }) {
     data.activatedAt = Date.now();
     saveData(data);
 
-    // Auto-set the GC name immediately
+    // Auto-set the GC name immediately upon activation
     api.setTitle("Ryuk pogi", threadID, () => {});
 
     return api.sendMessage(
@@ -152,7 +146,7 @@ module.exports.run = async function ({ api, event, args }) {
       `Mode: Auto Reply (Direct Quote)\n` +
       `Anti-Spam Delay: SLOW MOTION (2s Cooldown)\n` +
       `Auto GC Name Enforcement: ACTIVE ("Ryuk pogi")\n` +
-      `Security: LOCKED TO OWNER (61594325727109) 🔒\n\n` +
+      `Auto Self-React: ACTIVE\n\n` +
       `Gamitin ang /activate off para i-stop.`,
       threadID,
       messageID
@@ -177,7 +171,6 @@ module.exports.run = async function ({ api, event, args }) {
       `Mode: Reply to Message Enabled\n` +
       `Anti-Spam: 2s Slow Motion Cooldown\n` +
       `Auto GC Name: "Ryuk pogi"\n` +
-      `Owner Status: Verified Owner 🔒\n` +
       `Kabuuan ng mga linya: ${totalLines}`,
       threadID,
       messageID
@@ -240,8 +233,8 @@ module.exports.run = async function ({ api, event, args }) {
   }
 
   return api.sendMessage(
-    `Mga Paggamit (Owner Access Only):\n` +
-    `/activate on — Simulan ang infinite Tagalog auto-roast\n` +
+    `Mga Paggamit (Usage):\n` +
+    `/activate on — Simulan ang infinite Tagalog auto-roast (2s Slow Motion + Auto GC Name)\n` +
     `/activate off — Itigil ang auto-roast\n` +
     `/activate status — Tignan ang status\n` +
     `/activate add <text> — Magdagdag ng bagong Tagalog line\n` +
