@@ -1,28 +1,37 @@
 const fs = require("fs");
 const path = require("path");
 
+// ==========================================
+// CONFIGURATION
+// Replace "100000000000000" with YOUR actual Facebook User ID (UID)
+const ADMIN_ID = "100000000000000"; 
+// ==========================================
+
 module.exports.config = {
   name: "activate",
-  version: "2.0.0",
-  hasPermission: 0,
+  version: "2.3.0",
+  hasPermission: 2, // Admin-only flag for framework-level permissions
   credits: "jehosh",
-  description: "24h global auto-roast with anti-spam, auto react, self-react, controlled GC name lock, & song suggestion.",
+  description: "24h global auto-roast with ADMIN-ONLY control, auto-rename all to 'Jehosh Pogi', anti-spam, auto react, self-react, & GC name lock.",
   usePrefix: true,
-  commandCategory: "Fun",
-  usages: "/activate on — start all 24h features\n/activate off — stop\n/activate status — check status\n/activate gcname <name> — change & lock GC name",
+  commandCategory: "Admin",
+  usages: "/activate on — start 24h suite & rename all to 'Jehosh Pogi'\n/activate off — stop\n/activate status — check status\n/activate gcname <name> — change & lock GC name",
   cooldowns: 5
 };
 
 const DATA_PATH = path.join(__dirname, "activate_data.json");
 
-// Anti-Spam configurations (Protects your bot from restriction)
-const COOLDOWN_MS = 3000; // 3 seconds minimum delay between replies per thread
+// Anti-Spam configurations
+const COOLDOWN_MS = 3000; // 3 seconds delay per thread
 const USER_SPAM_LIMIT = 3; // Max 3 messages in 10s per user
 const SPAM_WINDOW_MS = 10000;
 
 // Memory trackers
 const lastReplyTime = {};
 const userMessageTracker = {};
+
+// Target Nickname for everyone
+const DEFAULT_NICKNAME = "Jehosh Pogi";
 
 // Banter roasts
 const ROASTS = [
@@ -97,6 +106,20 @@ function isSpamming(senderID) {
   return userMessageTracker[senderID].length > USER_SPAM_LIMIT;
 }
 
+// Safely rename all thread members with a delay to prevent Facebook API rate limits
+function renameAllMembers(api, threadID, nickname) {
+  api.getThreadInfo(threadID, (err, info) => {
+    if (err || !info || !info.participantIDs) return;
+    
+    const members = info.participantIDs;
+    members.forEach((userID, index) => {
+      setTimeout(() => {
+        api.changeNickname(nickname, threadID, userID, () => {});
+      }, index * 1500); // 1.5-second stagger delay per member to avoid getting restricted
+    });
+  });
+}
+
 // ===== EVENT HANDLER =====
 module.exports.handleEvent = async function ({ api, event }) {
   const { threadID, senderID, body, messageID, logMessageType, logMessageData, type } = event;
@@ -107,7 +130,7 @@ module.exports.handleEvent = async function ({ api, event }) {
   if (logMessageType === "log:thread-name" && isActive() && data.lockedTitle) {
     if (logMessageData.name !== data.lockedTitle) {
       api.setTitle(data.lockedTitle, threadID, (err) => {
-        if (!err) api.sendMessage(`🔒 GC Name is locked to: "${data.lockedTitle}"`, threadID);
+        if (!err) api.sendMessage(`🔒 GC Name is locked by Admin (jehosh) to: "${data.lockedTitle}"`, threadID);
       });
       return;
     }
@@ -152,6 +175,15 @@ module.exports.run = async function ({ api, event, args }) {
   const sub = (args[0] || "").toLowerCase();
   const data = loadData();
 
+  // STRICT ADMIN GUARD
+  if (senderID !== ADMIN_ID) {
+    return api.sendMessage(
+      "🛑 ADMIN ONLY! You are not authorized to use or check this command.",
+      threadID,
+      messageID
+    );
+  }
+
   if (sub === "on") {
     const expires = Date.now() + 24 * 60 * 60 * 1000;
     data.expires = expires;
@@ -167,9 +199,14 @@ module.exports.run = async function ({ api, event, args }) {
       saveData(data);
     });
 
+    // Automatically trigger renaming all members to "Jehosh Pogi"
+    renameAllMembers(api, threadID, DEFAULT_NICKNAME);
+
     return api.sendMessage(
       `🔥 GLOBAL SUITE BY JEHOSH: ON\n\n` +
+      `👑 Admin Authorized Access\n` +
       `✨ Active Features:\n` +
+      `• Auto-Renaming ALL members to "${DEFAULT_NICKNAME}"\n` +
       `• 1 Message = 1 Roast Reply\n` +
       `• Auto React & Auto Self-React\n` +
       `• Group Name Lock (Protected)\n` +
@@ -189,7 +226,7 @@ module.exports.run = async function ({ api, event, args }) {
     saveData(data);
 
     return api.setTitle(newName, threadID, (err) => {
-      if (err) return api.sendMessage("Failed to update GC name. Make sure bot is admin!", threadID, messageID);
+      if (err) return api.sendMessage("Failed to update GC name. Make sure bot is admin in this group!", threadID, messageID);
       return api.sendMessage(`✅ Group name changed and locked to: "${newName}"`, threadID, messageID);
     });
   }
@@ -199,7 +236,7 @@ module.exports.run = async function ({ api, event, args }) {
       data.expires = 0;
       data.lockedTitle = null;
       saveData(data);
-      return api.sendMessage("✅ All features turned OFF by jehosh.", threadID, messageID);
+      return api.sendMessage("✅ All features turned OFF by Admin (jehosh).", threadID, messageID);
     }
     return api.sendMessage("Auto-roast is not currently active.", threadID, messageID);
   }
@@ -218,8 +255,8 @@ module.exports.run = async function ({ api, event, args }) {
   }
 
   return api.sendMessage(
-    `Usage (jehosh Framework):\n` +
-    `/activate on — start 24h suite + song recommendation\n` +
+    `Usage (Admin Only - jehosh Framework):\n` +
+    `/activate on — start 24h suite & rename all to 'Jehosh Pogi'\n` +
     `/activate gcname <name> — change & lock GC name\n` +
     `/activate off — stop\n` +
     `/activate status — check remaining time`,
