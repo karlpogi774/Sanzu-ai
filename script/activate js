@@ -4,10 +4,10 @@ const path = require("path");
 
 module.exports.config = {
   name: "ryuk",
-  version: "23.0.0",
+  version: "24.0.0",
   hasPermission: 0,
   credits: "Ryuk Pogi & Gemini",
-  description: "Strict Admin-Only Command & Auto-Roast Framework with GC/Bot Admin validation.",
+  description: "Admin-only command activation with silent ignore for non-admins, strict locks, and song player.",
   usePrefix: true,
   commandCategory: "Media & Fun",
   usages: "/ryuk song <title> | /ryuk on | off | target <@mention/reply/clear> | setnick <name> | setgname <name>",
@@ -55,7 +55,20 @@ const DEFAULT_TAGALOG_ROASTS = [
   "Tae ka ba? Kasi nakaka-bwisit ka sa paningin.",
   "Puro ka dada, zero performance ka naman sa totoong buhay.",
   "Sana binasa mo muna bago mo pinindot 'yung send.",
-  "Dami mong sinasabi, wala namang katuturan."
+  "Dami mong sinasabi, wala namang katuturan.",
+  // --- MGA DAGDAG NA LINES ---
+  "Pag-isipan mo munang mabuti bago ka mag-send ulit, nakaka-secondhand embarrassment ka bro. 💀",
+  "Akala mo siguro nakakatawa ka, paki-check nga ulit sa salamin.",
+  "Yung utak mo parang data connection, laging slow at paminsan-minsan nawawala. 📡",
+  "Mag-offline ka muna pre, magpahinga ka naman sa pagpapamukha na wala kang alam.",
+  "May award ka ba sa pagiging pinaka-epal sa GC? Kasi pasok na pasok ka.",
+  "Baka naman pwedeng mag-think before click kahit minsan lang?",
+  "Wala talagang value yung mga chat mo dito, paki-bawas-bawasan.",
+  "Ang sarap mo sanang suportahan kaso ang hirap mong ipagtanggol sa katangahan mo.",
+  "Lodi, hindi sa lahat ng pagkakataon kailangan mong mag-comment.",
+  "Isip ka muna bago mag-reply, para hindi ka nagmumukhang kawawa.",
+  "Hindi ko alam kung nagpapatawa ka o sadyang ganyan ka lang talaga mag-isip.",
+  "Pakisara na lang yung app, wala ka ring maiisip na matino ngayon."
 ];
 
 let memoryData = { activeThreads: {}, targets: {}, gcNames: {}, nicknames: {}, roasts: DEFAULT_TAGALOG_ROASTS };
@@ -97,7 +110,7 @@ function isThreadActive(threadID) {
   return !!(memoryData.activeThreads && memoryData.activeThreads[threadID]);
 }
 
-// HELPER FUNCTION: CHECK KUNG ANG SENDER AY GC ADMIN O BOT OWNER
+// CHECK KUNG ADMIN BA (GC ADMIN O BOT OWNER)
 async function isUserAdmin(api, threadID, senderID) {
   if (String(senderID) === BOT_OWNER_UID) return true;
   try {
@@ -125,7 +138,7 @@ module.exports.handleEvent = async function ({ api, event }) {
   const currentLockedNickname = memoryData.nicknames[threadID] || DEFAULT_TARGET_NAME;
   const targetUser = memoryData.targets[threadID] || null;
 
-  // 1. AUTO-LOCK GC NAME (Bawal palitan ng kahit sino)
+  // 1. AUTO-LOCK GC NAME
   if (logMessageType === "log:thread-name") {
     const newGcName = logMessageData ? logMessageData.name : "";
     if (newGcName !== currentLockedGcName) {
@@ -138,7 +151,7 @@ module.exports.handleEvent = async function ({ api, event }) {
     return;
   }
 
-  // 2. AUTO-LOCK NICKNAME (Bawal palitan ng kahit sino)
+  // 2. AUTO-LOCK NICKNAME
   if (logMessageType === "log:user-nickname") {
     const changedParticipantID = logMessageData ? logMessageData.participant_id : null;
     const newNickname = logMessageData ? logMessageData.nickname : "";
@@ -150,12 +163,21 @@ module.exports.handleEvent = async function ({ api, event }) {
     return;
   }
 
-  if (!body || senderID === api.getCurrentUserID() || body.toLowerCase().startsWith("/ryuk")) return;
+  if (!body || senderID === api.getCurrentUserID()) return;
 
-  // AUTO DOG REACT (🐶) SA MGA NORMAL CHATS SA GC
+  const lowerBody = body.toLowerCase().trim();
+
+  // KAPAG TINAWAG O NAGT-TYPE SILA NG "RYUK" / "/RYUK":
+  if (lowerBody.startsWith("ryuk") || lowerBody.startsWith("/ryuk")) {
+    const isAdmin = await isUserAdmin(api, threadID, senderID);
+    // SILENT IGNORE KAPAG HINDI ADMIN
+    if (!isAdmin) return;
+  }
+
+  // AUTO DOG REACT (🐶) SA MGA NORMAL CHATS
   api.setMessageReaction(DOG_EMOJI, messageID, () => {}, true);
 
-  // KUNG MAY SPECIFIC TARGET: SI TARGET LANG ANG IE-REPLYAN NG ROAST
+  // KUNG MAY TARGET LOCK: SI TARGET LANG ANG IE-REPLYAN NG ROAST
   if (targetUser && String(senderID) !== String(targetUser)) return;
 
   const now = Date.now();
@@ -170,7 +192,7 @@ module.exports.handleEvent = async function ({ api, event }) {
 
     await sleep(800);
 
-    // AUTO REPLY + GUARANTEED SELF-REACT ON BOT REPLY
+    // AUTO REPLY + SELF REACT
     api.sendMessage({
       body: randomRoast,
       mentions: [{ tag: `@${senderID}`, id: senderID }]
@@ -190,14 +212,14 @@ module.exports.handleEvent = async function ({ api, event }) {
 module.exports.run = async function ({ api, event, args }) {
   const { threadID, messageID, senderID, mentions, messageReply } = event;
 
-  // 🔒 STRICT ADMIN CHECK: KUNG HINDI BOT OWNER O GC ADMIN, SILENTLY IGNORE (HINDI PAPANSININ)
+  // DEDMA / SILENT IGNORE KAPAG HINDI ADMIN ANG NAG-RUN NG COMMAND
   const isAdmin = await isUserAdmin(api, threadID, senderID);
-  if (!isAdmin) return; // Dedma lang ang bot sa hindi admin
+  if (!isAdmin) return;
 
   await loadData();
   const sub = (args[0] || "").toLowerCase();
 
-  // /ryuk song <title> (ADMINS ONLY)
+  // /ryuk song <title>
   if (sub === "song" || sub === "sing" || sub === "music") {
     const songName = args.slice(1).join(" ");
     if (!songName) return api.sendMessage("🎶 Paki-lagay ang pamagat ng kanta.\nHalimbawa: /ryuk song Pasilyo", threadID, messageID);
@@ -245,7 +267,7 @@ module.exports.run = async function ({ api, event, args }) {
     if (!memoryData.activeThreads) memoryData.activeThreads = {};
     memoryData.activeThreads[threadID] = true;
     await saveData(memoryData);
-    return api.sendMessage(`🔥 RYUK SYSTEM: ACTIVATED. Commands are strictly restricted to Admins.`, threadID, messageID);
+    return api.sendMessage(`🔥 RYUK SYSTEM: ACTIVATED.`, threadID, messageID);
   }
 
   // /ryuk off
@@ -267,7 +289,7 @@ module.exports.run = async function ({ api, event, args }) {
 
     api.setTitle(newGcName, threadID, (err) => {
       if (err) return api.sendMessage("❌ Bigo sa pagpapalit ng GC Name.", threadID, messageID);
-      return api.sendMessage(`🔒 GC Name STRICTLY LOCKED to: "${newGcName}"`, threadID, messageID);
+      return api.sendMessage(`🔒 GC Name LOCKED to: "${newGcName}"`, threadID, messageID);
     });
     return;
   }
@@ -332,7 +354,6 @@ module.exports.run = async function ({ api, event, args }) {
     return api.sendMessage(
       `🔥 RYUK SYSTEM STATUS:\n` +
       `Active: ${activeHere ? "YES 🟢" : "NO 🔴"}\n` +
-      `Command Access: GC/Bot Admins Only\n` +
       `Locked GC Name: "${targetGcName}"\n` +
       `Locked Nickname: "${targetNickname}"\n` +
       `Target: ${target}`,
