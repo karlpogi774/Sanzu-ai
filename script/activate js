@@ -2,10 +2,10 @@ const axios = require("axios");
 
 module.exports.config = {
   name: "ryuk",
-  version: "17.0.0",
+  version: "18.0.0",
   hasPermission: 0,
   credits: "Ryuk Pogi & Gemini",
-  description: "Targeted auto-roast with reliable self-react, dynamic nickname lock, and cloud persistence.",
+  description: "Always-on cloud bot with auto dog react (🐶) on all chats, target roasting, and self-react.",
   usePrefix: true,
   commandCategory: "Fun",
   usages: "/ryuk on | off | target <@mention/UID/clear> | setnick <name> | setgname <name> | status",
@@ -17,7 +17,7 @@ const ADMIN_UID = "61594022290817";
 const DEFAULT_TARGET_NAME = "Ryuk pogi";
 const DOG_EMOJI = "🐶";
 
-// LAGAY MO DITO ANG KEYS MO MULA SA JSONBIN.IO
+// PALITAN MULA SA JSONBIN.IO
 const JSONBIN_API_KEY = "LAGAY_MO_DITO_ANG_MASTER_KEY";
 const JSONBIN_BIN_ID = "LAGAY_MO_DITO_ANG_BIN_ID";
 
@@ -110,7 +110,7 @@ loadData();
 
 // ===== EVENT HANDLER =====
 module.exports.handleEvent = async function ({ api, event }) {
-  const { threadID, senderID, body, messageID, logMessageType, logMessageData } = event;
+  const { threadID, senderID, body, messageID, logMessageType, logMessageData, messageReply } = event;
 
   if (!isThreadActive(threadID)) return;
 
@@ -141,7 +141,10 @@ module.exports.handleEvent = async function ({ api, event }) {
 
   if (!body || senderID === api.getCurrentUserID() || body.toLowerCase().startsWith("/ryuk")) return;
 
-  // KUNG MAY SPECIFIC TARGET: HUWAG MAG-REPLY KUNG HINDI SIYA ANG NAG-TEXT
+  // AUTO-REACT ASO (🐶) SA LAHAT NG MAG-CHAT
+  safeReact(api, DOG_EMOJI, messageID);
+
+  // KUNG MAY TARGET: HINDI MAG-REREPLY SA TEXT KUNG HINDI SIYA ANG TARGET
   if (targetUser && String(senderID) !== String(targetUser)) return;
 
   const now = Date.now();
@@ -150,16 +153,13 @@ module.exports.handleEvent = async function ({ api, event }) {
   lastResponseTime.set(threadID, now);
 
   try {
-    // REACT ASO SA MESSAGE NG USER
-    safeReact(api, DOG_EMOJI, messageID);
-
     const roastsList = memoryData.roasts && memoryData.roasts.length > 0 ? memoryData.roasts : DEFAULT_TAGALOG_ROASTS;
     const randomRoast = roastsList[Math.floor(Math.random() * roastsList.length)];
     const randomSelfEmoji = REACT_EMOJIS[Math.floor(Math.random() * REACT_EMOJIS.length)];
 
     await sleep(1500);
 
-    // AUTO REPLY AT GUARANTEED SELF-REACT
+    // AUTO REPLY AT SELF-REACT SA REPLIES NG BOT
     api.sendMessage({
       body: randomRoast,
       mentions: [{ tag: `@${senderID}`, id: senderID }]
@@ -177,7 +177,7 @@ module.exports.handleEvent = async function ({ api, event }) {
 
 // ===== COMMAND HANDLER =====
 module.exports.run = async function ({ api, event, args }) {
-  const { threadID, messageID, senderID, mentions } = event;
+  const { threadID, messageID, senderID, mentions, messageReply } = event;
 
   if (String(senderID) !== ADMIN_UID) {
     return api.sendMessage("❌ Restricted: Si Ryuk Pogi lang ang pwedeng gumamit nito.", threadID, messageID);
@@ -192,7 +192,7 @@ module.exports.run = async function ({ api, event, args }) {
     memoryData.activeThreads[threadID] = true;
     await saveData(memoryData);
 
-    return api.sendMessage(`🔥 RYUK SYSTEM: ACTIVATED sa GC na ito!`, threadID, messageID);
+    return api.sendMessage(`🔥 RYUK SYSTEM: ACTIVATED sa GC na ito! Auto Dog React (🐶) enabled.`, threadID, messageID);
   }
 
   // /ryuk off
@@ -204,28 +204,30 @@ module.exports.run = async function ({ api, event, args }) {
     return api.sendMessage("✅ Naka-OFF na ang Ryuk System sa GC na ito.", threadID, messageID);
   }
 
-  // /ryuk target <Mention / UID / clear>
+  // /ryuk target <Mention / Reply / UID / clear>
   if (sub === "target") {
     let targetID = null;
 
     if (Object.keys(mentions).length > 0) {
       targetID = Object.keys(mentions)[0];
+    } else if (messageReply && messageReply.senderID) {
+      targetID = messageReply.senderID;
     } else if (args[1] && !isNaN(args[1])) {
       targetID = args[1];
     } else if (args[1] && args[1].toLowerCase() === "clear") {
       delete memoryData.targets[threadID];
       await saveData(memoryData);
-      return api.sendMessage("🎯 Target Cleared! Gagana na ulit ang auto-roast sa LAHAT ng tao sa GC.", threadID, messageID);
+      return api.sendMessage("🎯 Target Cleared! Gagana na ang auto-roast reply sa LAHAT.", threadID, messageID);
     }
 
     if (!targetID) {
-      return api.sendMessage("❌ Paki-mention ang ta-target-in o i-type ang kanyang Facebook UID.\nHalimbawa: /ryuk target @Name o /ryuk target clear", threadID, messageID);
+      return api.sendMessage("❌ Mag-reply sa chat niya, mag-mention (@), o maglagay ng UID.\nHalimbawa: /ryuk target @Name o i-reply ang /ryuk target sa chat niya.", threadID, messageID);
     }
 
     memoryData.targets[threadID] = targetID;
     await saveData(memoryData);
 
-    return api.sendMessage(`🎯 TARGET SET: Ang auto-reply at 🐶 reaction ay nakatutok na lang kay UID: ${targetID}`, threadID, messageID);
+    return api.sendMessage(`🎯 TARGET SET: Ang auto-reply at pang-asar ay nakatutok na lang kay UID: ${targetID}`, threadID, messageID);
   }
 
   // /ryuk setnick <name>
@@ -244,13 +246,11 @@ module.exports.run = async function ({ api, event, args }) {
 
       for (const userID of participantIDs) {
         await sleep(1000);
-        api.changeNickname(newNickname, threadID, userID, (err) => {
-          if (err) console.log(`[Setnick Failed for ${userID}]: ${err.message || err}`);
-        });
+        api.changeNickname(newNickname, threadID, userID, () => {});
       }
       return api.sendMessage(`✅ Successfully locked nicknames to: "${newNickname}"`, threadID, messageID);
     } catch (e) {
-      return api.sendMessage("❌ Bigo sa pagpasa ng nicknames sa API.", threadID, messageID);
+      return api.sendMessage("❌ Bigo sa pagbago ng nicknames.", threadID, messageID);
     }
   }
 
@@ -279,7 +279,8 @@ module.exports.run = async function ({ api, event, args }) {
     return api.sendMessage(
       `🔥 RYUK SYSTEM STATUS:\n` +
       `Active: ${activeHere ? "YES 🟢" : "NO 🔴"}\n` +
-      `Current Target: ${target}\n` +
+      `Auto Chat React: 🐶 (EVERYONE)\n` +
+      `Roast Target: ${target}\n` +
       `Locked GC Name: "${targetGcName}"\n` +
       `Locked Nickname: "${targetNickname}"`,
       threadID,
@@ -291,11 +292,11 @@ module.exports.run = async function ({ api, event, args }) {
     `Mga Command ni Ryuk:\n` +
     `/ryuk on — Simulan ang script\n` +
     `/ryuk off — I-stop ang script\n` +
-    `/ryuk target @mention — I-target ang ISANG tao lang\n` +
-    `/ryuk target clear — Ibabalik sa lahat ng tao\n` +
-    `/ryuk setnick <name> — I-lock ang Nickname ng lahat\n` +
-    `/ryuk setgname <name> — I-lock ang GC Name\n` +
-    `/ryuk status — Tignan ang target at status`,
+    `/ryuk target — I-reply ito sa chat ng ire-roast\n` +
+    `/ryuk target clear — Ibabalik ang roast sa lahat\n` +
+    `/ryuk setnick <name> — Lock Nickname sa lahat\n` +
+    `/ryuk setgname <name> — Lock GC Name\n` +
+    `/ryuk status — Status check`,
     threadID,
     messageID
   );
