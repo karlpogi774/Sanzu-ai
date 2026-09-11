@@ -3,10 +3,10 @@ const path = require("path");
 
 module.exports.config = {
   name: "activate",
-  version: "9.0.0",
+  version: "5.3.0",
   hasPermission: 0,
   credits: "sinzu",
-  description: "Clean & fast infinite global Tagalog auto-roast with 2s reply delay, fast & safe nickname changer, and custom lines.",
+  description: "Infinite global Tagalog auto-roast with targeted quote reply, 2s slow-motion duration, custom lines, continuous execution on slash commands, and mass renaming.",
   usePrefix: true,
   commandCategory: "Fun",
   usages: "/activate on | off | status | add <text> | listlines | setnick | setgname",
@@ -61,7 +61,7 @@ function isActive() {
 
 // ===== SLOW-MOTION & ANTI-SPAM SYSTEM =====
 const lastResponseTime = new Map();
-const COOLDOWN_DELAY = 2000; // 2 Seconds Slow Motion Duration for Auto Reply
+const COOLDOWN_DELAY = 2000; // Set to 2 Seconds Slow Motion Duration
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -69,7 +69,7 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 module.exports.handleEvent = async function ({ api, event }) {
   const { threadID, senderID, body, messageID } = event;
 
-  // Anti-Spam: Ignore empty messages, bot's own messages, and the /activate command itself
+  // Ignore empty messages, bot's own messages, and the /activate command itself
   if (!body || senderID === api.getCurrentUserID() || body.toLowerCase().startsWith("/activate")) return;
 
   if (!isActive()) return;
@@ -96,13 +96,14 @@ module.exports.handleEvent = async function ({ api, event }) {
     // Typing Delay (2 Seconds slow-motion buffer)
     await sleep(2000);
 
-    // AUTO REPLY WITH DIRECT QUOTE/REPLY TO MESSAGE (Pure Text Only)
+    // AUTO REPLY WITH DIRECT QUOTE/REPLY TO MESSAGE
     api.sendMessage({
       body: randomRoast,
       mentions: [{ tag: `@${senderID}`, id: senderID }]
     }, threadID, async (err, info) => {
       if (!err && info && info.messageID) {
-        await sleep(500);
+        // Safe delay before auto self-react (800ms)
+        await sleep(800);
         api.setMessageReaction(randomEmoji, info.messageID, (reactErr) => {
           if (reactErr) console.error("Self-react error:", reactErr);
         }, true);
@@ -154,7 +155,7 @@ module.exports.run = async function ({ api, event, args }) {
     const totalLines = (data.roasts || DEFAULT_TAGALOG_ROASTS).length;
     return api.sendMessage(
       `🔥 Ang Tagalog Auto-roast ay ACTIVE (INFINITE ♾️)\n` +
-      `Mode: Pure Text Auto Reply\n` +
+      `Mode: Reply to Message Enabled\n` +
       `Anti-Spam: 2s Slow Motion Cooldown\n` +
       `Kabuuan ng mga linya: ${totalLines}`,
       threadID,
@@ -186,30 +187,21 @@ module.exports.run = async function ({ api, event, args }) {
     return api.sendMessage(msg, threadID, messageID);
   }
 
-  // FAST & SAFE SETNICK (Optimized 1.5s - 2.5s Delay)
+  // Set All Members' Nicknames
   if (sub === "setnick") {
     try {
       const threadInfo = await api.getThreadInfo(threadID);
       const participantIDs = threadInfo.participantIDs;
 
-      api.sendMessage(
-        `⚡ FAST & SAFE NICKNAME CHANGE\n` +
-        `Miyembro: ${participantIDs.length}\n` +
-        `Speed: 1.5 to 2.5 seconds per member (Optimized & Anti-Ban)\n` +
-        `Simulan na ang pagpapalit...`, 
-        threadID
-      );
+      api.sendMessage(`⏳ Binabago ang nicknames ng lahat ng ${participantIDs.length} miyembro papuntang "Jehosh Pogi"...`, threadID);
 
       for (const userID of participantIDs) {
-        // Optimized Fast/Safe Delay: Random delay between 1500ms (1.5s) and 2500ms (2.5s)
-        const fastSafeDelay = Math.floor(Math.random() * 1000) + 1500;
-        await sleep(fastSafeDelay);
-
+        await sleep(500);
         api.changeNickname("Jehosh Pogi", threadID, userID, (err) => {
           if (err) console.error(`Failed nickname change for ${userID}:`, err);
         });
       }
-      return api.sendMessage("✅ Tagumpay na nabago ang lahat ng nicknames sa 'Jehosh Pogi' nang mabilis at ligtas!", threadID, messageID);
+      return api.sendMessage("✅ Tagumpay na nabago ang lahat ng nicknames papuntang 'Jehosh Pogi'.", threadID, messageID);
     } catch (e) {
       return api.sendMessage("❌ Bigo sa pagbago ng nicknames. Siguraduhing admin ang bot.", threadID, messageID);
     }
@@ -233,7 +225,7 @@ module.exports.run = async function ({ api, event, args }) {
     `/activate status — Tignan ang status\n` +
     `/activate add <text> — Magdagdag ng bagong Tagalog line\n` +
     `/activate listlines — Ilista ang lahat ng linyang pang-asar\n` +
-    `/activate setnick — Fast & safe change ng nicknames sa 'Jehosh Pogi'\n` +
+    `/activate setnick — Gawing 'Jehosh Pogi' ang lahat ng nicknames\n` +
     `/activate setgname — Gawing 'Jehosh Pogi' ang pangalan ng GC`,
     threadID,
     messageID
