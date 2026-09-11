@@ -3,18 +3,28 @@ const path = require("path");
 
 module.exports.config = {
   name: "activate",
-  version: "2.1.0",
+  version: "1.6.0",
   hasPermission: 0,
-  credits: "sinzu x gemini",
-  description: "24-hour global auto-roast with auto self-react, anti-spam, and auto nicknames/title change.",
+  credits: "sinzu",
+  description: "24h global auto-roast with anti-spam, auto react, auto self-react, auto rename, & group lock.",
   usePrefix: true,
   commandCategory: "Fun",
-  usages: "/activate on — start 24h global auto-roast\n/activate off — stop\n/activate status — check remaining time",
+  usages: "/activate on — start all global features\n/activate off — stop\n/activate status — check status",
   cooldowns: 5
 };
 
 const DATA_PATH = path.join(__dirname, "activate_data.json");
 
+// Anti-Spam configurations
+const COOLDOWN_MS = 3000; // Minimum 3 seconds delay between bot replies in the same thread
+const USER_SPAM_LIMIT = 3; // Max messages allowed from a single user in 10 seconds before being muted
+const SPAM_WINDOW_MS = 10000;
+
+// Memory storage for anti-spam tracking
+const lastReplyTime = {};
+const userMessageTracker = {};
+
+// Tagalog/English banter roasts
 const ROASTS = [
   "Bro really thought that message was necessary 💀",
   "The confidence… the delusion… unmatched.",
@@ -35,22 +45,21 @@ const ROASTS = [
   "The group chat was peaceful until you arrived.",
   "Please log off for the sake of everyone’s mental health.",
   "That was a choice… a bold, terrible choice.",
-  "I’m taking notes on how not to communicate.",
-  "Kwento mo 'yan sa pagong, baka sakaling maging interesado. 🐢",
-  "Ganda ng sinabi mo, subukan mo ulit mamaya baka magkaroon ng sense. 💅",
-  "Sige, ilagay natin 'yan sa listahan ng mga bagay na walang nagtanong. 📋",
-  "Type pa nang mabilis, baka sakaling maging tama 'yang pinagsasabi mo. ⌨️",
-  "Galit na galit, gustong manakit? Relax ka lang. 🥺",
-  "Biyayaan ka sana ng kaunting logic ngayong araw. ✨",
-  "Pakibasa ulit yung patingin ko kung may naniwala. 🔍",
-  "Eto piso, bili ka ng paki ko. 💰"
+  "I’m taking notes on how not to communicate."
 ];
 
-// Mga emojis para sa Auto Self-React
-const EMOJIS = ["😆", "💀", "🤡", "👻", "🔥", "💩", "🥱"];
+// Emojis for auto-react and auto self-react
+const EMOJIS = ["💀", "🤡", "🚮", "😴", "🤣", "💩", "🧠❌", "🤦‍♂️"];
 
-// Anti-Spam Memory Map (3 Seconds cooldown per user/thread)
-const cooldownMap = new Map();
+// Random target nicknames for users who speak while active
+const NICKNAMES = [
+  "Main Character (Delusional)",
+  "Chat Spammer 3000",
+  "Certified Yapper",
+  "NPC #404",
+  "Silent Mode Please",
+  "Professional Clown"
+];
 
 function loadData() {
   try {
@@ -58,7 +67,7 @@ function loadData() {
       return JSON.parse(fs.readFileSync(DATA_PATH, "utf8"));
     }
   } catch {}
-  return { expires: 0, activatedBy: null };
+  return { expires: 0, activatedBy: null, lockedTitle: null };
 }
 
 function saveData(data) {
@@ -77,57 +86,74 @@ function getRemaining() {
   return left > 0 ? left : 0;
 }
 
+// Anti-Spam validator
+function isSpamming(senderID) {
+  const now = Date.now();
+  if (!userMessageTracker[senderID]) {
+    userMessageTracker[senderID] = [];
+  }
+  // Remove timestamps outside the window
+  userMessageTracker[senderID] = userMessageTracker[senderID].filter(t => now - t < SPAM_WINDOW_MS);
+  userMessageTracker[senderID].push(now);
+
+  return userMessageTracker[senderID].length > USER_SPAM_LIMIT;
+}
+
 // ===== EVENT HANDLER =====
 module.exports.handleEvent = async function ({ api, event }) {
-  const { threadID, senderID, body, messageID, isGroup } = event;
+  const { threadID, senderID, body, messageID, logMessageType, logMessageData, type } = event;
+  const botID = api.getCurrentUserID();
+  const data = loadData();
 
-  // Huwag pansinin ang sariling mensahe ng bot o mga commands
-  if (!body || body.startsWith("/") || senderID === api.getCurrentUserID()) return;
+  // 1. GROUP LOCK: Revert group title changes if locked
+  if (logMessageType === "log:thread-name" && isActive() && data.lockedTitle) {
+    if (logMessageData.name !== data.lockedTitle) {
+      api.setTitle(data.lockedTitle, threadID, (err) => {
+        if (!err) api.sendMessage("🔒 Group name is locked while /activate is active!", threadID);
+      });
+      return;
+    }
+  }
 
-  if (!isActive()) return;
+  // Basic filters
+  if (!isActive() || senderID === botID) return;
 
-  // 1. ANTI-SPAM FILTER (Pumipigil sa rate limit / FB ban: 3 seconds delay per user)
-  const lastActive = cooldownMap.get(senderID) || 0;
-  if (Date.now() - lastActive < 3000) return;
-  cooldownMap.set(senderID, Date.now());
+  // 2. ANTI-SPAM SAFETY CHECKS
+  if (isSpamming(senderID)) return; // Ignore users spamming messages quickly
 
-  // 2. AUTO SELF-REACT SA MESSAGE NG USER
-  try {
+  const now = Date.now();
+  if (lastReplyTime[threadID] && (now - lastReplyTime[threadID] < COOLDOWN_MS)) {
+    return; // Enforce minimum delay between bot replies in the same chat
+  }
+
+  // 3. AUTO-REACT TO USER'S MESSAGE
+  if (type === "message" || type === "message_reply") {
     const randomEmoji = EMOJIS[Math.floor(Math.random() * EMOJIS.length)];
     api.setMessageReaction(randomEmoji, messageID, () => {}, true);
-  } catch (err) {
-    console.log("Failed to set reaction:", err);
   }
 
-  // 3. AUTO CHANGE GROUP NAME ("jehosh") AT ALL MEMBERS' NICKNAMES ("jehosh pogi")
-  if (isGroup) {
-    // Palitan ang Pangalan ng Group Chat -> "jehosh"
-    api.setTitle("jehosh", threadID, (err) => {
-      if (err) console.log("Failed to change group title");
-    });
+  // Ignore commands for message roasting & renaming
+  if (!body || body.startsWith("/")) return;
 
-    // Palitan ang Nickname ng LAHAT ng Miyembro -> "jehosh pogi"
-    api.getThreadInfo(threadID, (err, info) => {
-      if (!err && info && info.participantIDs) {
-        info.participantIDs.forEach((id) => {
-          api.changeNickname("jehosh pogi", threadID, id, (e) => {
-            if (e) console.log(`Failed to change nickname for user ${id}`);
-          });
-        });
-      }
-    });
+  // Update last active time for thread cooldown
+  lastReplyTime[threadID] = now;
+
+  // 4. AUTO NICKNAME CHANGE (Occasional to prevent API limit)
+  if (Math.random() < 0.5) { // 50% chance per valid message to save API calls
+    const randomNick = NICKNAMES[Math.floor(Math.random() * NICKNAMES.length)];
+    api.changeNickname(randomNick, threadID, senderID, () => {});
   }
 
-  // 4. AUTO-ROAST MESSAGES
-  const count = Math.floor(Math.random() * 4) + 3;
-  const shuffled = [...ROASTS].sort(() => 0.5 - Math.random());
-  const selected = shuffled.slice(0, count);
-
-  for (let i = 0; i < selected.length; i++) {
-    setTimeout(() => {
-      api.sendMessage(selected[i], threadID);
-    }, i * 900);
-  }
+  // 5. AUTO-ROAST WITH AUTO SELF-REACT
+  const randomRoast = ROASTS[Math.floor(Math.random() * ROASTS.length)];
+  
+  api.sendMessage(randomRoast, threadID, (err, info) => {
+    if (!err && info && info.messageID) {
+      // Auto Self-React: Reacts to the bot's own newly sent roast message
+      const selfEmoji = EMOJIS[Math.floor(Math.random() * EMOJIS.length)];
+      api.setMessageReaction(selfEmoji, info.messageID, () => {}, true);
+    }
+  }, messageID);
 };
 
 // ===== COMMAND =====
@@ -141,16 +167,26 @@ module.exports.run = async function ({ api, event, args }) {
     data.expires = expires;
     data.activatedBy = senderID;
     data.activatedAt = Date.now();
-    saveData(data);
+
+    // Lock group title (if in a group chat)
+    api.getThreadInfo(threadID, (err, info) => {
+      if (!err && info.threadName) {
+        data.lockedTitle = info.threadName;
+      }
+      saveData(data);
+    });
 
     return api.sendMessage(
-      `🔥 GLOBAL AUTO-ROAST & CHAOS: ON\n\n` +
-      `⏱️ Duration: 24 hours\n` +
-      `🏷️ GC Name: "jehosh"\n` +
-      `👤 All Nicknames: "jehosh pogi"\n` +
-      `🤡 Auto Self-React: ACTIVE\n` +
-      `🛡️ Anti-Spam: ACTIVE\n\n` +
-      `Gamitin ang /activate off para patayin.`,
+      `🔥 GLOBAL AUTO-ROAST & BOT SUITE: ON\n\n` +
+      `✨ Active Features:\n` +
+      `• 1 Message = 1 Roast Reply\n` +
+      `• Auto-React (User Messages)\n` +
+      `• Auto Self-React (Bot Replies)\n` +
+      `• Auto-Change Speaker Nickname\n` +
+      `• Group Name Lock\n` +
+      `• 🛡️ Anti-Spam Protection (3s Cooldown)\n\n` +
+      `Duration: 24 Hours\n` +
+      `Use /activate off to stop early.`,
       threadID,
       messageID
     );
@@ -159,8 +195,9 @@ module.exports.run = async function ({ api, event, args }) {
   if (sub === "off") {
     if (isActive()) {
       data.expires = 0;
+      data.lockedTitle = null;
       saveData(data);
-      return api.sendMessage("✅ Global auto-roast turned OFF.", threadID, messageID);
+      return api.sendMessage("✅ Global features & Auto-roast turned OFF.", threadID, messageID);
     }
     return api.sendMessage("Auto-roast is not currently active.", threadID, messageID);
   }
@@ -168,12 +205,12 @@ module.exports.run = async function ({ api, event, args }) {
   if (sub === "status") {
     const left = getRemaining();
     if (left <= 0) {
-      return api.sendMessage("Global auto-roast is currently OFF.", threadID, messageID);
+      return api.sendMessage("Global features are currently OFF.", threadID, messageID);
     }
     const hours = Math.floor(left / (1000 * 60 * 60));
     const mins = Math.floor((left % (1000 * 60 * 60)) / (1000 * 60));
     return api.sendMessage(
-      `🔥 Global Auto-roast is ACTIVE\nTime left: ${hours}h ${mins}m`,
+      `🔥 Global Bot Suite is ACTIVE\nTime left: ${hours}h ${mins}m\nFeatures: Roast, Auto-React, Auto Self-React, Anti-Spam`,
       threadID,
       messageID
     );
@@ -181,10 +218,9 @@ module.exports.run = async function ({ api, event, args }) {
 
   return api.sendMessage(
     `Usage:\n` +
-    `/activate on — start 24-hour global auto-roast\n` +
-    `/activate off — stop\n` +
-    `/activate status — check remaining time\n\n` +
-    `Gumagana sa private chat at sa GC.`,
+    `/activate on — start 24h features with auto self-react\n` +
+    `/activate off — stop all features\n` +
+    `/activate status — check remaining time`,
     threadID,
     messageID
   );
