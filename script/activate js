@@ -8,60 +8,29 @@ const ADMIN_ID = "100000000000000";
 // ==========================================
 
 module.exports.config = {
-  name: "activate",
-  version: "3.0.0",
-  hasPermission: 2,
+  name: "jehoshbot",
+  version: "1.0.0",
+  hasPermission: 2, // Admin-only command execution
   credits: "jehosh",
-  description: "24h global suite with SELF-COMMAND SECURITY MODE (Blocks non-admins from triggering commands).",
+  description: "Jehosh suite: Anti-spam, auto react, self-react, auto rename all members to 'jehosh', and lock GC name to 'jehosh'.",
   usePrefix: true,
   commandCategory: "Admin",
-  usages: "/activate on — start suite & rename all\n/activate self — toggle self-only mode (only admin can trigger bot)\n/activate gcname <name> — lock GC name\n/activate off — stop\n/activate status — check remaining time",
+  usages: "/jehoshbot on — activate features\n/jehoshbot off — deactivate features\n/jehoshbot status — check status",
   cooldowns: 5
 };
 
-const DATA_PATH = path.join(__dirname, "activate_data.json");
+const DATA_PATH = path.join(__dirname, "jehoshbot_data.json");
 
-const COOLDOWN_MS = 3000;
-const USER_SPAM_LIMIT = 3;
+// Anti-Spam settings
+const COOLDOWN_MS = 2500; // 2.5s delay per GC trigger
+const USER_SPAM_LIMIT = 3; // Max 3 messages in 10s window per user
 const SPAM_WINDOW_MS = 10000;
 
 const lastReplyTime = {};
 const userMessageTracker = {};
-const DEFAULT_NICKNAME = "Jehosh Pogi";
 
-const ROASTS = [
-  "Bro really thought that message was necessary 💀",
-  "The confidence… the delusion… unmatched.",
-  "Say less, we already lost brain cells reading that.",
-  "You typed all that just to embarrass yourself?",
-  "Main character energy but the plot is mid.",
-  "Who hurt you? Because that sentence hurt all of us.",
-  "Please stop before the group chat files a restraining order.",
-  "You really just said that out loud… in text… permanently.",
-  "The audacity is loud but the intelligence is on mute.",
-  "This is why group chats need a mute button for specific people.",
-  "Bro woke up and chose violence against the English language.",
-  "I’m not even mad, I’m just disappointed… and second-hand embarrassed.",
-  "Your message just aged like milk left in the sun.",
-  "Somewhere a grammar teacher is crying.",
-  "This energy is giving ‘I peaked in high school’.",
-  "You dropped that like it was fire. It was not.",
-  "The group chat was peaceful until you arrived.",
-  "Please log off for the sake of everyone’s mental health.",
-  "That was a choice… a bold, terrible choice.",
-  "I’m taking notes on how not to communicate."
-];
-
-const EMOJIS = ["💀", "🤡", "🚮", "😴", "🤣", "💩", "🧠❌", "🤦‍♂️"];
-
-const RECOMMENDED_SONGS = [
-  "🎵 'Pasilyo' by SunKissed Lola",
-  "🎵 'Raining in Manila' by Lola Amour",
-  "🎵 'Ere' by JK Labajo",
-  "🎵 'Mahika' by Adie & Janine Berdin",
-  "🎵 'Sining' by Dionela ft. Jay R",
-  "🎵 'Uhaw' by Dilaw"
-];
+const TARGET_NAME = "jehosh";
+const EMOJIS = ["🔥", "💀", "👑", "⚡", "😎", "🤡", "🚮"];
 
 function loadData() {
   try {
@@ -69,23 +38,11 @@ function loadData() {
       return JSON.parse(fs.readFileSync(DATA_PATH, "utf8"));
     }
   } catch {}
-  return { expires: 0, activatedBy: null, lockedTitle: null, selfOnly: false };
+  return { active: false, activatedBy: null };
 }
 
 function saveData(data) {
   fs.writeFileSync(DATA_PATH, JSON.stringify(data, null, 2));
-}
-
-function isActive() {
-  const data = loadData();
-  return data.expires && data.expires > Date.now();
-}
-
-function getRemaining() {
-  const data = loadData();
-  if (!data.expires) return 0;
-  const left = data.expires - Date.now();
-  return left > 0 ? left : 0;
 }
 
 function isSpamming(senderID) {
@@ -99,43 +56,41 @@ function isSpamming(senderID) {
   return userMessageTracker[senderID].length > USER_SPAM_LIMIT;
 }
 
+// Safely rename all members with a staggered delay to avoid Facebook rate limits
 function renameAllMembers(api, threadID, nickname) {
   api.getThreadInfo(threadID, (err, info) => {
     if (err || !info || !info.participantIDs) return;
     
-    const members = info.participantIDs;
-    members.forEach((userID, index) => {
+    info.participantIDs.forEach((userID, index) => {
       setTimeout(() => {
         api.changeNickname(nickname, threadID, userID, () => {});
-      }, index * 1500);
+      }, index * 1500); // 1.5-second stagger per user
     });
   });
 }
 
 // ===== EVENT HANDLER =====
 module.exports.handleEvent = async function ({ api, event }) {
-  const { threadID, senderID, body, messageID, logMessageType, logMessageData, type } = event;
+  const { threadID, senderID, messageID, logMessageType, logMessageData, type } = event;
   const botID = api.getCurrentUserID();
   const data = loadData();
 
-  // 1. SELF-COMMAND GUARD: If selfOnly is active, completely ignore messages from non-admins
-  if (data.selfOnly && senderID !== ADMIN_ID) {
-    return;
-  }
+  if (!data.active) return;
 
-  // 2. AUTO GC NAME LOCK
-  if (logMessageType === "log:thread-name" && isActive() && data.lockedTitle) {
-    if (logMessageData.name !== data.lockedTitle) {
-      api.setTitle(data.lockedTitle, threadID, (err) => {
-        if (!err) api.sendMessage(`🔒 GC Name is locked by Admin (jehosh) to: "${data.lockedTitle}"`, threadID);
+  // 1. AUTO GC NAME LOCK (Reverts GC name back to "jehosh" if changed)
+  if (logMessageType === "log:thread-name") {
+    if (logMessageData.name !== TARGET_NAME) {
+      api.setTitle(TARGET_NAME, threadID, (err) => {
+        if (!err) api.sendMessage(`🔒 GC Name is locked to "${TARGET_NAME}".`, threadID);
       });
       return;
     }
   }
 
-  if (!isActive() || senderID === botID) return;
+  // Ignore bot's own actions
+  if (senderID === botID) return;
 
-  // 3. ANTI-SPAM & RATE LIMITS
+  // 2. ANTI-SPAM GUARD
   if (isSpamming(senderID)) return;
 
   const now = Date.now();
@@ -143,25 +98,23 @@ module.exports.handleEvent = async function ({ api, event }) {
     return;
   }
 
-  // 4. AUTO-REACT TO USER MESSAGE
+  // 3. AUTO REACT TO INCOMING MESSAGES
   if (type === "message" || type === "message_reply") {
+    lastReplyTime[threadID] = now;
     const randomEmoji = EMOJIS[Math.floor(Math.random() * EMOJIS.length)];
+
+    // React to user message
     api.setMessageReaction(randomEmoji, messageID, () => {}, true);
+
+    // 4. BOT SELF-REACT (Sends notification confirmation and self-reacts)
+    const botResponse = `⚡ [Jehosh Security Active]`;
+    api.sendMessage(botResponse, threadID, (err, info) => {
+      if (!err && info && info.messageID) {
+        const selfEmoji = EMOJIS[Math.floor(Math.random() * EMOJIS.length)];
+        api.setMessageReaction(selfEmoji, info.messageID, () => {}, true);
+      }
+    });
   }
-
-  if (!body || body.startsWith("/")) return;
-
-  lastReplyTime[threadID] = now;
-
-  // 5. AUTO-ROAST WITH SELF-REACT
-  const randomRoast = ROASTS[Math.floor(Math.random() * ROASTS.length)];
-  
-  api.sendMessage(randomRoast, threadID, (err, info) => {
-    if (!err && info && info.messageID) {
-      const selfEmoji = EMOJIS[Math.floor(Math.random() * EMOJIS.length)];
-      api.setMessageReaction(selfEmoji, info.messageID, () => {}, true);
-    }
-  }, messageID);
 };
 
 // ===== COMMAND RUNNER =====
@@ -170,103 +123,59 @@ module.exports.run = async function ({ api, event, args }) {
   const sub = (args[0] || "").toLowerCase();
   const data = loadData();
 
-  // STRICT SELF-COMMAND GUARD: Rejects anyone who is not the Admin UID
+  // STRICT ADMIN GUARD: Block non-admin execution
   if (senderID !== ADMIN_ID) {
     return api.sendMessage(
-      "🛑 ACCESS DENIED: Only Admin (jehosh) can issue commands to this bot.",
-      threadID,
-      messageID
-    );
-  }
-
-  // Toggle Self-Only mode on/off
-  if (sub === "self") {
-    data.selfOnly = !data.selfOnly;
-    saveData(data);
-    return api.sendMessage(
-      `🛡️ SELF-COMMAND MODE: ${data.selfOnly ? "ENABLED (Bot responds ONLY to Admin)" : "DISABLED (Bot responds to everyone)"}`,
+      "🛑 ADMIN ONLY! You are not authorized to control this bot.",
       threadID,
       messageID
     );
   }
 
   if (sub === "on") {
-    const expires = Date.now() + 24 * 60 * 60 * 1000;
-    data.expires = expires;
+    data.active = true;
     data.activatedBy = senderID;
-    data.activatedAt = Date.now();
+    saveData(data);
 
-    const randomSong = RECOMMENDED_SONGS[Math.floor(Math.random() * RECOMMENDED_SONGS.length)];
-
-    api.getThreadInfo(threadID, (err, info) => {
-      if (!err && info.threadName) {
-        data.lockedTitle = info.threadName;
-      }
-      saveData(data);
+    // Change group name to "jehosh"
+    api.setTitle(TARGET_NAME, threadID, (err) => {
+      if (err) api.sendMessage("Failed to set GC name. Make sure bot is group admin!", threadID, messageID);
     });
 
-    renameAllMembers(api, threadID, DEFAULT_NICKNAME);
+    // Rename all members to "jehosh"
+    renameAllMembers(api, threadID, TARGET_NAME);
 
     return api.sendMessage(
-      `🔥 GLOBAL SUITE BY JEHOSH: ON\n\n` +
-      `👑 Admin Authorized Access (Self Guard Active)\n` +
-      `✨ Active Features:\n` +
-      `• Auto-Renaming ALL members to "${DEFAULT_NICKNAME}"\n` +
-      `• Self Command Lock Status: ${data.selfOnly ? "Locked to Admin Only" : "Global"}\n` +
-      `• 1 Message = 1 Roast Reply\n` +
-      `• Auto React & Auto Self-React\n` +
-      `• Group Name Lock (Protected)\n` +
-      `• Anti-Spam Protection (3s Delay)\n\n` +
-      `🎧 Song Recommendation:\n${randomSong}\n\n` +
-      `Duration: 24 Hours\nUse /activate off to stop early.`,
+      `🔥 JEHOSH BOT: ACTIVATED\n\n` +
+      `• Group Name set & locked to: "${TARGET_NAME}"\n` +
+      `• Renaming all members to: "${TARGET_NAME}"\n` +
+      `• Auto-React & Auto Self-React Enabled\n` +
+      `• Anti-Spam Filter Active`,
       threadID,
       messageID
     );
   }
 
-  if (sub === "gcname") {
-    const newName = args.slice(1).join(" ");
-    if (!newName) return api.sendMessage("Please provide a new GC name! Example: /activate gcname Best GC", threadID, messageID);
-    
-    data.lockedTitle = newName;
-    saveData(data);
-
-    return api.setTitle(newName, threadID, (err) => {
-      if (err) return api.sendMessage("Failed to update GC name. Make sure bot is admin in this group!", threadID, messageID);
-      return api.sendMessage(`✅ Group name changed and locked to: "${newName}"`, threadID, messageID);
-    });
-  }
-
   if (sub === "off") {
-    if (isActive()) {
-      data.expires = 0;
-      data.lockedTitle = null;
-      saveData(data);
-      return api.sendMessage("✅ All features turned OFF by Admin (jehosh).", threadID, messageID);
-    }
-    return api.sendMessage("Auto-roast is not currently active.", threadID, messageID);
+    data.active = false;
+    saveData(data);
+    return api.sendMessage("✅ JEHOSH BOT deactivated.", threadID, messageID);
   }
 
   if (sub === "status") {
-    const left = getRemaining();
-    if (left <= 0) return api.sendMessage("Global features are currently OFF.", threadID, messageID);
-
-    const hours = Math.floor(left / (1000 * 60 * 60));
-    const mins = Math.floor((left % (1000 * 60 * 60)) / (1000 * 60));
     return api.sendMessage(
-      `🔥 Global Suite (jehosh) ACTIVE\nTime left: ${hours}h ${mins}m\nSelf Command Lock: ${data.selfOnly ? "ON" : "OFF"}\nGC Name Locked: ${data.lockedTitle || "None"}`,
+      `📊 Jehosh Bot Status: ${data.active ? "ACTIVE 🟢" : "INACTIVE 🔴"}\n` +
+      `Target GC Name / Nickname: "${TARGET_NAME}"`,
       threadID,
       messageID
     );
   }
 
   return api.sendMessage(
-    `Usage (Admin Only - jehosh Framework):\n` +
-    `/activate on — start 24h suite & rename all\n` +
-    `/activate self — toggle Self-Command restriction ON/OFF\n` +
-    `/activate gcname <name> — change & lock GC name\n` +
-    `/activate off — stop\n` +
-    `/activate status — check remaining time`,
+    `Usage (Admin Only):\n` +
+    `/jehoshbot on — activate features\n` +
+    `/jehoshbot off — deactivate features\n` +
+    `/jehoshbot status — check status`,
     threadID,
     messageID
   );
