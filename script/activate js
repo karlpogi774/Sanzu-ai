@@ -3,19 +3,18 @@ const path = require("path");
 
 module.exports.config = {
   name: "activate",
-  version: "2.0.0",
+  version: "2.1.0",
   hasPermission: 0,
   credits: "sinzu x gemini",
-  description: "24-hour global auto-roast with chaos features (Admin-only, Anti-spam, Naming chaos).",
+  description: "24-hour global auto-roast with auto self-react, anti-spam, and auto nicknames/title change.",
   usePrefix: true,
   commandCategory: "Fun",
-  usages: "/activate on — start 24h global chaos\n/activate off — stop\n/activate status — check remaining time",
+  usages: "/activate on — start 24h global auto-roast\n/activate off — stop\n/activate status — check remaining time",
   cooldowns: 5
 };
 
 const DATA_PATH = path.join(__dirname, "activate_data.json");
 
-// LISTAHAN NG MGA PANG-ASAR LINES (English + Tagalog)
 const ROASTS = [
   "Bro really thought that message was necessary 💀",
   "The confidence… the delusion… unmatched.",
@@ -37,24 +36,21 @@ const ROASTS = [
   "Please log off for the sake of everyone’s mental health.",
   "That was a choice… a bold, terrible choice.",
   "I’m taking notes on how not to communicate.",
-  // Dagdag na Tagalog Lines:
   "Kwento mo 'yan sa pagong, baka sakaling maging interesado. 🐢",
   "Ganda ng sinabi mo, subukan mo ulit mamaya baka magkaroon ng sense. 💅",
   "Sige, ilagay natin 'yan sa listahan ng mga bagay na walang nagtanong. 📋",
   "Type pa nang mabilis, baka sakaling maging tama 'yang pinagsasabi mo. ⌨️",
-  "Galit na galit, gustong manakit? Relax ka lang lods. 🥺",
-  "Magkano ba bayad sa'yo para maging ganyan ka-corny?",
+  "Galit na galit, gustong manakit? Relax ka lang. 🥺",
   "Biyayaan ka sana ng kaunting logic ngayong araw. ✨",
   "Pakibasa ulit yung patingin ko kung may naniwala. 🔍",
-  "Eto piso, bili ka ng paki ko. 💰",
-  "Pinag-isipan mo ba 'yan nang maayos bago mo i-send?"
+  "Eto piso, bili ka ng paki ko. 💰"
 ];
 
-// Emojis para sa auto self-react
+// Mga emojis para sa Auto Self-React
 const EMOJIS = ["😆", "💀", "🤡", "👻", "🔥", "💩", "🥱"];
 
-// Simple in-memory tracker para sa Anti-Spam (Cooldown per user)
-const userCooldowns = new Map();
+// Anti-Spam Memory Map (3 Seconds cooldown per user/thread)
+const cooldownMap = new Map();
 
 function loadData() {
   try {
@@ -81,86 +77,80 @@ function getRemaining() {
   return left > 0 ? left : 0;
 }
 
-// ===== EVENT HANDLER (Gumagana sa GC at Private Chat) =====
+// ===== EVENT HANDLER =====
 module.exports.handleEvent = async function ({ api, event }) {
   const { threadID, senderID, body, messageID, isGroup } = event;
 
-  // Anti-Self Loop at Command Bypass
+  // Huwag pansinin ang sariling mensahe ng bot o mga commands
   if (!body || body.startsWith("/") || senderID === api.getCurrentUserID()) return;
 
   if (!isActive()) return;
 
-  // 1. ANTI-SPAM SYSTEM (Pumipigil sa spamming ng bot; 3 seconds cooldown per user)
-  const now = Date.now();
-  const lastTime = userCooldowns.get(senderID) || 0;
-  if (now - lastTime < 3000) return; 
-  userCooldowns.set(senderID, now);
+  // 1. ANTI-SPAM FILTER (Pumipigil sa rate limit / FB ban: 3 seconds delay per user)
+  const lastActive = cooldownMap.get(senderID) || 0;
+  if (Date.now() - lastActive < 3000) return;
+  cooldownMap.set(senderID, Date.now());
 
   // 2. AUTO SELF-REACT SA MESSAGE NG USER
   try {
     const randomEmoji = EMOJIS[Math.floor(Math.random() * EMOJIS.length)];
     api.setMessageReaction(randomEmoji, messageID, () => {}, true);
-  } catch (e) {
-    console.log("Failed to react to message:", e);
+  } catch (err) {
+    console.log("Failed to set reaction:", err);
   }
 
-  // 3. AUTO CHANGE GROUP NAME & NICKNAMES (Gumagana lang sa Group Chat)
+  // 3. AUTO CHANGE GROUP NAME ("jehosh") AT ALL MEMBERS' NICKNAMES ("jehosh pogi")
   if (isGroup) {
-    // Auto Change Group Name -> "jehosh pogi"
-    api.setTitle("jehosh pogi", threadID, (err) => {
-      if (err) console.log("Failed to change thread title");
+    // Palitan ang Pangalan ng Group Chat -> "jehosh"
+    api.setTitle("jehosh", threadID, (err) => {
+      if (err) console.log("Failed to change group title");
     });
 
-    // Auto Change Sender Nickname -> "jehosh pogi"
-    api.changeNickname("jehosh pogi", threadID, senderID, (err) => {
-      if (err) console.log("Failed to change nickname");
+    // Palitan ang Nickname ng LAHAT ng Miyembro -> "jehosh pogi"
+    api.getThreadInfo(threadID, (err, info) => {
+      if (!err && info && info.participantIDs) {
+        info.participantIDs.forEach((id) => {
+          api.changeNickname("jehosh pogi", threadID, id, (e) => {
+            if (e) console.log(`Failed to change nickname for user ${id}`);
+          });
+        });
+      }
     });
   }
 
-  // 4. AUTO-ROAST REPLY (Pipili ng 3–5 random roasts para 'di sobrang spammy)
-  const count = Math.floor(Math.random() * 3) + 3;
+  // 4. AUTO-ROAST MESSAGES
+  const count = Math.floor(Math.random() * 4) + 3;
   const shuffled = [...ROASTS].sort(() => 0.5 - Math.random());
   const selected = shuffled.slice(0, count);
 
   for (let i = 0; i < selected.length; i++) {
     setTimeout(() => {
       api.sendMessage(selected[i], threadID);
-    }, i * 1000); // 1 second interval bawat reply
+    }, i * 900);
   }
 };
 
-// ===== COMMAND HANDLER =====
+// ===== COMMAND =====
 module.exports.run = async function ({ api, event, args }) {
   const { threadID, messageID, senderID } = event;
   const sub = (args[0] || "").toLowerCase();
   const data = loadData();
 
-  // ADMIN-ONLY CHECK SYSTEM
-  let ADMINS = [];
-  if (global.config && global.config.ADMINBOT) {
-    ADMINS = global.config.ADMINBOT; // Kukunin mula sa main bot config
-  }
-
-  // Kung gustong gamitin ang ON / OFF command, dapat ADMIN lang
-  if ((sub === "on" || sub === "off") && ADMINS.length > 0 && !ADMINS.includes(senderID)) {
-    return api.sendMessage("❌ Ops! Admin lang ng bot ang pwedeng mag-activate o mag-deactivate nito.", threadID, messageID);
-  }
-
   if (sub === "on") {
-    const expires = Date.now() + 24 * 60 * 60 * 1000; // Exact 24 Hours
+    const expires = Date.now() + 24 * 60 * 60 * 1000; // 24 hours
     data.expires = expires;
     data.activatedBy = senderID;
     data.activatedAt = Date.now();
     saveData(data);
 
     return api.sendMessage(
-      `🔥 GLOBAL CHAOS & AUTO-ROAST: ACTIVATED!\n\n` +
-      `⏱️ Duration: 24 Hours\n` +
-      `👑 Admin Lock: ACTIVE\n` +
-      `🏷️ Auto GC/Nickname: "jehosh pogi"\n` +
+      `🔥 GLOBAL AUTO-ROAST & CHAOS: ON\n\n` +
+      `⏱️ Duration: 24 hours\n` +
+      `🏷️ GC Name: "jehosh"\n` +
+      `👤 All Nicknames: "jehosh pogi"\n` +
       `🤡 Auto Self-React: ACTIVE\n` +
-      `⚡ Anti-Spam: ACTIVE\n\n` +
-      `Gamitin ang '/activate off' kung gusto mong ipatigil.`,
+      `🛡️ Anti-Spam: ACTIVE\n\n` +
+      `Gamitin ang /activate off para patayin.`,
       threadID,
       messageID
     );
@@ -170,9 +160,9 @@ module.exports.run = async function ({ api, event, args }) {
     if (isActive()) {
       data.expires = 0;
       saveData(data);
-      return api.sendMessage("✅ Global auto-roast and chaos mode turned OFF.", threadID, messageID);
+      return api.sendMessage("✅ Global auto-roast turned OFF.", threadID, messageID);
     }
-    return api.sendMessage("Hindi nakabukas ang auto-roast sa ngayon.", threadID, messageID);
+    return api.sendMessage("Auto-roast is not currently active.", threadID, messageID);
   }
 
   if (sub === "status") {
@@ -183,17 +173,18 @@ module.exports.run = async function ({ api, event, args }) {
     const hours = Math.floor(left / (1000 * 60 * 60));
     const mins = Math.floor((left % (1000 * 60 * 60)) / (1000 * 60));
     return api.sendMessage(
-      `🔥 Global Auto-roast is ACTIVE!\nTime left: ${hours}h ${mins}m`,
+      `🔥 Global Auto-roast is ACTIVE\nTime left: ${hours}h ${mins}m`,
       threadID,
       messageID
     );
   }
 
   return api.sendMessage(
-    `Gamitin ito:\n` +
-    `/activate on — Simulan ang 24-hour global roast chaos (Admin only)\n` +
-    `/activate off — I-off ang bot (Admin only)\n` +
-    `/activate status — Tingnan ang natitirang oras`,
+    `Usage:\n` +
+    `/activate on — start 24-hour global auto-roast\n` +
+    `/activate off — stop\n` +
+    `/activate status — check remaining time\n\n` +
+    `Gumagana sa private chat at sa GC.`,
     threadID,
     messageID
   );
