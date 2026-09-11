@@ -1,26 +1,29 @@
-const fs = require("fs");
-const path = require("path");
+const axios = require("axios");
 
 module.exports.config = {
-  name: "activate",
-  version: "14.0.0",
+  name: "ryuk",
+  version: "16.0.0",
   hasPermission: 0,
-  credits: "sinzu",
-  description: "Safe & stealth auto-roast with humanized target dog react (🐶), self-react, and dynamic GC name & nickname auto-lock.",
+  credits: "Ryuk Pogi & Gemini",
+  description: "Ryuk Pogi Ultimate Cloud Auto-Roast Bot (Render-Safe, Dog React, Self React, Auto Name Locks).",
   usePrefix: true,
   commandCategory: "Fun",
-  usages: "/activate on | off | status | add <text> | listlines | setnick <name> | setgname <name>",
+  usages: "/ryuk on | off | status | add <text> | listlines | setnick <name> | setgname <name>",
   cooldowns: 5
 };
 
-// ADMIN UID LOCK
+// ================= CONFIGURATION & API KEYS =================
 const ADMIN_UID = "61594022290817";
 const DEFAULT_TARGET_NAME = "Ryuk pogi";
 const DOG_EMOJI = "🐶";
 
-const DATA_PATH = path.join(__dirname, "activate_data.json");
+// PAALALA: PALITAN ITONG DALAWA NG MASTER KEY AT BIN ID MO MULA SA JSONBIN.IO
+const JSONBIN_API_KEY = "LAGAY_MO_DITO_ANG_MASTER_KEY";
+const JSONBIN_BIN_ID = "LAGAY_MO_DITO_ANG_BIN_ID";
+
 const REACT_EMOJIS = ["🔥", "💀", "🤣", "😆", "🤡", "👎", "💩", "👻"];
 
+// Mas pinarami at malupit na Tagalog Roasts
 const DEFAULT_TAGALOG_ROASTS = [
   "Luh, nag-type pa talaga siya oh, akala mo naman may kumpirmasyon. 💀",
   "Lods, paki-delete na lang 'to bago pa makita ng iba, nakakahiya. 🤣",
@@ -54,56 +57,68 @@ const DEFAULT_TAGALOG_ROASTS = [
   "Dami mong sinasabi, wala namang katuturan."
 ];
 
-function loadData() {
+let memoryData = { activeThreads: {}, gcNames: {}, nicknames: {}, roasts: DEFAULT_TAGALOG_ROASTS };
+
+// Cloud load mula JSONBin
+async function loadData() {
   try {
-    if (fs.existsSync(DATA_PATH)) {
-      const parsed = JSON.parse(fs.readFileSync(DATA_PATH, "utf8"));
-      if (!parsed.activeThreads) parsed.activeThreads = {};
-      if (!parsed.gcNames) parsed.gcNames = {};
-      if (!parsed.nicknames) parsed.nicknames = {};
-      if (!parsed.roasts || parsed.roasts.length === 0) {
-        parsed.roasts = DEFAULT_TAGALOG_ROASTS;
-      }
-      return parsed;
+    const res = await axios.get(`https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}/latest`, {
+      headers: { "X-Master-Key": JSONBIN_API_KEY }
+    });
+    if (res.data && res.data.record) {
+      memoryData = res.data.record;
+      if (!memoryData.activeThreads) memoryData.activeThreads = {};
+      if (!memoryData.gcNames) memoryData.gcNames = {};
+      if (!memoryData.nicknames) memoryData.nicknames = {};
+      if (!memoryData.roasts || memoryData.roasts.length === 0) memoryData.roasts = DEFAULT_TAGALOG_ROASTS;
     }
-  } catch {}
-  return { activeThreads: {}, gcNames: {}, nicknames: {}, roasts: DEFAULT_TAGALOG_ROASTS };
+  } catch (err) {
+    console.error("[JSONBin Load Error]:", err.message);
+  }
+  return memoryData;
 }
 
-function saveData(data) {
-  fs.writeFileSync(DATA_PATH, JSON.stringify(data, null, 2));
+// Cloud save papuntang JSONBin
+async function saveData(data) {
+  memoryData = data;
+  try {
+    await axios.put(`https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}`, data, {
+      headers: {
+        "Content-Type": "application/json",
+        "X-Master-Key": JSONBIN_API_KEY
+      }
+    });
+  } catch (err) {
+    console.error("[JSONBin Save Error]:", err.message);
+  }
 }
 
 function isThreadActive(threadID) {
-  const data = loadData();
-  return !!(data.activeThreads && data.activeThreads[threadID]);
+  return !!(memoryData.activeThreads && memoryData.activeThreads[threadID]);
 }
 
 const lastResponseTime = new Map();
-const COOLDOWN_DELAY = 4000; // Increased to 4 seconds to protect account
+const COOLDOWN_DELAY = 4000; // 4 seconds delay para ligtas sa FB ban
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// SAFE REACTION HANDLER WITH SAFETY RETRIES
 function safeReact(api, emoji, msgID) {
   if (!msgID) return;
   try {
-    api.setMessageReaction(emoji, msgID, (err) => {
-      if (err) console.log(`[SafeReact Warning]: Skipped react to avoid FB block.`);
-    }, true);
-  } catch (e) {
-    console.log("[SafeReact Exception Catch]");
-  }
+    api.setMessageReaction(emoji, msgID, (err) => {}, true);
+  } catch (e) {}
 }
+
+// Initial Fetch
+loadData();
 
 // ===== EVENT HANDLER =====
 module.exports.handleEvent = async function ({ api, event }) {
   const { threadID, senderID, body, messageID, logMessageType, logMessageData } = event;
 
   if (!isThreadActive(threadID)) return;
-  const data = loadData();
 
-  const currentLockedGcName = data.gcNames[threadID] || DEFAULT_TARGET_NAME;
-  const currentLockedNickname = data.nicknames[threadID] || DEFAULT_TARGET_NAME;
+  const currentLockedGcName = memoryData.gcNames[threadID] || DEFAULT_TARGET_NAME;
+  const currentLockedNickname = memoryData.nicknames[threadID] || DEFAULT_TARGET_NAME;
 
   // 1. AUTO-REVERT GC NAME
   if (logMessageType === "log:thread-name") {
@@ -126,7 +141,7 @@ module.exports.handleEvent = async function ({ api, event }) {
     return;
   }
 
-  if (!body || senderID === api.getCurrentUserID() || body.toLowerCase().startsWith("/activate")) return;
+  if (!body || senderID === api.getCurrentUserID() || body.toLowerCase().startsWith("/ryuk")) return;
 
   const now = Date.now();
   const lastTime = lastResponseTime.get(threadID) || 0;
@@ -135,30 +150,29 @@ module.exports.handleEvent = async function ({ api, event }) {
   lastResponseTime.set(threadID, now);
 
   try {
-    // HUMANIZED DELAY BEFORE REACTION (600ms)
+    // 1. AUTO-REACT ASO (🐶) SA MESSAGE NG USER
     await sleep(600);
     safeReact(api, DOG_EMOJI, messageID);
 
-    const roastsList = data.roasts && data.roasts.length > 0 ? data.roasts : DEFAULT_TAGALOG_ROASTS;
+    const roastsList = memoryData.roasts && memoryData.roasts.length > 0 ? memoryData.roasts : DEFAULT_TAGALOG_ROASTS;
     const randomRoast = roastsList[Math.floor(Math.random() * roastsList.length)];
     const randomSelfEmoji = REACT_EMOJIS[Math.floor(Math.random() * REACT_EMOJIS.length)];
 
-    // SIMULATE TYPING DELAY (2 Seconds)
+    // Typing delay
     await sleep(2000);
 
-    // AUTO REPLY
+    // 2. AUTO REPLY + RECT SA SARILI
     api.sendMessage({
       body: randomRoast,
       mentions: [{ tag: `@${senderID}`, id: senderID }]
     }, threadID, async (err, info) => {
       if (!err && info && info.messageID) {
-        // SAFE HUMAN DELAY BEFORE SELF-REACT (1.2 Seconds)
         await sleep(1200);
         safeReact(api, randomSelfEmoji, info.messageID);
       }
     }, messageID);
   } catch (error) {
-    console.error("Auto-reply exception:", error);
+    console.error("Auto-reply error:", error);
   }
 };
 
@@ -167,29 +181,29 @@ module.exports.run = async function ({ api, event, args }) {
   const { threadID, messageID, senderID } = event;
 
   if (String(senderID) !== ADMIN_UID) {
-    return api.sendMessage("❌ Restricted Command: Si Admin lang ang pwedeng gumamit nito.", threadID, messageID);
+    return api.sendMessage("❌ Restricted Command: Si Ryuk Pogi lang ang pwedeng gumamit nito.", threadID, messageID);
   }
 
+  await loadData();
   const sub = (args[0] || "").toLowerCase();
-  const data = loadData();
 
+  // /ryuk on
   if (sub === "on") {
-    if (!data.activeThreads) data.activeThreads = {};
-    data.activeThreads[threadID] = true;
+    if (!memoryData.activeThreads) memoryData.activeThreads = {};
+    memoryData.activeThreads[threadID] = true;
 
-    if (!data.gcNames[threadID]) data.gcNames[threadID] = DEFAULT_TARGET_NAME;
-    if (!data.nicknames[threadID]) data.nicknames[threadID] = DEFAULT_TARGET_NAME;
+    if (!memoryData.gcNames[threadID]) memoryData.gcNames[threadID] = DEFAULT_TARGET_NAME;
+    if (!memoryData.nicknames[threadID]) memoryData.nicknames[threadID] = DEFAULT_TARGET_NAME;
 
-    saveData(data);
+    await saveData(memoryData);
 
-    const targetGcName = data.gcNames[threadID];
-    const targetNickname = data.nicknames[threadID];
+    const targetGcName = memoryData.gcNames[threadID];
+    const targetNickname = memoryData.nicknames[threadID];
 
     api.setTitle(targetGcName, threadID, () => {});
 
     try {
       const threadInfo = await api.getThreadInfo(threadID);
-      // Slow delay between nickname changes (1 second per user) to prevent account lock
       for (const userID of threadInfo.participantIDs) {
         await sleep(1000);
         api.changeNickname(targetNickname, threadID, userID, () => {});
@@ -197,34 +211,35 @@ module.exports.run = async function ({ api, event, args }) {
     } catch (e) {}
 
     return api.sendMessage(
-      `🔥 LOCAL GC AUTO-ROAST: ON (STEALTH MODE)\n\n` +
-      `Focus Mode: Naka-focus lang dito sa GC 🎯\n` +
+      `🔥 RYUK AUTO-ROAST SYSTEM: ACTIVATED 👑\n\n` +
+      `Admin Lock: ACTIVE (${ADMIN_UID})\n` +
+      `Focus Mode: Dito lang sa GC na 'to 🎯\n` +
       `Target Chat React: 🐶 (Aso)\n` +
-      `Bot Self React: ACTIVE\n` +
+      `Bot Self React: ALL EMOJIS (🔥, 💀, 🤣...)\n` +
       `Locked GC Name: "${targetGcName}"\n` +
       `Locked Nicknames: "${targetNickname}"\n\n` +
-      `Anti-Detect Delay: Enabled 🛡️`,
+      `Naka-save sa Cloud (Ligtas sa Render Reset)! ☁️`,
       threadID,
       messageID
     );
   }
 
+  // /ryuk off
   if (sub === "off") {
-    if (data.activeThreads && data.activeThreads[threadID]) {
-      delete data.activeThreads[threadID];
-      saveData(data);
+    if (memoryData.activeThreads && memoryData.activeThreads[threadID]) {
+      delete memoryData.activeThreads[threadID];
+      await saveData(memoryData);
     }
-    return api.sendMessage("✅ Naka-OFF na ang auto-roast sa GC na ito.", threadID, messageID);
+    return api.sendMessage("✅ Naka-OFF na ang Ryuk Auto-Roast sa GC na ito.", threadID, messageID);
   }
 
+  // /ryuk setgname <pangalan>
   if (sub === "setgname") {
     const newGcName = args.slice(1).join(" ");
-    if (!newGcName) {
-      return api.sendMessage("❌ Paki-lagay ang gustong GC Name.", threadID, messageID);
-    }
+    if (!newGcName) return api.sendMessage("❌ Paki-lagay ang gustong GC Name.\nHalimbawa: /ryuk setgname Ryuk Pogi GC", threadID, messageID);
 
-    data.gcNames[threadID] = newGcName;
-    saveData(data);
+    memoryData.gcNames[threadID] = newGcName;
+    await saveData(memoryData);
 
     api.setTitle(newGcName, threadID, (err) => {
       if (err) return api.sendMessage("❌ Bigo sa pagpapalit ng GC Name.", threadID, messageID);
@@ -233,23 +248,22 @@ module.exports.run = async function ({ api, event, args }) {
     return;
   }
 
+  // /ryuk setnick <nickname>
   if (sub === "setnick") {
     const newNickname = args.slice(1).join(" ");
-    if (!newNickname) {
-      return api.sendMessage("❌ Paki-lagay ang gustong Nickname.", threadID, messageID);
-    }
+    if (!newNickname) return api.sendMessage("❌ Paki-lagay ang gustong Nickname.\nHalimbawa: /ryuk setnick Ryuk Pogi", threadID, messageID);
 
-    data.nicknames[threadID] = newNickname;
-    saveData(data);
+    memoryData.nicknames[threadID] = newNickname;
+    await saveData(memoryData);
 
     try {
       const threadInfo = await api.getThreadInfo(threadID);
       const participantIDs = threadInfo.participantIDs;
 
-      api.sendMessage(`⏳ Binabago ang nicknames (Slow-mode para ligtas sa FB Detection)...`, threadID);
+      api.sendMessage(`⏳ Binabago at kino-lock ang nicknames sa "${newNickname}"...`, threadID);
 
       for (const userID of participantIDs) {
-        await sleep(1000); // 1-second delay per user to prevent FB block
+        await sleep(1000);
         api.changeNickname(newNickname, threadID, userID, () => {});
       }
       return api.sendMessage(`✅ Tagumpay na nabago at na-lock ang lahat ng nicknames sa: "${newNickname}"`, threadID, messageID);
@@ -258,19 +272,21 @@ module.exports.run = async function ({ api, event, args }) {
     }
   }
 
+  // /ryuk add <text>
   if (sub === "add") {
     const customLine = args.slice(1).join(" ");
     if (!customLine) return api.sendMessage("❌ Paki-lagay 'yung linyang gusto mong idagdag.", threadID, messageID);
 
-    if (!data.roasts) data.roasts = DEFAULT_TAGALOG_ROASTS;
-    data.roasts.push(customLine);
-    saveData(data);
+    if (!memoryData.roasts) memoryData.roasts = DEFAULT_TAGALOG_ROASTS;
+    memoryData.roasts.push(customLine);
+    await saveData(memoryData);
 
-    return api.sendMessage(`✅ Tagumpay na naidagdag ang bagong linya:\n"${customLine}"`, threadID, messageID);
+    return api.sendMessage(`✅ Tagumpay na naidagdag ang bagong linya sa cloud:\n"${customLine}"`, threadID, messageID);
   }
 
+  // /ryuk listlines
   if (sub === "listlines") {
-    const list = data.roasts || DEFAULT_TAGALOG_ROASTS;
+    const list = memoryData.roasts || DEFAULT_TAGALOG_ROASTS;
     let msg = `📜 Lahat ng Tagalog Reply Lines (${list.length}):\n\n`;
     list.forEach((line, index) => {
       msg += `${index + 1}. ${line}\n`;
@@ -278,32 +294,33 @@ module.exports.run = async function ({ api, event, args }) {
     return api.sendMessage(msg, threadID, messageID);
   }
 
+  // /ryuk status
   if (sub === "status") {
     const activeHere = isThreadActive(threadID);
-    const targetGcName = data.gcNames[threadID] || DEFAULT_TARGET_NAME;
-    const targetNickname = data.nicknames[threadID] || DEFAULT_TARGET_NAME;
-    const totalLines = (data.roasts || DEFAULT_TAGALOG_ROASTS).length;
+    const targetGcName = memoryData.gcNames[threadID] || DEFAULT_TARGET_NAME;
+    const targetNickname = memoryData.nicknames[threadID] || DEFAULT_TARGET_NAME;
+    const totalLines = (memoryData.roasts || DEFAULT_TAGALOG_ROASTS).length;
 
     return api.sendMessage(
-      `🔥 STATUS SA GC NA ITO:\n` +
-      `Active: ${activeHere ? "YES 🟢" : "NO 🔴"}\n` +
+      `🔥 RYUK SYSTEM STATUS:\n` +
+      `Active Dito: ${activeHere ? "YES 🟢" : "NO 🔴"}\n` +
       `Locked GC Name: "${targetGcName}"\n` +
       `Locked Nickname: "${targetNickname}"\n` +
-      `Total Roast Lines: ${totalLines}`,
+      `Kabuuan ng Lines: ${totalLines}`,
       threadID,
       messageID
     );
   }
 
   return api.sendMessage(
-    `Mga Paggamit (Admin Only):\n` +
-    `/activate on — Simulan ang auto-roast (Stealth Mode)\n` +
-    `/activate off — Itigil sa GC na 'to\n` +
-    `/activate setgname <name> — Mag-set at mag-lock ng bagong GC Name\n` +
-    `/activate setnick <nickname> — Mag-set at mag-lock ng bagong Nickname\n` +
-    `/activate add <text> — Magdagdag ng bagong linyang pang-asar\n` +
-    `/activate listlines — Ilista ang lahat ng linya\n` +
-    `/activate status — Tignan ang status sa GC`,
+    `Mga Paggamit ni Ryuk (Admin Only):\n` +
+    `/ryuk on — Simulan ang auto-roast sa GC na ito\n` +
+    `/ryuk off — Itigil sa GC na ito\n` +
+    `/ryuk setgname <name> — Mag-set at mag-lock ng GC Name\n` +
+    `/ryuk setnick <name> — Mag-set at mag-lock ng Nickname sa lahat\n` +
+    `/ryuk add <text> — Magdagdag ng bagong linyang pang-asar\n` +
+    `/ryuk listlines — Ilista ang lahat ng linya\n` +
+    `/ryuk status — Tignan ang status`,
     threadID,
     messageID
   );
