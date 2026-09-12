@@ -3,10 +3,10 @@ const path = require("path");
 
 module.exports.config = {
   name: "activate",
-  version: "2.1.0",
+  version: "2.2.0",
   hasPermission: 1, // Require Admin Permission Level
   credits: "sinzu & Gemini",
-  description: "24-hour global auto-roast with Admin Locks, 2s cooldown auto-reply, Auto React, and Name Guard.",
+  description: "24-hour global auto-roast with Admin Locks, Render fix, 2s setnick delay, Auto React, and Name Guard.",
   usePrefix: true,
   commandCategory: "Fun",
   usages: "/activate on | off | status | setgname <name> | setnick <name>",
@@ -79,14 +79,21 @@ const COOLDOWN_DELAY = 2000; // 2 Seconds
 function loadData() {
   try {
     if (fs.existsSync(DATA_PATH)) {
-      return JSON.parse(fs.readFileSync(DATA_PATH, "utf8"));
+      const content = fs.readFileSync(DATA_PATH, "utf8");
+      return JSON.parse(content);
     }
-  } catch {}
+  } catch (err) {
+    console.error("[Data Load Error]:", err.message);
+  }
   return { expires: 0, activatedBy: null, lockedGName: DEFAULT_LOCKED_NAME, lockedNick: DEFAULT_LOCKED_NAME };
 }
 
 function saveData(data) {
-  fs.writeFileSync(DATA_PATH, JSON.stringify(data, null, 2));
+  try {
+    fs.writeFileSync(DATA_PATH, JSON.stringify(data, null, 2), "utf8");
+  } catch (err) {
+    console.error("[Data Save Error]:", err.message);
+  }
 }
 
 function isActive() {
@@ -132,7 +139,7 @@ module.exports.handleEvent = async function ({ api, event }) {
     const newNick = logMessageData ? logMessageData.nickname : "";
 
     if (changedUser && newNick !== currentLockedNick) {
-      await sleep(800);
+      await sleep(1000);
       api.changeNickname(currentLockedNick, threadID, changedUser, () => {});
     }
     return;
@@ -192,6 +199,7 @@ module.exports.run = async function ({ api, event, args }) {
       `• Locked GC Name: "${data.lockedGName || DEFAULT_LOCKED_NAME}"\n` +
       `• Locked Nickname: "${data.lockedNick || DEFAULT_LOCKED_NAME}"\n` +
       `• Auto-Reply Cooldown: 2 Seconds\n` +
+      `• Setnick Delay: 2 Seconds/User\n` +
       `• Auto React & Reply: Enabled\n\n` +
       `Use /activate off to stop manually.`,
       threadID,
@@ -222,7 +230,7 @@ module.exports.run = async function ({ api, event, args }) {
     return;
   }
 
-  // /activate setnick <name>
+  // /activate setnick <name> (WITH 2 SECONDS SLOW DELAY PER USER)
   if (sub === "setnick") {
     const newNick = args.slice(1).join(" ") || DEFAULT_LOCKED_NAME;
     data.lockedNick = newNick;
@@ -232,10 +240,10 @@ module.exports.run = async function ({ api, event, args }) {
       const threadInfo = await api.getThreadInfo(threadID);
       const participantIDs = threadInfo.participantIDs || [];
 
-      api.sendMessage(`⏳ Locking all nicknames to: "${newNick}"...`, threadID);
+      api.sendMessage(`⏳ Locking all nicknames to: "${newNick}" (2s delay per user)...`, threadID);
 
       for (const uid of participantIDs) {
-        await sleep(600);
+        await sleep(2000); // 2 Seconds Delay per user to avoid Facebook rate limits
         api.changeNickname(newNick, threadID, uid, () => {});
       }
       return api.sendMessage(`🔒 All nicknames locked to: "${newNick}"`, threadID, messageID);
@@ -267,7 +275,7 @@ module.exports.run = async function ({ api, event, args }) {
     `/activate on — Start 24h global auto-roast\n` +
     `/activate off — Stop auto-roast\n` +
     `/activate setgname <name> — Lock GC Name\n` +
-    `/activate setnick <name> — Lock All Nicknames\n` +
+    `/activate setnick <name> — Lock All Nicknames (2s delay)\n` +
     `/activate status — Check remaining time`,
     threadID,
     messageID
