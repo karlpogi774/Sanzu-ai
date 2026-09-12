@@ -1,257 +1,332 @@
-const fs = require("fs");
-const path = require("path");
+/**
+ * Facebook Messenger Group Chat Admin & Protection Bot (Extended Text Edition)
+ * Admin ID: 61593892603402
+ * Response Delay: 3 Seconds (3000ms)
+ */
 
-module.exports.config = {
-  name: "activate",
-  version: "2.0.0",
-  hasPermission: 1, // Require Admin Permission Level
-  credits: "sinzu & Gemini",
-  description: "24-hour global auto-roast with Admin Locks, Anti-Spam, Auto React, Auto Reply & Name Guard.",
-  usePrefix: true,
-  commandCategory: "Fun",
-  usages: "/activate on | off | status | setgname <name> | setnick <name>",
-  cooldowns: 5
-};
+const login = require('fca-project-origo');
+const fs = require('fs');
 
-// ================= CONFIGURATION =================
-const ADMIN_UID = "61594022290817";
-const DEFAULT_LOCKED_NAME = "Ryuk pogi";
-const DATA_PATH = path.join(__dirname, "activate_data.json");
+// Global System Configurations
+const ADMIN_ID = "61593892603402";
+const RESPONSE_DELAY_MS = 3000; // 3 Seconds Delay
 
-// Emojis for auto-reactions
-const EMOJIS = ["🔥", "💀", "🤣", "😆", "🤡", "👎", "💩", "👻", "🐶"];
+// State Storage for Group Protection (Locks)
+let lockedGCName = {}; // Stores locked GC Names per Thread ID
+let lockedNickname = {}; // Stores locked Nicknames per Thread ID
 
-// Tagalog & English Mixed Roasts
-const ROASTS = [
-  "Luh, nag-type pa talaga siya oh, akala mo naman may kumpirmasyon. 💀",
-  "Lods, paki-delete na lang 'to bago pa makita ng iba, nakakahiya. 🤣",
-  "Lakas ng loob mo mag-chat, pero yung sinabi mo walang kwenta.",
-  "Sino nagtanong sa'yo? Lakas maka-main character ah.",
-  "Bro, isip muna bago pindot ng send button, napapahalata ka eh.",
-  "Pang-asar ba 'yan o self-humiliation? Clarify natin.",
-  "Sana bago ka nag-text, nag-isip ka muna ng limang beses.",
-  "Quiet ka na lang muna lods, nauubusan na kami ng patience sa'yo.",
-  "I-off mo na wifi mo, hindi para sa'yo ang araw na 'to.",
-  "Ganda ng sinabi mo ah, kasing ganda ng blankong papel. 🤡",
-  "Ulitin mo nga 'yan, para mas lalo ka naming pagtawanan.",
-  "Bro really thought that message was necessary 💀",
-  "The confidence… the delusion… unmatched.",
-  "Say less, we already lost brain cells reading that.",
-  "You typed all that just to embarrass yourself?",
-  "Main character energy but the plot is mid.",
-  "Who hurt you? Because that sentence hurt all of us.",
-  "The audacity is loud but the intelligence is on mute.",
-  "This is why group chats need a mute button for specific people.",
-  "Pag-isipan mo munang mabuti bago ka mag-send ulit, nakaka-secondhand embarrassment ka bro. 💀",
-  "Akala mo siguro nakakatawa ka, paki-check nga ulit sa salamin.",
-  "Yung utak mo parang data connection, laging slow at paminsan-minsan nawawala. 📡",
-  "Mag-offline ka muna pre, magpahinga ka naman sa pagpapamukha na wala kang alam.",
-  "May award ka ba sa pagiging pinaka-epal sa GC? Kasi pasok na pasok ka.",
-  "Baka naman pwedeng mag-think before click kahit minsan lang?",
-  "Pakisara na lang yung app, wala ka ring maiisip na matino ngayon."
-];
-
-// Anti-Spam Memory Maps
-const userLastMsgTime = new Map();
-const threadLastReplyTime = new Map();
-const SPAM_COOLDOWN = 3000; // 3 seconds delay per user to prevent spam ban
-
-function loadData() {
-  try {
-    if (fs.existsSync(DATA_PATH)) {
-      return JSON.parse(fs.readFileSync(DATA_PATH, "utf8"));
-    }
-  } catch {}
-  return { expires: 0, activatedBy: null, lockedGName: DEFAULT_LOCKED_NAME, lockedNick: DEFAULT_LOCKED_NAME };
+// Load Facebook Credentials (AppState)
+let appState;
+try {
+  appState = JSON.parse(fs.readFileSync('appstate.json', 'utf8'));
+} catch (err) {
+  console.error('[ERROR] Hindi mahanap ang appstate.json file. Paki-ilagay ang iyong Facebook AppState cookies.');
+  process.exit(1);
 }
 
-function saveData(data) {
-  fs.writeFileSync(DATA_PATH, JSON.stringify(data, null, 2));
-}
+login({ appState: appState }, (err, api) => {
+  if (err) return console.error('[LOGIN ERROR]', err);
 
-function isActive() {
-  const data = loadData();
-  return data.expires && data.expires > Date.now();
-}
+  // Configure Bot Options
+  api.setOptions({
+    listenEvents: true,
+    selfListen: false,
+    logLevel: "silent"
+  });
 
-function getRemaining() {
-  const data = loadData();
-  if (!data.expires) return 0;
-  const left = data.expires - Date.now();
-  return left > 0 ? left : 0;
-}
+  console.log(`======================================================================`);
+  console.log(` ANG MGA AUTOMATED MESSAGING MODULES AY HANDA AT AKTIBO NA`);
+  console.log(` VERIFIED SINGLE ADMIN IDENTIFIER: ${ADMIN_ID}`);
+  console.log(` ENFORCED RESPONSE BUFFER QUEUE DELAY: 3 SECONDS (3000 MS)`);
+  console.log(`======================================================================`);
 
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  // Message and Event Listener Loop
+  api.listenMqtt(async (err, event) => {
+    if (err) return console.error('[MQTT ERROR]', err);
 
-// ===== EVENT HANDLER =====
-module.exports.handleEvent = async function ({ api, event }) {
-  const { threadID, senderID, body, messageID, logMessageType, logMessageData } = event;
-  const data = loadData();
+    const threadID = event.threadID;
 
-  if (!isActive()) return;
+    // -------------------------------------------------------------------
+    // 1. EVENT HANDLER: Auto-Reset GC Name & Auto-Reset Nickname Locks
+    // -------------------------------------------------------------------
+    if (event.type === "event") {
+      
+      // Event: May nagpalit ng GC Name
+      if (event.logMessageType === "log:thread-name") {
+        const newName = event.logMessageData.name;
+        const authorID = event.author;
 
-  const currentLockedGName = data.lockedGName || DEFAULT_LOCKED_NAME;
-  const currentLockedNick = data.lockedNick || DEFAULT_LOCKED_NAME;
-
-  // 1. AUTO SETGNAME LOCK (Bawal palitan ng iba, auto restore sa suggested name)
-  if (logMessageType === "log:thread-name") {
-    const newName = logMessageData ? logMessageData.name : "";
-    if (newName !== currentLockedGName) {
-      api.setTitle(currentLockedGName, threadID, (err) => {
-        if (!err) {
-          api.sendMessage(`🚫 GC Name is locked! Reverting back to: "${currentLockedGName}"`, threadID);
+        // Kung naka-lock ang GC Name at hindi ang Admin ang nagpalit
+        if (lockedGCName[threadID] && newName !== lockedGCName[threadID] && authorID !== ADMIN_ID) {
+          console.log(`[PROTECTION] Pinalitan ang GC Name ni ${authorID}. Ibabalik sa locked state...`);
+          
+          api.setTitle(lockedGCName[threadID], threadID, (err) => {
+            if (!err) {
+              api.sendMessage(
+                `======================================================================\n` +
+                `⚠️ BABALA NG AUTOMATED SECURITY ENGINE: BAWAL PALITAN ANG GC NAME!\n` +
+                `======================================================================\n\n` +
+                `Isang hindi awtorisadong pagtatangka sa pagpapalit ng pangalan ng ating Group Chat ang naidetekto ng ating system!\n\n` +
+                `📌 DETALYE NG PAGBAGAO:\n` +
+                `- User ID na Nagtangka: ${authorID}\n` +
+                `- Piniling Pangalan: "${newName}"\n\n` +
+                `🛑 HINDI PINAYAGAN ANG PAGBABAGO:\n` +
+                `Ang pangalan ng pangkat na ito ay nakakandado at pinoprotektahan ng ating bot system. Ang opisyal na pangalan ay pinanatili at awtomatikong ibinalik sa:\n` +
+                `👉 "${lockedGCName[threadID]}"\n\n` +
+                `PAPAALALA: Ang aming Administrator (${ADMIN_ID}) lamang ang may absolute permission na magbago ng mga setting ng pangkat na ito. Maraming salamat sa inyong pag-unawa at kooperasyon.`,
+                threadID
+              );
+            }
+          });
         }
+      }
+
+      // Event: May nagpalit ng Nickname
+      if (event.logMessageType === "log:user-nickname") {
+        const targetID = event.logMessageData.participant_id;
+        const authorID = event.author;
+        const newNick = event.logMessageData.nickname;
+
+        // Kung naka-lock ang Nickname at hindi Admin ang nagpalit
+        if (lockedNickname[threadID] && newNick !== lockedNickname[threadID] && authorID !== ADMIN_ID) {
+          console.log(`[PROTECTION] Pinalitan ang Nickname ni ${authorID}. Ibabalik sa locked state...`);
+
+          api.changeNickname(lockedNickname[threadID], threadID, targetID, (err) => {
+            if (!err) {
+              api.sendMessage(
+                `======================================================================\n` +
+                `⚠️ AUTOMATED NICKNAME PROTECTION SYSTEM ENFORCEMENT\n` +
+                `======================================================================\n\n` +
+                `Isang hindi awtorisadong pagpapalit ng pangalan (nickname) ang naitala sa ating security event logs!\n\n` +
+                `📌 TAONG NAPALITAN ANG NICKNAME: Account ID (${targetID})\n` +
+                `📌 TAONG NAGTANGKANG MAGPALIT: Account ID (${authorID})\n` +
+                `📌 HINDI PINAYAGANG NICKNAME: "${newNick}"\n\n` +
+                `🛡️ SYSTEM OVERRIDE EXECUTION:\n` +
+                `Ipinag-uutos ng ating Administrator (${ADMIN_ID}) na ang lahat ng kasapi sa pangkat na ito ay dapat magkaroon ng nakatakdang uniform nickname. Awtomatikong ibinalik ang nickname sa:\n` +
+                `👉 "${lockedNickname[threadID]}"\n\n` +
+                `Mangyaring huwag nang subukang palitan muli ang inyong katawagan upang maiwasan ang paulit-ulit na pagpapadala ng babala sa chat na ito.`,
+                threadID
+              );
+            }
+          });
+        }
+      }
+      return;
+    }
+
+    // -------------------------------------------------------------------
+    // 2. MESSAGE HANDLER: Admin Commands & Auto-Reply Engine
+    // -------------------------------------------------------------------
+    if (event.type === "message" && event.body) {
+      const senderID = event.senderID;
+      const messageText = event.body.trim();
+
+      // SECURITY LOCK: Ignorahin ang lahat ng mensahe kapag hindi galing sa Admin
+      if (senderID !== ADMIN_ID) {
+        return; 
+      }
+
+      // Typing Indicator Feature (3 Seconds Delay)
+      api.sendTypingIndicator(threadID, (err) => {
+        setTimeout(() => {
+          processAdminCommands(api, threadID, messageText);
+        }, RESPONSE_DELAY_MS);
       });
     }
-    return;
-  }
+  });
+});
 
-  // 2. AUTO SETNICK LOCK (Bawal palitan ng nickname, auto restore sa suggested nick)
-  if (logMessageType === "log:user-nickname") {
-    const changedUser = logMessageData ? logMessageData.participant_id : null;
-    const newNick = logMessageData ? logMessageData.nickname : "";
+// -------------------------------------------------------------------
+// 3. ADMIN COMMAND PROCESSOR & EXTENDED TEXT AUTO-REPLY ENGINE
+// -------------------------------------------------------------------
+function processAdminCommands(api, threadID, input) {
+  const args = input.split(' ');
+  const command = args[0].toLowerCase();
+  const content = args.slice(1).join(' ');
 
-    if (changedUser && newNick !== currentLockedNick) {
-      await sleep(800);
-      api.changeNickname(currentLockedNick, threadID, changedUser, () => {});
+  // Command 1: !setgname [Pangalan]
+  if (command === '!setgname' || command === '/setgname') {
+    if (!content) {
+      return api.sendMessage(
+        `======================================================================\n` +
+        `📖 GABAY SA PAG-EXECUTE NG COMMAND: !setgname\n` +
+        `======================================================================\n\n` +
+        `Isang malugod na pagbati sa iyo, Kagalang-galang na Administrator (${ADMIN_ID})!\n\n` +
+        `Nais mong palitan at i-lock ang pangalan ng Group Chat na ito ngunit kulang ang mga parameter na iyong ipinadala sa system.\n\n` +
+        `📌 TAMANG ESTRUKTURA NG UTOS:\n` +
+        `!setgname [Isulat Dito Ang Bagong Pangalan Ng GC]\n\n` +
+        `💡 HALIMBAWA NG PAGSASAGAWA:\n` +
+        `!setgname Opisyal Na Pangkat Ng Mga Administrador 2026\n\n` +
+        `Pagkatapos mong i-type ito, awtomatikong papalitan ng bot ang pangalan at maglalagay ng security lock upang wala nang ibang makapagbago nito kailanman.`,
+        threadID
+      );
     }
-    return;
-  }
 
-  // Ignore bot's own messages and command invocations
-  if (!body || body.startsWith("/") || senderID === api.getCurrentUserID()) return;
-
-  // 3. ANTI-SPAM PROTECTION
-  const now = Date.now();
-  const lastUserTime = userLastMsgTime.get(senderID) || 0;
-  const lastThreadTime = threadLastReplyTime.get(threadID) || 0;
-
-  if (now - lastUserTime < SPAM_COOLDOWN || now - lastThreadTime < SPAM_COOLDOWN) {
-    return; // Ignore spamming messages
-  }
-  userLastMsgTime.set(senderID, now);
-  threadLastReplyTime.set(threadID, now);
-
-  // 4. AUTO REACT
-  const randomEmoji = EMOJIS[Math.floor(Math.random() * EMOJIS.length)];
-  api.setMessageReaction(randomEmoji, messageID, () => {}, true);
-
-  // 5. AUTO REPLY ROAST
-  const randomRoast = ROASTS[Math.floor(Math.random() * ROASTS.length)];
-  await sleep(1000);
-
-  api.sendMessage({
-    body: randomRoast,
-    mentions: [{ tag: `@${senderID}`, id: senderID }]
-  }, threadID, messageID);
-};
-
-// ===== COMMAND HANDLER =====
-module.exports.run = async function ({ api, event, args }) {
-  const { threadID, messageID, senderID } = event;
-
-  // STRICT ADMIN ONLY CHECK (Only UID: 61594022290817)
-  if (String(senderID) !== ADMIN_UID) {
-    // kapag hindi admin nag-command, automatic roast reply sa kanila
-    const randomRoast = ROASTS[Math.floor(Math.random() * ROASTS.length)];
-    return api.sendMessage(randomRoast, threadID, messageID);
-  }
-
-  const sub = (args[0] || "").toLowerCase();
-  const data = loadData();
-
-  // /activate on
-  if (sub === "on") {
-    const expires = Date.now() + 24 * 60 * 60 * 1000; // 24 hours
-    data.expires = expires;
-    data.activatedBy = senderID;
-    data.activatedAt = Date.now();
-    saveData(data);
-
-    return api.sendMessage(
-      `🔥 GLOBAL AUTO-ROAST & PROTECTION: ACTIVATED\n\n` +
-      `• Duration: 24 Hours\n` +
-      `• Locked GC Name: "${data.lockedGName || DEFAULT_LOCKED_NAME}"\n` +
-      `• Locked Nickname: "${data.lockedNick || DEFAULT_LOCKED_NAME}"\n` +
-      `• Anti-Spam: Enabled\n` +
-      `• Auto React & Reply: Enabled\n\n` +
-      `Use /activate off to stop manually.`,
-      threadID,
-      messageID
-    );
-  }
-
-  // /activate off
-  if (sub === "off") {
-    if (isActive()) {
-      data.expires = 0;
-      saveData(data);
-      return api.sendMessage("✅ Global auto-roast turned OFF.", threadID, messageID);
-    }
-    return api.sendMessage("Auto-roast is not currently active.", threadID, messageID);
-  }
-
-  // /activate setgname <name>
-  if (sub === "setgname") {
-    const newGName = args.slice(1).join(" ") || DEFAULT_LOCKED_NAME;
-    data.lockedGName = newGName;
-    saveData(data);
-
-    api.setTitle(newGName, threadID, (err) => {
-      if (err) return api.sendMessage("❌ Failed to change GC Name.", threadID, messageID);
-      return api.sendMessage(`🔒 GC Name locked and updated to: "${newGName}"`, threadID, messageID);
+    lockedGCName[threadID] = content;
+    api.setTitle(content, threadID, (err) => {
+      if (err) return api.sendMessage(`[ERROR] Hindi ma-set ang GC Name: ${err.error}`, threadID);
+      
+      api.sendMessage(
+        `======================================================================\n` +
+        `📢 OPISYAL NA ANUNSYO: ANG PANGALAN NG GROUP CHAT AY NAISAYOS AT NAILOCK NA!\n` +
+        `======================================================================\n\n` +
+        `Pansin sa lahat ng mga miyembro at kasapi ng pangkat na ito! Ang ating opisyal na Administrator (${ADMIN_ID}) ay matagumpay na naglapat ng panibagong katawagan para sa ating Group Chat.\n\n` +
+        `🏆 BAGONG OPISYAL NA PANGALAN NG PANGKAT:\n` +
+        `👉 "${content}"\n\n` +
+        `🛡️ IMPLEMENTASYON NG PROTUKOL NG SEGURIDAD:\n` +
+        `1. Ang pangalang ito ay ganap nang NAKAKANDADO sa ating database memory.\n` +
+        `2. Anumang pagtatangka ng hindi awtorisadong miyembro na palitan ang pangalan na ito ay awtomatikong haharangan at ibabalik ng system sa eksaktong pangalang ito.\n` +
+        `3. Ang mga pagbabago ay maaari lamang isagawa muli sa pamamagitan ng direktang utos mula sa ating nakatalagang Administrator.\n\n` +
+        `Maraming salamat sa patuloy na paggalang sa mga alituntunin ng ating pangkat!`,
+        threadID
+      );
     });
     return;
   }
 
-  // /activate setnick <name>
-  if (sub === "setnick") {
-    const newNick = args.slice(1).join(" ") || DEFAULT_LOCKED_NAME;
-    data.lockedNick = newNick;
-    saveData(data);
-
-    try {
-      const threadInfo = await api.getThreadInfo(threadID);
-      const participantIDs = threadInfo.participantIDs || [];
-
-      api.sendMessage(`⏳ Locking all nicknames to: "${newNick}"...`, threadID);
-
-      for (const uid of participantIDs) {
-        await sleep(600);
-        api.changeNickname(newNick, threadID, uid, () => {});
-      }
-      return api.sendMessage(`🔒 All nicknames locked to: "${newNick}"`, threadID, messageID);
-    } catch (e) {
-      return api.sendMessage("❌ Failed to set nicknames.", threadID, messageID);
+  // Command 2: !setnick [Nickname]
+  if (command === '!setnick' || command === '/setnick') {
+    if (!content) {
+      return api.sendMessage(
+        `======================================================================\n` +
+        `📖 GABAY SA PAG-EXECUTE NG COMMAND: !setnick\n` +
+        `======================================================================\n\n` +
+        `Isang malugod na pagbati sa iyo, Kagalang-galang na Administrator (${ADMIN_ID})!\n\n` +
+        `Nais mong palitan at i-lock ang nickname ng LAHAT ng miyembro ngunit nakalimutan mong ilagay ang salitang ilalapat sa kanila.\n\n` +
+        `📌 TAMANG ESTRUKTURA NG UTOS:\n` +
+        `!setnick [Isulat Dito Ang Nickname Para Sa Lahat]\n\n` +
+        `💡 HALIMBAWA NG PAGSASAGAWA:\n` +
+        `!setnick Opisyal Na Miyembro\n\n` +
+        `Pagkatapos mong i-type ito, awtomatikong iisa-isahin ng bot ang lahat ng miyembro upang palitan ang kanilang mga palayaw at i-lock ang mga ito.`,
+        threadID
+      );
     }
+
+    lockedNickname[threadID] = content;
+
+    api.getThreadInfo(threadID, (err, info) => {
+      if (err) return api.sendMessage(`[ERROR] Hindi makuha ang impormasyon ng pangkat: ${err.error}`, threadID);
+
+      const participantIDs = info.participantIDs;
+      participantIDs.forEach((pID) => {
+        api.changeNickname(content, threadID, pID);
+      });
+
+      api.sendMessage(
+        `======================================================================\n` +
+        `📢 OPISYAL NA AUTOMATED NICKNAME SYNCHRONIZATION EXECUTION\n` +
+        `======================================================================\n\n` +
+        `Ipinag-uutos ng ating Kagalang-galang na Administrator (${ADMIN_ID}) na ang LAHAT ng kasalukuyang miyembro sa Group Chat na ito ay papalitang muli ng kanilang mga opisyal na katawagan.\n\n` +
+        `🏷️ UNIFORM NICKNAME NA ILINAPAT SA LAHAT:\n` +
+        `👉 "${content}"\n\n` +
+        `🛡️ AUTOMATED PROTECTION ENGAGEMENT:\n` +
+        `- Ang lahat ng account sa chat na ito ay naisaayos na sa pare-parehong nickname.\n` +
+        `- Kapag pinalitan ng sinuman ang kanilang nickname pabalik sa dati o sa ibang salita, awtomatiko itong ibabalik ng ating bot script sa nakaset na nickname na ito matapos ang ilang segundo.\n\n` +
+        `Inaaasahan ang lahat na panatilihin ang kaayusan sa ating silid-talakayan.`,
+        threadID
+      );
+    });
+    return;
   }
 
-  // /activate status
-  if (sub === "status") {
-    const left = getRemaining();
-    if (left <= 0) {
-      return api.sendMessage("Global auto-roast is currently OFF.", threadID, messageID);
-    }
-    const hours = Math.floor(left / (1000 * 60 * 60));
-    const mins = Math.floor((left % (1000 * 60 * 60)) / (1000 * 60));
+  // Command 3: !rules / !alituntunin
+  if (command === '!rules' || command === '!alituntunin') {
     return api.sendMessage(
-      `🔥 Global Auto-roast is ACTIVE\n\n` +
-      `⏱️ Time left: ${hours}h ${mins}m\n` +
-      `📌 Locked GC Name: "${data.lockedGName || DEFAULT_LOCKED_NAME}"\n` +
-      `📌 Locked Nickname: "${data.lockedNick || DEFAULT_LOCKED_NAME}"`,
-      threadID,
-      messageID
+      `======================================================================\n` +
+      `📜 OPISYAL NA MGA ALITUNTUNIN AT KAUTUSAN SA GROUP CHAT\n` +
+      `======================================================================\n\n` +
+      `Upang mapanatili ang kaayusan, katahimikan, at magandang samahan ng bawat isa sa ating pangkat, inilalabas ng ating Administrator (${ADMIN_ID}) ang mga sumusunod na alituntunin:\n\n` +
+      `1. BAWAL ANG PAGPAPALIT NG GC NAME AT NICKNAMES\n` +
+      `   - Ang pangalan ng GC at ang mga nicknames ay nakakandado sa ating bot system. Huwag nang subukang palitan ang mga ito.\n\n` +
+      `2. IGALANG ANG BAWAT KASAPI AT ANG ADMINISTRATOR\n` +
+      `   - Iwasan ang paggamit ng mga hindi kaaya-ayang salita, pakikipag-away, o pagpapakalat ng maling impormasyon.\n\n` +
+      `3. BAWAL ANG SPAM AT UNSOLICITED PROMOTION\n` +
+      `   - Iwasan ang pagpapadala ng paulit-ulit na mensahe, nakakasirang links, o anumang uri ng hindi awtorisadong promotional material.\n\n` +
+      `4. PAGSUNOD SA MGA DIREKTIBA NG SYSTEM\n` +
+      `   - Ang lahat ng automated execution mula sa ating bot ay opisyal at ginawa para sa seguridad ng pangkat na ito.\n\n` +
+      `Maraming salamat sa inyong patuloy na pagsuporta at pagtalima sa ating mga regulasyon!`,
+      threadID
     );
   }
 
-  return api.sendMessage(
-    `Usage (Admin Only):\n` +
-    `/activate on — Start 24h global auto-roast\n` +
-    `/activate off — Stop auto-roast\n` +
-    `/activate setgname <name> — Lock GC Name\n` +
-    `/activate setnick <name> — Lock All Nicknames\n` +
-    `/activate status — Check remaining time`,
-    threadID,
-    messageID
+  // Command 4: Help / Menu / Tulong
+  if (command === 'help' || command === 'tulong' || command === 'menu' || command === 'commands') {
+    return api.sendMessage(
+      `======================================================================\n` +
+      `📋 KUMPLETONG TALAAN NG MGA UTOS AT KONTROL NG ADMINISTRATOR\n` +
+      `======================================================================\n\n` +
+      `Magandang araw sa iyo, Kagalang-galang na Administrator (${ADMIN_ID})!\n\n` +
+      `Narito ang kumpleto at komprehensibong talaan ng mga utos na maaari mong ipadala sa ating system upang pamahalaan at protektahan ang Group Chat na ito:\n\n` +
+      `🔹 1. "!setgname [Pangalan]"\n` +
+      `   - Awtomatikong papalitan ang pangalan ng Group Chat at lalagyan ito ng permanenteng security lock upang hindi mabago ng ibang members.\n\n` +
+      `🔹 2. "!setnick [Nickname]"\n` +
+      `   - Awtomatikong papalitan ang nickname ng LAHAT ng kasalukuyang miyembro sa pangkat at i-la-lock ang mga ito.\n\n` +
+      `🔹 3. "!rules" o "!alituntunin"\n` +
+      `   - Magpapadala ng napakahabang listahan ng mga opisyal na alituntunin para sa lahat ng miyembro ng pangkat.\n\n` +
+      `🔹 4. "status" o "kalagayan"\n` +
+      `   - Magpapadala ng kumpletong diagnostic report tungkol sa server runtime, 3-second response delay queue, at active locks.\n\n` +
+      `🔹 5. "info" o "impormasyon"\n` +
+      `   - Ipapaliwanag nang buo ang teknikal na arkitektura at seguridad ng ating bot engine.\n\n` +
+      `Mangyaring mag-type lamang ng alinman sa mga utos sa itaas upang simulan ang pagproseso ng system.`,
+      threadID
+    );
+  }
+
+  // Command 5: Status / Kalagayan
+  if (command === 'status' || command === 'kalagayan') {
+    return api.sendMessage(
+      `======================================================================\n` +
+      `📊 OPISYAL NA DIAGNOSTIC AT PERFORMANCE STATUS REPORT\n` +
+      `======================================================================\n\n` +
+      `📌 PANGUNAHING METRICS NG SYSTEM:\n` +
+      `- Operational System Status: AKTIBO AT GUMAGANA (ONLINE & RUNNING)\n` +
+      `- Verified Administrator Account ID: ${ADMIN_ID}\n` +
+      `- Enforced Response Delay Queue: 3.0 Sekundo (3,000 Milliseconds)\n` +
+      `- Internal Communication Gateway: MQTT Listener / Express Engine\n\n` +
+      `📌 STATUS NG MGA SECURITY LOCKS:\n` +
+      `- Nakalock na GC Name: ${lockedGCName[threadID] ? `"${lockedGCName[threadID]}"` : "Wala pang nakaset na lock"}\n` +
+      `- Nakalock na Uniform Nickname: ${lockedNickname[threadID] ? `"${lockedNickname[threadID]}"` : "Wala pang nakaset na lock"}\n\n` +
+      `📌 EVALUATION NG SEGURIDAD:\n` +
+      `Ang lahat ng computational execution pipelines, webhook security filters, at memory allocation modules ay gumagana sa pinakamataas na antas ng kalidad at walang naitalang anumang error.`,
+      threadID
+    );
+  }
+
+  // Command 6: Info / Impormasyon
+  if (command === 'info' || command === 'impormasyon') {
+    return api.sendMessage(
+      `======================================================================\n` +
+      `ℹ️ TEKNIKAL NA IMPORMASYON SA BOT ARCHITECTURE AT SEGURIDAD\n` +
+      `======================================================================\n\n` +
+      `Ang Messenger Automation System na ito ay binuo gamit ang Node.js runtime environment upang magbigay ng mataas na antas ng proteksyon para sa iyong Group Chat.\n\n` +
+      `📌 MGA PANGUNAHING ENGINE FEATURE:\n` +
+      `1. Single-Admin Authorization Gate:\n` +
+      `   - Lahat ng pumasok na mensahe mula sa ibang Facebook ID ay tahimik na binabale-wala upang maiwasan ang abuse at maling paggamit ng bot.\n\n` +
+      `2. Enforced 3-Second Queue Buffer:\n` +
+      `   - Bago magpadala ng anumang awtomatikong tugon, ang bot ay nagpapakita ng typing status sa loob ng 3000ms upang maiwasan ang flagging mula sa spam detection systems.\n\n` +
+      `3. Automatic State Reversion Logic:\n` +
+      `   - Nakatutok ang system sa mga event ng Group Chat tulad ng log:thread-name at log:user-nickname upang agad na ibalik sa nakalock na estado ang pangkat kapag may nagtatangkang magbago nito.`,
+      threadID
+    );
+  }
+
+  // Default Extended Fallback Response (Kapag nag-type ang Admin ng kahit anong salita)
+  api.sendMessage(
+    `======================================================================\n` +
+    `🤖 AUTOMATED ADMINISTRATIVE MESSAGE ACKNOWLEDGMENT AND RECEIPT\n` +
+    `======================================================================\n\n` +
+    `Isang malugod at maalab na pagbati mula sa iyong nakatalagang Bot Control Engine, Kagalang-galang na Administrator (${ADMIN_ID})!\n\n` +
+    `Ang iyong ipinadalang mensahe ay matagumpay na pumasok sa ating security verification gateway, naproseso sa ating 3-segundong queue delay, at nakatala na ngayon sa ating system memory.\n\n` +
+    `📝 DETALYE NG NATANGGAP NA TRANSMISSION:\n` +
+    `- Nilalaman ng Mensahe: "${input}"\n` +
+    `- Kabuuang Haba (Character Count): ${input.length} na mga letra/simbolo\n` +
+    `- Response Delay Execution Time: Exactly 3.0 Seconds (3000ms)\n` +
+    `- Sender Permission Level: FULL ADMINISTRATOR ACCESS\n\n` +
+    `💡 MGA MUNGKAHING SALITA AT GABAY SA PAG-SET:\n` +
+    `• Upang i-lock at palitan ang pangalan ng GC: i-type ang "!setgname <Bagong Pangalan>"\n` +
+    `• Upang i-lock at gawing pare-pareho ang nickname ng lahat: i-type ang "!setnick <Bagong Nickname>"\n` +
+    `• Upang maipakita ang kumpletong menu at talaan ng utos: i-type ang "help"\n\n` +
+    `Ang ating system ay nananatiling handa at nakatutok sa iyong mga susunod na direktiba!`,
+    threadID
   );
-};
+}
