@@ -3,10 +3,10 @@ const path = require("path");
 
 module.exports.config = {
   name: "activate",
-  version: "3.0.0",
+  version: "2.5.0",
   hasPermission: 1, // Require Admin Permission Level
   credits: "Ryuk & Gemini",
-  description: "Infinite per-GC auto-roast with Dog reaction (🐕), Strict GC Isolation, Render Fix, 2s setnick delay, and Name Guard.",
+  description: "24-hour per-GC auto-roast with Dog reaction (🐕), Strict GC Isolation, Render Fix, 2s setnick delay, and Name Guard.",
   usePrefix: true,
   commandCategory: "Fun",
   usages: "/activate on | off | status | setgname <name> | setnick <name>",
@@ -104,8 +104,16 @@ function saveData(data) {
 function isThreadActive(threadID) {
   const data = loadData();
   const tData = data[threadID];
-  if (!tData) return false;
-  return Boolean(tData.active);
+  if (!tData || !tData.expires) return false;
+  return tData.expires > Date.now();
+}
+
+function getRemaining(threadID) {
+  const data = loadData();
+  const tData = data[threadID];
+  if (!tData || !tData.expires) return 0;
+  const left = tData.expires - Date.now();
+  return left > 0 ? left : 0;
 }
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -193,7 +201,7 @@ module.exports.run = async function ({ api, event, args }) {
 
   if (!data[threadID]) {
     data[threadID] = {
-      active: false,
+      expires: 0,
       activatedBy: null,
       lockedGName: DEFAULT_LOCKED_NAME,
       lockedNick: DEFAULT_LOCKED_NAME
@@ -204,14 +212,15 @@ module.exports.run = async function ({ api, event, args }) {
 
   // /activate on
   if (sub === "on") {
-    tData.active = true;
+    const expires = Date.now() + 24 * 60 * 60 * 1000; // 24 hours
+    tData.expires = expires;
     tData.activatedBy = senderID;
     tData.activatedAt = Date.now();
     saveData(data);
 
     return api.sendMessage(
-      `🐕 INFINITE AUTO-ROAST & PROTECTION: ACTIVATED IN THIS GC\n\n` +
-      `• Duration: INFINITE (Permanent until turned off)\n` +
+      `🐕 AUTO-ROAST & PROTECTION: ACTIVATED IN THIS GC\n\n` +
+      `• Duration: 24 Hours\n` +
       `• Locked GC Name: "${tData.lockedGName || DEFAULT_LOCKED_NAME}"\n` +
       `• Locked Nickname: "${tData.lockedNick || DEFAULT_LOCKED_NAME}"\n` +
       `• Auto-Reply Cooldown: 2 Seconds\n` +
@@ -227,7 +236,7 @@ module.exports.run = async function ({ api, event, args }) {
   // /activate off
   if (sub === "off") {
     if (isThreadActive(threadID)) {
-      tData.active = false;
+      tData.expires = 0;
       saveData(data);
       return api.sendMessage("✅ Auto-roast turned OFF in this GC.", threadID, messageID);
     }
@@ -271,13 +280,15 @@ module.exports.run = async function ({ api, event, args }) {
 
   // /activate status
   if (sub === "status") {
-    const active = isThreadActive(threadID);
-    if (!active) {
+    const left = getRemaining(threadID);
+    if (left <= 0) {
       return api.sendMessage("Auto-roast is currently OFF in this GC.", threadID, messageID);
     }
+    const hours = Math.floor(left / (1000 * 60 * 60));
+    const mins = Math.floor((left % (1000 * 60 * 60)) / (1000 * 60));
     return api.sendMessage(
-      `🐕 Infinite Auto-roast is ACTIVE in this GC\n\n` +
-      `⏱️ Duration: Unlimited (Infinite)\n` +
+      `🐕 Auto-roast is ACTIVE in this GC\n\n` +
+      `⏱️ Time left: ${hours}h ${mins}m\n` +
       `📌 Locked GC Name: "${tData.lockedGName || DEFAULT_LOCKED_NAME}"\n` +
       `📌 Locked Nickname: "${tData.lockedNick || DEFAULT_LOCKED_NAME}"`,
       threadID,
@@ -287,11 +298,11 @@ module.exports.run = async function ({ api, event, args }) {
 
   return api.sendMessage(
     `Usage (Admin Only):\n` +
-    `/activate on — Start INFINITE auto-roast in THIS GC\n` +
+    `/activate on — Start 24h auto-roast in THIS GC\n` +
     `/activate off — Stop auto-roast in THIS GC\n` +
     `/activate setgname <name> — Lock GC Name\n` +
     `/activate setnick <name> — Lock All Nicknames (2s delay)\n` +
-    `/activate status — Check status`,
+    `/activate status — Check remaining time`,
     threadID,
     messageID
   );
