@@ -3,10 +3,10 @@ const path = require("path");
 
 module.exports.config = {
   name: "ryukpogi",
-  version: "4.0.0",
+  version: "5.0.0",
   hasPermission: 1, // Require Admin Permission Level
   credits: "sinzu & Gemini",
-  description: "Infinite global auto-roast with Dual Admin Locks, Render fix, 2s setnick delay, Auto React, and Maangas Responses.",
+  description: "Per-GC Infinite auto-roast with Dual Admin Locks, Render fix, 2s setnick delay, Auto React, and Maangas Responses.",
   usePrefix: true,
   commandCategory: "Fun",
   usages: "/ryukpogi on | off | status | setgname <name> | setnick <name>",
@@ -21,7 +21,7 @@ const ADMIN_UIDS = [
 ];
 
 const DEFAULT_LOCKED_NAME = "Ryuk pogi";
-const DATA_PATH = path.join(__dirname, "ryuk_pogi_data.json");
+const DATA_PATH = path.join(__dirname, "ryuk_pogi_threads.json");
 
 // Emojis for auto-reactions
 const EMOJIS = ["🔥", "💀", "🤣", "😆", "🤡", "👎", "💩", "👻", "🐶", "💯", "🤪"];
@@ -83,9 +83,9 @@ const ROASTS = [
 ];
 
 const threadLastReplyTime = new Map();
-const COOLDOWN_DELAY = 2000;
+const COOLDOWN_DELAY = 2000; // 2 Seconds
 
-function loadData() {
+function loadAllData() {
   try {
     if (fs.existsSync(DATA_PATH)) {
       const content = fs.readFileSync(DATA_PATH, "utf8");
@@ -94,10 +94,10 @@ function loadData() {
   } catch (err) {
     console.error("[Data Load Error]:", err.message);
   }
-  return { active: false, activatedBy: null, lockedGName: DEFAULT_LOCKED_NAME, lockedNick: DEFAULT_LOCKED_NAME };
+  return {};
 }
 
-function saveData(data) {
+function saveAllData(data) {
   try {
     fs.writeFileSync(DATA_PATH, JSON.stringify(data, null, 2), "utf8");
   } catch (err) {
@@ -105,9 +105,14 @@ function saveData(data) {
   }
 }
 
-function isActive() {
-  const data = loadData();
-  return Boolean(data.active);
+function getThreadData(threadID) {
+  const allData = loadAllData();
+  return allData[threadID] || { active: false, lockedGName: DEFAULT_LOCKED_NAME, lockedNick: DEFAULT_LOCKED_NAME };
+}
+
+function isThreadActive(threadID) {
+  const threadData = getThreadData(threadID);
+  return Boolean(threadData.active);
 }
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -119,27 +124,27 @@ function checkIsAdmin(senderID) {
 // ===== EVENT HANDLER =====
 module.exports.handleEvent = async function ({ api, event }) {
   const { threadID, senderID, body, messageID, logMessageType, logMessageData } = event;
-  const data = loadData();
 
-  if (!isActive()) return;
+  if (!isThreadActive(threadID)) return;
 
-  const currentLockedGName = data.lockedGName || DEFAULT_LOCKED_NAME;
-  const currentLockedNick = data.lockedNick || DEFAULT_LOCKED_NAME;
+  const threadData = getThreadData(threadID);
+  const currentLockedGName = threadData.lockedGName || DEFAULT_LOCKED_NAME;
+  const currentLockedNick = threadData.lockedNick || DEFAULT_LOCKED_NAME;
 
-  // 1. AUTO SETGNAME LOCK
+  // 1. AUTO SETGNAME LOCK (FOR THIS GC ONLY)
   if (logMessageType === "log:thread-name") {
     const newName = logMessageData ? logMessageData.name : "";
     if (newName !== currentLockedGName) {
       api.setTitle(currentLockedGName, threadID, (err) => {
         if (!err) {
-          api.sendMessage(`🚫 WAG MO SUBUKANG PALITAN GC NAME! NAKA-LOCK KAY "${currentLockedGName}" ITO! 💀 💯 🤪`, threadID);
+          api.sendMessage(`🚫 WAG MO SUBUKANG PALITAN GC NAME! NAKA-LOCK KAY "${currentLockedGName}" ITO SA GC NA 'TO! 💀 💯 🤪`, threadID);
         }
       });
     }
     return;
   }
 
-  // 2. AUTO SETNICK LOCK
+  // 2. AUTO SETNICK LOCK (FOR THIS GC ONLY)
   if (logMessageType === "log:user-nickname") {
     const changedUser = logMessageData ? logMessageData.participant_id : null;
     const newNick = logMessageData ? logMessageData.nickname : "";
@@ -154,7 +159,7 @@ module.exports.handleEvent = async function ({ api, event }) {
   // Ignore bot's own messages and command invocations
   if (!body || body.startsWith("/") || senderID === api.getCurrentUserID()) return;
 
-  // 3. 2 SECONDS AUTO REPLY COOLDOWN
+  // 3. 2 SECONDS AUTO REPLY COOLDOWN PER GC
   const now = Date.now();
   const lastThreadTime = threadLastReplyTime.get(threadID) || 0;
 
@@ -184,27 +189,30 @@ module.exports.run = async function ({ api, event, args }) {
   // CHECK KUNG DALAWA SA INI-ALLOW NA ADMIN UIDs ANG SENDER
   if (!checkIsAdmin(senderID)) {
     const randomRoast = ROASTS[Math.floor(Math.random() * ROASTS.length)];
-    return api.sendMessage(`🔥 SUBAN MO PA MAG-COMMAND KAHIT HINDI KA ADMIN? ETING SA'YO:\n\n${randomRoast}`, threadID, messageID);
+    return api.sendMessage(`🔥 SUBUKAN MO PA MAG-COMMAND KAHIT HINDI KA ADMIN? ETING SA'YO:\n\n${randomRoast}`, threadID, messageID);
   }
 
   const sub = (args[0] || "").toLowerCase();
-  const data = loadData();
+  const allData = loadAllData();
+  const threadData = getThreadData(threadID);
 
   // /ryukpogi on
   if (sub === "on") {
-    data.active = true;
-    data.activatedBy = senderID;
-    data.activatedAt = Date.now();
-    saveData(data);
+    threadData.active = true;
+    threadData.activatedBy = senderID;
+    threadData.activatedAt = Date.now();
+    
+    allData[threadID] = threadData;
+    saveAllData(allData);
 
     return api.sendMessage(
-      `🔥 RYUK POGI MODE IS NOW LIVE & DOMINATING! 🔥\n\n` +
-      `⚡ STATUS: INFINITE ACTIVE (WALANG MUKHANG SUSUKO, WALANG MATUTULOG)\n` +
+      `🔥 RYUK POGI MODE IS NOW LIVE & DOMINATING THIS GC! 🔥\n\n` +
+      `⚡ STATUS: LOCAL GC ACTIVE (WALANG MUKHANG SUSUKO, WALANG MATUTULOG)\n` +
       `👑 COMMANDER ID: ${senderID}\n` +
-      `🔒 LOCKED GC NAME: "${data.lockedGName || DEFAULT_LOCKED_NAME}"\n` +
-      `🔒 LOCKED NICKNAME: "${data.lockedNick || DEFAULT_LOCKED_NAME}"\n` +
+      `🔒 LOCKED GC NAME: "${threadData.lockedGName || DEFAULT_LOCKED_NAME}"\n` +
+      `🔒 LOCKED NICKNAME: "${threadData.lockedNick || DEFAULT_LOCKED_NAME}"\n` +
       `💥 AUTOMATIC REACTION & ROAST SYSTEM: 100% FULL SPEED 🤪 💯\n\n` +
-      `SINO PIPALAG DITO HAH? LAHAT NG MAG-CHAT DUDURUGIN AT AASARIN NA 24/7! 😈⚡`,
+      `SINO PIPALAG SA GC NA 'TO HAH? LAHAT NG MAG-CHAT DUDURUGIN AT AASARIN NA 24/7! 😈⚡`,
       threadID,
       messageID
     );
@@ -212,23 +220,25 @@ module.exports.run = async function ({ api, event, args }) {
 
   // /ryukpogi off
   if (sub === "off") {
-    if (isActive()) {
-      data.active = false;
-      saveData(data);
-      return api.sendMessage("❌ PINATAY MO ANG RYUK POGI MODE! TAHIMIK NA ULIT ANG MGA EPAL SA GC. 💤⚡", threadID, messageID);
+    if (threadData.active) {
+      threadData.active = false;
+      allData[threadID] = threadData;
+      saveAllData(allData);
+      return api.sendMessage("❌ PINATAY MO ANG RYUK POGI MODE SA GC NA 'TO! TAHIMIK NA ULIT ANG MGA EPAL. 💤⚡", threadID, messageID);
     }
-    return api.sendMessage("💀 HINDI PA MAN NAKASINDI ANG BOT BAGO MO PATAYIN, TULOG NGA MUNA SABI EH!", threadID, messageID);
+    return api.sendMessage("💀 HINDI PA MAN NAKASINDI ANG BOT SA GC NA 'TO BAGO MO PATAYIN, TULOG NGA MUNA SABI EH!", threadID, messageID);
   }
 
   // /ryukpogi setgname <name>
   if (sub === "setgname") {
     const newGName = args.slice(1).join(" ") || DEFAULT_LOCKED_NAME;
-    data.lockedGName = newGName;
-    saveData(data);
+    threadData.lockedGName = newGName;
+    allData[threadID] = threadData;
+    saveAllData(allData);
 
     api.setTitle(newGName, threadID, (err) => {
       if (err) return api.sendMessage("❌ AYAW PUMAGITNA NG FACEBOOK API, MAANGAS DIN EH!", threadID, messageID);
-      return api.sendMessage(`👑 AKO ANG NASUSUNOD DITO! NAKA-LOCK NA GC NAME SA: "${newGName}" 💯 🤪`, threadID, messageID);
+      return api.sendMessage(`👑 AKO ANG NASUSUNOD DITO! NAKA-LOCK NA GC NAME NG THREAD NA 'TO SA: "${newGName}" 💯 🤪`, threadID, messageID);
     });
     return;
   }
@@ -236,20 +246,21 @@ module.exports.run = async function ({ api, event, args }) {
   // /ryukpogi setnick <name>
   if (sub === "setnick") {
     const newNick = args.slice(1).join(" ") || DEFAULT_LOCKED_NAME;
-    data.lockedNick = newNick;
-    saveData(data);
+    threadData.lockedNick = newNick;
+    allData[threadID] = threadData;
+    saveAllData(allData);
 
     try {
       const threadInfo = await api.getThreadInfo(threadID);
       const participantIDs = threadInfo.participantIDs || [];
 
-      api.sendMessage(`⏳ ISSUING AUTHORITATIVE COMMAND: LOCKING ALL NICKNAMES TO "${newNick}" (2s SAFE SPEED)... 💀⚡`, threadID);
+      api.sendMessage(`⏳ ISSUING AUTHORITATIVE COMMAND: LOCKING ALL NICKNAMES IN THIS GC TO "${newNick}" (2s SAFE SPEED)... 💀⚡`, threadID);
 
       for (const uid of participantIDs) {
         await sleep(2000);
         api.changeNickname(newNick, threadID, uid, () => {});
       }
-      return api.sendMessage(`👑 LAHAT NG TAO DITO MAY PARUSA AT NAKA-NICKNAME NA KAY "${newNick}"! WALANG MAKAKALIGTAS! 💯 🤪`, threadID, messageID);
+      return api.sendMessage(`👑 LAHAT NG TAO SA GC NA 'TO MAY PARUSA AT NAKA-NICKNAME NA KAY "${newNick}"! WALANG MAKAKALIGTAS! 💯 🤪`, threadID, messageID);
     } catch (e) {
       return api.sendMessage("❌ NAGKA-ERROR SA PAGSET NG NICKNAME, MAY LUMALAGANAP NA REBELDE!", threadID, messageID);
     }
@@ -257,28 +268,28 @@ module.exports.run = async function ({ api, event, args }) {
 
   // /ryukpogi status
   if (sub === "status") {
-    if (!isActive()) {
-      return api.sendMessage("⚠️ RYUK POGI IS OFF. TULOG ANG HARING MAG-AASAR!", threadID, messageID);
+    if (!threadData.active) {
+      return api.sendMessage("⚠️ RYUK POGI IS OFF IN THIS GC. TULOG ANG HARING MAG-AASAR!", threadID, messageID);
     }
     return api.sendMessage(
-      `⚡ RYUK POGI SYSTEM STATUS REPORT ⚡\n\n` +
-      `🔥 STATE: ACTIVE & UNSTOPPABLE 24/7\n` +
+      `⚡ RYUK POGI GC STATUS REPORT ⚡\n\n` +
+      `🔥 STATE: ACTIVE IN THIS GC (24/7)\n` +
       `⏱️ DURATION: LIFETIME / INFINITE\n` +
-      `📌 GC NAME GUARD: "${data.lockedGName || DEFAULT_LOCKED_NAME}"\n` +
-      `📌 NICKNAME GUARD: "${data.lockedNick || DEFAULT_LOCKED_NAME}"\n\n` +
-      `WALANG LUGAR ANG MAHIHINA AT EPAL DITO! 🤪 💯`,
+      `📌 GC NAME GUARD: "${threadData.lockedGName || DEFAULT_LOCKED_NAME}"\n` +
+      `📌 NICKNAME GUARD: "${threadData.lockedNick || DEFAULT_LOCKED_NAME}"\n\n` +
+      `WALANG LUGAR ANG MAHIHINA AT EPAL DITO SA GC NA 'TO! 🤪 💯`,
       threadID,
       messageID
     );
   }
 
   return api.sendMessage(
-    `🔥 RYUK POGI CONTROL PANEL (ADMIN ONLY) 🔥\n\n` +
-    `👉 /ryukpogi on — Sindi ang maangas na infinite auto-roast\n` +
-    `👉 /ryukpogi off — Patayin ang auto-roast mode\n` +
-    `👉 /ryukpogi setgname <name> — I-lock ang pangalan ng GC\n` +
-    `👉 /ryukpogi setnick <name> — I-lock ang nicknames ng lahat ng members (2s delay)\n` +
-    `👉 /ryukpogi status — Tignan ang bagsik ng bot status`,
+    `🔥 RYUK POGI CONTROL PANEL (THIS GC ONLY) 🔥\n\n` +
+    `👉 /ryukpogi on — Sindi ang maangas na auto-roast sa GC na 'to\n` +
+    `👉 /ryukpogi off — Patayin ang auto-roast mode sa GC na 'to\n` +
+    `👉 /ryukpogi setgname <name> — I-lock ang pangalan ng GC na 'to\n` +
+    `👉 /ryukpogi setnick <name> — I-lock ang nicknames ng members sa GC na 'to (2s delay)\n` +
+    `👉 /ryukpogi status — Tignan ang status ng bot sa GC na 'to`,
     threadID,
     messageID
   );
