@@ -1,31 +1,28 @@
-const axios = require("axios");
-const fs = require("fs-extra");
+const fs = require("fs");
 const path = require("path");
 
 module.exports.config = {
-  name: "ryuk",
-  version: "24.0.0",
-  hasPermission: 1,
-  credits: "Ryuk Pogi & Gemini",
-  description: "Admin-only command activation with silent ignore for non-admins, strict locks, and song player.",
+  name: "activate",
+  version: "2.0.0",
+  hasPermission: 1, // Require Admin Permission Level
+  credits: "sinzu & Gemini",
+  description: "24-hour global auto-roast with Admin Locks, Anti-Spam, Auto React, Auto Reply & Name Guard.",
   usePrefix: true,
-  commandCategory: "Media & Fun",
-  usages: "/ryuk song <title> | /ryuk on | off | target <@mention/reply/clear> | setnick <name> | setgname <name>",
-  cooldowns: 3
+  commandCategory: "Fun",
+  usages: "/activate on | off | status | setgname <name> | setnick <name>",
+  cooldowns: 5
 };
 
 // ================= CONFIGURATION =================
-const BOT_OWNER_UID = "61594022290817";
-const DEFAULT_TARGET_NAME = "Ryuk pogi";
-const DOG_EMOJI = "🐶";
+const ADMIN_UID = "61594022290817";
+const DEFAULT_LOCKED_NAME = "Ryuk pogi";
+const DATA_PATH = path.join(__dirname, "activate_data.json");
 
-// LAGAY MO DITO ANG KEYS MO MULA SA JSONBIN.IO
-const JSONBIN_API_KEY = "LAGAY_MO_DITO_ANG_MASTER_KEY";
-const JSONBIN_BIN_ID = "LAGAY_MO_DITO_ANG_BIN_ID";
+// Emojis for auto-reactions
+const EMOJIS = ["🔥", "💀", "🤣", "😆", "🤡", "👎", "💩", "👻", "🐶"];
 
-const REACT_EMOJIS = ["🔥", "💀", "🤣", "😆", "🤡", "👎", "💩", "👻"];
-
-const DEFAULT_TAGALOG_ROASTS = [
+// Tagalog & English Mixed Roasts
+const ROASTS = [
   "Luh, nag-type pa talaga siya oh, akala mo naman may kumpirmasyon. 💀",
   "Lods, paki-delete na lang 'to bago pa makita ng iba, nakakahiya. 🤣",
   "Lakas ng loob mo mag-chat, pero yung sinabi mo walang kwenta.",
@@ -37,328 +34,224 @@ const DEFAULT_TAGALOG_ROASTS = [
   "I-off mo na wifi mo, hindi para sa'yo ang araw na 'to.",
   "Ganda ng sinabi mo ah, kasing ganda ng blankong papel. 🤡",
   "Ulitin mo nga 'yan, para mas lalo ka naming pagtawanan.",
-  "May group chat restraint order ka na ba? Kasi lapit na kita i-report.",
-  "Tigilan mo na 'yan, pati 'yung keyboard mo sumusuko na sa'yo.",
-  "Confidence level: 100%. Sense level: 0%.",
-  "Sige lang, ipagpatuloy mo 'yan... hanggang sa wala nang makipag-usap sa'yo.",
-  "Ayan ka na naman, nagkakalat ka na naman ng ingay sa GC.",
-  "Subukan mo kayang mag-isip bago mag-type? Baka makatulong.",
-  "Ang ingay mo, wala ka namang maipagmamabang.",
-  "Kung degree ang pagiging corny, summa cum laude ka na siguro.",
-  "Bakit ka nag-chat? May humingi ba ng opinyon mo?",
-  "Hindi ka nakakatuwa, nakakaawa ka na pakinggan.",
-  "Yung utak mo parang Internet Explorer, huling-huli sa balita.",
-  "Lakas magmarunong pero nung nagtanong, nganga naman.",
-  "Tulog mo na lang 'yan lods, wala ka talagang mapapala ngayon.",
-  "Walang nakikinig sa'yo, kaya wag ka nang mag-aksaya ng laway.",
-  "Gusto mo ba ng medalya dahil sa walang katuturan mong sinabi?",
-  "Tae ka ba? Kasi nakaka-bwisit ka sa paningin.",
-  "Puro ka dada, zero performance ka naman sa totoong buhay.",
-  "Sana binasa mo muna bago mo pinindot 'yung send.",
-  "Dami mong sinasabi, wala namang katuturan.",
-  // --- MGA DAGDAG NA LINES ---
+  "Bro really thought that message was necessary 💀",
+  "The confidence… the delusion… unmatched.",
+  "Say less, we already lost brain cells reading that.",
+  "You typed all that just to embarrass yourself?",
+  "Main character energy but the plot is mid.",
+  "Who hurt you? Because that sentence hurt all of us.",
+  "The audacity is loud but the intelligence is on mute.",
+  "This is why group chats need a mute button for specific people.",
   "Pag-isipan mo munang mabuti bago ka mag-send ulit, nakaka-secondhand embarrassment ka bro. 💀",
   "Akala mo siguro nakakatawa ka, paki-check nga ulit sa salamin.",
   "Yung utak mo parang data connection, laging slow at paminsan-minsan nawawala. 📡",
   "Mag-offline ka muna pre, magpahinga ka naman sa pagpapamukha na wala kang alam.",
   "May award ka ba sa pagiging pinaka-epal sa GC? Kasi pasok na pasok ka.",
   "Baka naman pwedeng mag-think before click kahit minsan lang?",
-  "Wala talagang value yung mga chat mo dito, paki-bawas-bawasan.",
-  "Ang sarap mo sanang suportahan kaso ang hirap mong ipagtanggol sa katangahan mo.",
-  "Lodi, hindi sa lahat ng pagkakataon kailangan mong mag-comment.",
-  "Isip ka muna bago mag-reply, para hindi ka nagmumukhang kawawa.",
-  "Hindi ko alam kung nagpapatawa ka o sadyang ganyan ka lang talaga mag-isip.",
   "Pakisara na lang yung app, wala ka ring maiisip na matino ngayon."
 ];
 
-let memoryData = { activeThreads: {}, targets: {}, gcNames: {}, nicknames: {}, roasts: DEFAULT_TAGALOG_ROASTS };
+// Anti-Spam Memory Maps
+const userLastMsgTime = new Map();
+const threadLastReplyTime = new Map();
+const SPAM_COOLDOWN = 3000; // 3 seconds delay per user to prevent spam ban
 
-async function loadData() {
+function loadData() {
   try {
-    const res = await axios.get(`https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}/latest`, {
-      headers: { "X-Master-Key": JSONBIN_API_KEY }
-    });
-    if (res.data && res.data.record) {
-      memoryData = res.data.record;
-      if (!memoryData.activeThreads) memoryData.activeThreads = {};
-      if (!memoryData.targets) memoryData.targets = {};
-      if (!memoryData.gcNames) memoryData.gcNames = {};
-      if (!memoryData.nicknames) memoryData.nicknames = {};
-      if (!memoryData.roasts || memoryData.roasts.length === 0) memoryData.roasts = DEFAULT_TAGALOG_ROASTS;
+    if (fs.existsSync(DATA_PATH)) {
+      return JSON.parse(fs.readFileSync(DATA_PATH, "utf8"));
     }
-  } catch (err) {
-    console.error("[JSONBin Load Error]:", err.message);
-  }
-  return memoryData;
+  } catch {}
+  return { expires: 0, activatedBy: null, lockedGName: DEFAULT_LOCKED_NAME, lockedNick: DEFAULT_LOCKED_NAME };
 }
 
-async function saveData(data) {
-  memoryData = data;
-  try {
-    await axios.put(`https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}`, data, {
-      headers: {
-        "Content-Type": "application/json",
-        "X-Master-Key": JSONBIN_API_KEY
-      }
-    });
-  } catch (err) {
-    console.error("[JSONBin Save Error]:", err.message);
-  }
+function saveData(data) {
+  fs.writeFileSync(DATA_PATH, JSON.stringify(data, null, 2));
 }
 
-function isThreadActive(threadID) {
-  return !!(memoryData.activeThreads && memoryData.activeThreads[threadID]);
+function isActive() {
+  const data = loadData();
+  return data.expires && data.expires > Date.now();
 }
 
-// CHECK KUNG ADMIN BA (GC ADMIN O BOT OWNER)
-async function isUserAdmin(api, threadID, senderID) {
-  if (String(senderID) === BOT_OWNER_UID) return true;
-  try {
-    const info = await api.getThreadInfo(threadID);
-    const adminIDs = (info.adminIDs || []).map(a => String(a.id));
-    return adminIDs.includes(String(senderID));
-  } catch (e) {
-    return false;
-  }
+function getRemaining() {
+  const data = loadData();
+  if (!data.expires) return 0;
+  const left = data.expires - Date.now();
+  return left > 0 ? left : 0;
 }
 
-const lastResponseTime = new Map();
-const COOLDOWN_DELAY = 2500;
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-loadData();
 
 // ===== EVENT HANDLER =====
 module.exports.handleEvent = async function ({ api, event }) {
   const { threadID, senderID, body, messageID, logMessageType, logMessageData } = event;
+  const data = loadData();
 
-  if (!isThreadActive(threadID)) return;
+  if (!isActive()) return;
 
-  const currentLockedGcName = memoryData.gcNames[threadID] || DEFAULT_TARGET_NAME;
-  const currentLockedNickname = memoryData.nicknames[threadID] || DEFAULT_TARGET_NAME;
-  const targetUser = memoryData.targets[threadID] || null;
+  const currentLockedGName = data.lockedGName || DEFAULT_LOCKED_NAME;
+  const currentLockedNick = data.lockedNick || DEFAULT_LOCKED_NAME;
 
-  // 1. AUTO-LOCK GC NAME
+  // 1. AUTO SETGNAME LOCK (Bawal palitan ng iba, auto restore sa suggested name)
   if (logMessageType === "log:thread-name") {
-    const newGcName = logMessageData ? logMessageData.name : "";
-    if (newGcName !== currentLockedGcName) {
-      api.setTitle(currentLockedGcName, threadID, (err) => {
+    const newName = logMessageData ? logMessageData.name : "";
+    if (newName !== currentLockedGName) {
+      api.setTitle(currentLockedGName, threadID, (err) => {
         if (!err) {
-          api.sendMessage(`🚫 Bawal palitan ang GC Name! Naka-lock ito sa: "${currentLockedGcName}"`, threadID);
+          api.sendMessage(`🚫 GC Name is locked! Reverting back to: "${currentLockedGName}"`, threadID);
         }
       });
     }
     return;
   }
 
-  // 2. AUTO-LOCK NICKNAME
+  // 2. AUTO SETNICK LOCK (Bawal palitan ng nickname, auto restore sa suggested nick)
   if (logMessageType === "log:user-nickname") {
-    const changedParticipantID = logMessageData ? logMessageData.participant_id : null;
-    const newNickname = logMessageData ? logMessageData.nickname : "";
+    const changedUser = logMessageData ? logMessageData.participant_id : null;
+    const newNick = logMessageData ? logMessageData.nickname : "";
 
-    if (changedParticipantID && newNickname !== currentLockedNickname) {
+    if (changedUser && newNick !== currentLockedNick) {
       await sleep(800);
-      api.changeNickname(currentLockedNickname, threadID, changedParticipantID, () => {});
+      api.changeNickname(currentLockedNick, threadID, changedUser, () => {});
     }
     return;
   }
 
-  if (!body || senderID === api.getCurrentUserID()) return;
+  // Ignore bot's own messages and command invocations
+  if (!body || body.startsWith("/") || senderID === api.getCurrentUserID()) return;
 
-  const lowerBody = body.toLowerCase().trim();
-
-  // KAPAG TINAWAG O NAGT-TYPE SILA NG "RYUK" / "/RYUK":
-  if (lowerBody.startsWith("ryuk") || lowerBody.startsWith("/ryuk")) {
-    const isAdmin = await isUserAdmin(api, threadID, senderID);
-    // SILENT IGNORE KAPAG HINDI ADMIN
-    if (!isAdmin) return;
-  }
-
-  // AUTO DOG REACT (🐶) SA MGA NORMAL CHATS
-  api.setMessageReaction(DOG_EMOJI, messageID, () => {}, true);
-
-  // KUNG MAY TARGET LOCK: SI TARGET LANG ANG IE-REPLYAN NG ROAST
-  if (targetUser && String(senderID) !== String(targetUser)) return;
-
+  // 3. ANTI-SPAM PROTECTION
   const now = Date.now();
-  const lastTime = lastResponseTime.get(threadID) || 0;
-  if (now - lastTime < COOLDOWN_DELAY) return;
-  lastResponseTime.set(threadID, now);
+  const lastUserTime = userLastMsgTime.get(senderID) || 0;
+  const lastThreadTime = threadLastReplyTime.get(threadID) || 0;
 
-  try {
-    const roastsList = memoryData.roasts && memoryData.roasts.length > 0 ? memoryData.roasts : DEFAULT_TAGALOG_ROASTS;
-    const randomRoast = roastsList[Math.floor(Math.random() * roastsList.length)];
-    const randomSelfEmoji = REACT_EMOJIS[Math.floor(Math.random() * REACT_EMOJIS.length)];
-
-    await sleep(800);
-
-    // AUTO REPLY + SELF REACT
-    api.sendMessage({
-      body: randomRoast,
-      mentions: [{ tag: `@${senderID}`, id: senderID }]
-    }, threadID, (err, info) => {
-      if (!err && info && info.messageID) {
-        setTimeout(() => {
-          api.setMessageReaction(randomSelfEmoji, info.messageID, () => {}, true);
-        }, 800);
-      }
-    }, messageID);
-  } catch (error) {
-    console.error("Auto-reply error:", error);
+  if (now - lastUserTime < SPAM_COOLDOWN || now - lastThreadTime < SPAM_COOLDOWN) {
+    return; // Ignore spamming messages
   }
+  userLastMsgTime.set(senderID, now);
+  threadLastReplyTime.set(threadID, now);
+
+  // 4. AUTO REACT
+  const randomEmoji = EMOJIS[Math.floor(Math.random() * EMOJIS.length)];
+  api.setMessageReaction(randomEmoji, messageID, () => {}, true);
+
+  // 5. AUTO REPLY ROAST
+  const randomRoast = ROASTS[Math.floor(Math.random() * ROASTS.length)];
+  await sleep(1000);
+
+  api.sendMessage({
+    body: randomRoast,
+    mentions: [{ tag: `@${senderID}`, id: senderID }]
+  }, threadID, messageID);
 };
 
 // ===== COMMAND HANDLER =====
 module.exports.run = async function ({ api, event, args }) {
-  const { threadID, messageID, senderID, mentions, messageReply } = event;
+  const { threadID, messageID, senderID } = event;
 
-  // DEDMA / SILENT IGNORE KAPAG HINDI ADMIN ANG NAG-RUN NG COMMAND
-  const isAdmin = await isUserAdmin(api, threadID, senderID);
-  if (!isAdmin) return;
+  // STRICT ADMIN ONLY CHECK (Only UID: 61594022290817)
+  if (String(senderID) !== ADMIN_UID) {
+    // kapag hindi admin nag-command, automatic roast reply sa kanila
+    const randomRoast = ROASTS[Math.floor(Math.random() * ROASTS.length)];
+    return api.sendMessage(randomRoast, threadID, messageID);
+  }
 
-  await loadData();
   const sub = (args[0] || "").toLowerCase();
+  const data = loadData();
 
-  // /ryuk song <title>
-  if (sub === "song" || sub === "sing" || sub === "music") {
-    const songName = args.slice(1).join(" ");
-    if (!songName) return api.sendMessage("🎶 Paki-lagay ang pamagat ng kanta.\nHalimbawa: /ryuk song Pasilyo", threadID, messageID);
-
-    api.sendMessage(`🔍 Hinahanap ang kantang "${songName}"... Paki-hintay. 🎵`, threadID, messageID);
-    const cachePath = path.resolve(__dirname, 'cache', `${Date.now()}_song.mp3`);
-
-    try {
-      const searchRes = await axios.get(`https://api.popcat.click/song?q=${encodeURIComponent(songName)}`);
-      
-      if (!searchRes.data || !searchRes.data.url) {
-        return api.sendMessage("❌ Bigo sa paghahanap ng kanta.", threadID, messageID);
-      }
-
-      const songData = searchRes.data;
-      const downloadStream = await axios({
-        method: 'get',
-        url: songData.url,
-        responseType: 'stream'
-      });
-
-      fs.ensureDirSync(path.resolve(__dirname, 'cache'));
-      const writer = fs.createWriteStream(cachePath);
-      downloadStream.data.pipe(writer);
-
-      writer.on('finish', () => {
-        api.sendMessage({
-          body: `🎶 **Title:** ${songData.title || songName}\n👤 **Artist:** ${songData.artist || "Unknown"}`,
-          attachment: fs.createReadStream(cachePath)
-        }, threadID, () => fs.unlinkSync(cachePath), messageID);
-      });
-
-      writer.on('error', () => {
-        return api.sendMessage("❌ Error downloading audio file.", threadID, messageID);
-      });
-
-    } catch (e) {
-      return api.sendMessage("❌ Music API Error.", threadID, messageID);
-    }
-    return;
-  }
-
-  // /ryuk on
+  // /activate on
   if (sub === "on") {
-    if (!memoryData.activeThreads) memoryData.activeThreads = {};
-    memoryData.activeThreads[threadID] = true;
-    await saveData(memoryData);
-    return api.sendMessage(`🔥 RYUK SYSTEM: ACTIVATED.`, threadID, messageID);
+    const expires = Date.now() + 24 * 60 * 60 * 1000; // 24 hours
+    data.expires = expires;
+    data.activatedBy = senderID;
+    data.activatedAt = Date.now();
+    saveData(data);
+
+    return api.sendMessage(
+      `🔥 GLOBAL AUTO-ROAST & PROTECTION: ACTIVATED\n\n` +
+      `• Duration: 24 Hours\n` +
+      `• Locked GC Name: "${data.lockedGName || DEFAULT_LOCKED_NAME}"\n` +
+      `• Locked Nickname: "${data.lockedNick || DEFAULT_LOCKED_NAME}"\n` +
+      `• Anti-Spam: Enabled\n` +
+      `• Auto React & Reply: Enabled\n\n` +
+      `Use /activate off to stop manually.`,
+      threadID,
+      messageID
+    );
   }
 
-  // /ryuk off
+  // /activate off
   if (sub === "off") {
-    if (memoryData.activeThreads && memoryData.activeThreads[threadID]) {
-      delete memoryData.activeThreads[threadID];
-      await saveData(memoryData);
+    if (isActive()) {
+      data.expires = 0;
+      saveData(data);
+      return api.sendMessage("✅ Global auto-roast turned OFF.", threadID, messageID);
     }
-    return api.sendMessage("✅ Naka-OFF na ang Ryuk System sa GC na ito.", threadID, messageID);
+    return api.sendMessage("Auto-roast is not currently active.", threadID, messageID);
   }
 
-  // /ryuk setgname <name>
+  // /activate setgname <name>
   if (sub === "setgname") {
-    const newGcName = args.slice(1).join(" ");
-    if (!newGcName) return api.sendMessage("❌ Paki-lagay ang ilo-lock na GC Name.", threadID, messageID);
+    const newGName = args.slice(1).join(" ") || DEFAULT_LOCKED_NAME;
+    data.lockedGName = newGName;
+    saveData(data);
 
-    memoryData.gcNames[threadID] = newGcName;
-    await saveData(memoryData);
-
-    api.setTitle(newGcName, threadID, (err) => {
-      if (err) return api.sendMessage("❌ Bigo sa pagpapalit ng GC Name.", threadID, messageID);
-      return api.sendMessage(`🔒 GC Name LOCKED to: "${newGcName}"`, threadID, messageID);
+    api.setTitle(newGName, threadID, (err) => {
+      if (err) return api.sendMessage("❌ Failed to change GC Name.", threadID, messageID);
+      return api.sendMessage(`🔒 GC Name locked and updated to: "${newGName}"`, threadID, messageID);
     });
     return;
   }
 
-  // /ryuk target <Mention / Reply / UID / clear>
-  if (sub === "target") {
-    let targetID = null;
-
-    if (Object.keys(mentions).length > 0) {
-      targetID = Object.keys(mentions)[0];
-    } else if (messageReply && messageReply.senderID) {
-      targetID = messageReply.senderID;
-    } else if (args[1] && !isNaN(args[1])) {
-      targetID = args[1];
-    } else if (args[1] && args[1].toLowerCase() === "clear") {
-      delete memoryData.targets[threadID];
-      await saveData(memoryData);
-      return api.sendMessage("🎯 Target Cleared!", threadID, messageID);
-    }
-
-    if (!targetID) {
-      return api.sendMessage("❌ Paki-mention, reply, o lagay ng UID.", threadID, messageID);
-    }
-
-    memoryData.targets[threadID] = targetID;
-    await saveData(memoryData);
-
-    return api.sendMessage(`🎯 TARGET LOCKED: UID ${targetID}`, threadID, messageID);
-  }
-
-  // /ryuk setnick <name>
+  // /activate setnick <name>
   if (sub === "setnick") {
-    const newNickname = args.slice(1).join(" ");
-    if (!newNickname) return api.sendMessage("❌ Paki-lagay ang gustong Nickname.", threadID, messageID);
-
-    memoryData.nicknames[threadID] = newNickname;
-    await saveData(memoryData);
+    const newNick = args.slice(1).join(" ") || DEFAULT_LOCKED_NAME;
+    data.lockedNick = newNick;
+    saveData(data);
 
     try {
       const threadInfo = await api.getThreadInfo(threadID);
       const participantIDs = threadInfo.participantIDs || [];
 
-      api.sendMessage(`⏳ Kino-lock ang nickname na "${newNickname}" sa lahat...`, threadID);
+      api.sendMessage(`⏳ Locking all nicknames to: "${newNick}"...`, threadID);
 
-      for (const userID of participantIDs) {
-        await sleep(800);
-        api.changeNickname(newNickname, threadID, userID, () => {});
+      for (const uid of participantIDs) {
+        await sleep(600);
+        api.changeNickname(newNick, threadID, uid, () => {});
       }
-      return api.sendMessage(`🔒 Locked nicknames to: "${newNickname}"`, threadID, messageID);
+      return api.sendMessage(`🔒 All nicknames locked to: "${newNick}"`, threadID, messageID);
     } catch (e) {
-      return api.sendMessage("❌ Bigo sa pagbago ng nicknames.", threadID, messageID);
+      return api.sendMessage("❌ Failed to set nicknames.", threadID, messageID);
     }
   }
 
-  // /ryuk status
+  // /activate status
   if (sub === "status") {
-    const activeHere = isThreadActive(threadID);
-    const target = memoryData.targets[threadID] ? memoryData.targets[threadID] : "LAHAT (No Target)";
-    const targetGcName = memoryData.gcNames[threadID] || DEFAULT_TARGET_NAME;
-    const targetNickname = memoryData.nicknames[threadID] || DEFAULT_TARGET_NAME;
-
+    const left = getRemaining();
+    if (left <= 0) {
+      return api.sendMessage("Global auto-roast is currently OFF.", threadID, messageID);
+    }
+    const hours = Math.floor(left / (1000 * 60 * 60));
+    const mins = Math.floor((left % (1000 * 60 * 60)) / (1000 * 60));
     return api.sendMessage(
-      `🔥 RYUK SYSTEM STATUS:\n` +
-      `Active: ${activeHere ? "YES 🟢" : "NO 🔴"}\n` +
-      `Locked GC Name: "${targetGcName}"\n` +
-      `Locked Nickname: "${targetNickname}"\n` +
-      `Target: ${target}`,
+      `🔥 Global Auto-roast is ACTIVE\n\n` +
+      `⏱️ Time left: ${hours}h ${mins}m\n` +
+      `📌 Locked GC Name: "${data.lockedGName || DEFAULT_LOCKED_NAME}"\n` +
+      `📌 Locked Nickname: "${data.lockedNick || DEFAULT_LOCKED_NAME}"`,
       threadID,
       messageID
     );
   }
+
+  return api.sendMessage(
+    `Usage (Admin Only):\n` +
+    `/activate on — Start 24h global auto-roast\n` +
+    `/activate off — Stop auto-roast\n` +
+    `/activate setgname <name> — Lock GC Name\n` +
+    `/activate setnick <name> — Lock All Nicknames\n` +
+    `/activate status — Check remaining time`,
+    threadID,
+    messageID
+  );
 };
