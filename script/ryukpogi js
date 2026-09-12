@@ -3,10 +3,10 @@ const path = require("path");
 
 module.exports.config = {
   name: "ryukpogi",
-  version: "5.0.0",
+  version: "6.0.0",
   hasPermission: 1, // Require Admin Permission Level
   credits: "sinzu & Gemini",
-  description: "Per-GC Infinite auto-roast with Dual Admin Locks, Render fix, 2s setnick delay, Auto React, and Maangas Responses.",
+  description: "Per-GC Infinite auto-roast with Dual Admin Locks, Working Auto React, 2s setnick delay, and Maangas Responses.",
   usePrefix: true,
   commandCategory: "Fun",
   usages: "/ryukpogi on | off | status | setgname <name> | setnick <name>",
@@ -26,60 +26,78 @@ const DATA_PATH = path.join(__dirname, "ryuk_pogi_threads.json");
 // Emojis for auto-reactions
 const EMOJIS = ["🔥", "💀", "🤣", "😆", "🤡", "👎", "💩", "👻", "🐶", "💯", "🤪"];
 
-// Expanded Roast Lines with 🤪 and 💯 Emojis
+// MASSIVE EXPANDED ROAST LINES
 const ROASTS = [
   "Luh, nag-type pa talaga siya oh, akala mo naman may kumpirmasyon. 💀 💯 🤪",
   "Lods, paki-delete na lang 'to bago pa makita ng iba, nakakahiya. 🤣 💯 🤪",
-  "Lakas ng loob mo mag-chat, pero yung sinabi mo walang kwenta. 💯 🤪",
-  "Sino nagtanong sa'yo? Lakas maka-main character ah. 💯 🤪",
-  "Bro, isip muna bago pindot ng send button, napapahalata ka eh. 💯 🤪",
-  "Pang-asar ba 'yan o self-humiliation? Clarify natin. 💯 🤪",
-  "Sana bago ka nag-text, nag-isip ka muna ng limang beses. 💯 🤪",
-  "Quiet ka na lang muna lods, nauubusan na kami ng patience sa'yo. 💯 🤪",
-  "I-off mo na wifi o data mo, hindi para sa'yo ang araw na 'to. 💯 🤪",
+  "Lakas ng loob mo mag-chat, pero yung sinabi mo walang kwenta. 💯 🤪 🔥",
+  "Sino nagtanong sa'yo? Lakas maka-main character ah. 💯 🤪 🤡",
+  "Bro, isip muna bago pindot ng send button, napapahalata ka eh. 💯 🤪 💀",
+  "Pang-asar ba 'yan o self-humiliation? Clarify natin. 💯 🤪 🤣",
+  "Sana bago ka nag-text, nag-isip ka muna ng limang beses. 💯 🤪 💩",
+  "Quiet ka na lang muna lods, nauubusan na kami ng patience sa'yo. 💯 🤪 👎",
+  "I-off mo na wifi o data mo, hindi para sa'yo ang araw na 'to. 💯 🤪 📡",
   "Ganda ng sinabi mo ah, kasing ganda ng blankong papel. 🤡 💯 🤪",
-  "Ulitin mo nga 'yan, para mas lalo ka naming pagtawanan. 💯 🤪",
+  "Ulitin mo nga 'yan, para mas lalo ka naming pagtawanan. 💯 🤪 🤣",
   "Bro really thought that message was necessary 💀 💯 🤪",
-  "The confidence… the delusion… unmatched. 💯 🤪",
-  "Say less, we already lost brain cells reading that. 💯 🤪",
-  "You typed all that just to embarrass yourself? 💯 🤪",
-  "Main character energy but the plot is mid. 💯 🤪",
-  "Who hurt you? Because that sentence hurt all of us. 💯 🤪",
-  "The audacity is loud but the intelligence is on mute. 💯 🤪",
-  "This is why group chats need a mute button for specific people. 💯 🤪",
+  "The confidence… the delusion… unmatched. 💯 🤪 🔥",
+  "Say less, we already lost brain cells reading that. 💯 🤪 💀",
+  "You typed all that just to embarrass yourself? 💯 🤪 🤡",
+  "Main character energy but the plot is mid. 💯 🤪 👎",
+  "Who hurt you? Because that sentence hurt all of us. 💯 🤪 👻",
+  "The audacity is loud but the intelligence is on mute. 💯 🤪 📡",
+  "This is why group chats need a mute button for specific people. 💯 🤪 💩",
   "Pag-isipan mo munang mabuti bago ka mag-send ulit, nakaka-secondhand embarrassment ka bro. 💀 💯 🤪",
-  "Akala mo siguro nakakatawa ka, paki-check nga ulit sa salamin. 💯 🤪",
+  "Akala mo siguro nakakatawa ka, paki-check nga ulit sa salamin. 💯 🤪 🤡",
   "Yung utak mo parang data connection, laging slow at paminsan-minsan nawawala. 📡 💯 🤪",
-  "Mag-offline ka muna pre, magpahinga ka naman sa pagpapamukha na wala kang alam. 💯 🤪",
-  "May award ka ba sa pagiging pinaka-epal sa GC? Kasi pasok na pasok ka. 💯 🤪",
-  "Baka naman pwedeng mag-think before click kahit minsan lang? 💯 🤪",
-  "Pakisara na lang yung app, wala ka ring maiisip na matino ngayon. 💯 🤪",
-  "Tigilan mo na 'yan, pati 'yung keyboard mo sumusuko na sa'yo. 💯 🤪",
-  "Confidence level: 100%. Sense level: 0%. 💯 🤪",
-  "Ayan ka na naman, nagkakalat ka na naman ng ingay sa GC. 💯 🤪",
-  "Subukan mo kayang mag-isip bago mag-type? Baka makatulong. 💯 🤪",
-  "Ang ingay mo, wala ka namang maipagmamabang. 💯 🤪",
-  "Kung degree ang pagiging corny, summa cum laude ka na siguro. 💯 🤪",
-  "Bakit ka nag-chat? May humingi ba ng opinyon mo? 💯 🤪",
-  "Hindi ka nakakatuwa, nakakaawa ka na pakinggan. 💯 🤪",
-  "Yung utak mo parang Internet Explorer, huling-huli sa balita. 💯 🤪",
-  "Lakas magmarunong pero nung nagtanong, nganga naman. 💯 🤪",
-  "Tulog mo na lang 'yan lods, wala ka talagang mapapala ngayon. 💯 🤪",
-  "Walang nakikinig sa'yo, kaya wag ka nang mag-aksaya ng laway. 💯 🤪",
-  "Gusto mo ba ng medalya dahil sa walang katuturan mong sinabi? 💯 🤪",
-  "Puro ka dada, zero performance ka naman sa totoong buhay. 💯 🤪",
-  "Sana binasa mo muna bago mo pinindot 'yung send. 💯 🤪",
-  "Dami mong sinasabi, wala namang katuturan. 💯 🤪",
-  "Wala talagang value yung mga chat mo dito, paki-bawas-bawasan. 💯 🤪",
-  "Ang sarap mo sanang suportahan kaso ang hirap mong ipagtanggol sa katangahan mo. 💯 🤪",
-  "Lodi, hindi sa lahat ng pagkakataon kailangan mong mag-comment. 💯 🤪",
-  "Isip ka muna bago mag-reply, para hindi ka nagmumukhang kawawa. 💯 🤪",
-  "Hindi ko alam kung nagpapatawa ka o sadyang ganyan ka lang talaga mag-isip. 💯 🤪",
-  "Nag-send ka pa nyan, kala mo naman ikatutuwa ng buong GC. 💯 🤪",
-  "Pa-bida ka na naman, wala namang pumapansin sa'yo. 💯 🤪",
-  "Magkano bayad sa'yo para maging ganyan ka-epal araw-araw? 💯 🤪",
-  "May pa-type type ka pa, burahin mo na lang 'yan pre. 💯 🤪",
-  "Minsan na nga lang mag-chat, nakakairita pa. 💯 🤪"
+  "Mag-offline ka muna pre, magpahinga ka naman sa pagpapamukha na wala kang alam. 💯 🤪 💀",
+  "May award ka ba sa pagiging pinaka-epal sa GC? Kasi pasok na pasok ka. 💯 🤪 🏆",
+  "Baka naman pwedeng mag-think before click kahit minsan lang? 💯 🤪 🧠",
+  "Pakisara na lang yung app, wala ka ring maiisip na matino ngayon. 💯 🤪 📱",
+  "Tigilan mo na 'yan, pati 'yung keyboard mo sumusuko na sa'yo. 💯 🤪 ⌨️",
+  "Confidence level: 100%. Sense level: 0%. 💯 🤪 📊",
+  "Ayan ka na naman, nagkakalat ka na naman ng ingay sa GC. 💯 🤪 🔊",
+  "Subukan mo kayang mag-isip bago mag-type? Baka makatulong. 💯 🤪 💡",
+  "Ang ingay mo, wala ka namang maipagmamabang. 💯 🤪 👎",
+  "Kung degree ang pagiging corny, summa cum laude ka na siguro. 💯 🤪 🎓",
+  "Bakit ka nag-chat? May humingi ba ng opinyon mo? 💯 🤪 ❓",
+  "Hindi ka nakakatuwa, nakakaawa ka na pakinggan. 💯 🤪 🥺",
+  "Yung utak mo parang Internet Explorer, huling-huli sa balita. 💯 🤪 🌐",
+  "Lakas magmarunong pero nung nagtanong, nganga naman. 💯 🤪 😮‍💨",
+  "Tulog mo na lang 'yan lods, wala ka talagang mapapala ngayon. 💯 🤪 😴",
+  "Walang nakikinig sa'yo, kaya wag ka nang mag-aksaya ng laway. 💯 🤪 🗣️",
+  "Gusto mo ba ng medalya dahil sa walang katuturan mong sinabi? 💯 🤪 🥇",
+  "Puro ka dada, zero performance ka naman sa totoong buhay. 💯 🤪 📉",
+  "Sana binasa mo muna bago mo pinindot 'yung send. 💯 🤪 ✉️",
+  "Dami mong sinasabi, wala namang katuturan. 💯 🤪 🗑️",
+  "Wala talagang value yung mga chat mo dito, paki-bawas-bawasan. 💯 🤪 🛑",
+  "Ang sarap mo sanang suportahan kaso ang hirap mong ipagtanggol sa katangahan mo. 💯 🤪 🤦‍♂️",
+  "Lodi, hindi sa lahat ng pagkakataon kailangan mong mag-comment. 💯 🤪 💬",
+  "Isip muna bago mag-reply, para hindi ka nagmumukhang kawawa. 💯 🤪 🤡",
+  "Hindi ko alam kung nagpapatawa ka o sadyang ganyan ka lang talaga mag-isip. 💯 🤪 🤣",
+  "Nag-send ka pa nyan, kala mo naman ikatutuwa ng buong GC. 💯 🤪 💣",
+  "Pa-bida ka na naman, wala namang pumapansin sa'yo. 💯 🤪 👻",
+  "Magkano bayad sa'yo para maging ganyan ka-epal araw-araw? 💯 🤪 💵",
+  "May pa-type type ka pa, burahin mo na lang 'yan pre. 💯 🤪 ❌",
+  "Minsan na nga lang mag-chat, nakakairita pa. 💯 🤪 ⚡",
+  "Utak mo parang space: sobrang lawak pero walang laman. 💯 🤪 🌌",
+  "Wag ka mag-alala, pilit naming inuunawa ang kakulangan mo. 💯 🤪 🤖",
+  "Chat ka nang chat, feeling mo ba ikaw ang bida sa teleserye? 💯 🤪 📺",
+  "Kahit high-speed WiFi gamitin mo, mabagal pa rin ang pik-up mo. 💯 🤪 📶",
+  "Napakagaling mo mag-type, kaso lang walang saysay ang mensahe. 💯 🤪 ✍️",
+  "Sana sinave mo na lang 'yang energy mo sa mas makabuluhang bagay. 💯 🤪 🔋",
+  "Pag tinignan ka sa diksyonaryo, ikaw ang halimbawa ng epal. 💯 🤪 📖",
+  "Mas maingay ka pa sa sirang efit, wala namang nagtatanong sa'yo. 💯 🤪 📢",
+  "Boses mo pa lang sa chat, nararamdaman ko na ang sakit sa ulo. 💯 🤪 🤯",
+  "Talo mo pa sirang plaka kung paulit-ulit ka magkalat. 💯 🤪 📻",
+  "Ang hangin mo masyado pre, baka tangayin ka na ng sarili mong ingay. 💯 🤪 🌪️",
+  "I-mute mo na lang sarili mo bago ka pa namin tuluyang i-ignore. 💯 🤪 🔇",
+  "Hindi ka lang basta corny, certified distraction ka sa GC. 💯 🤪 🚫",
+  "Subukan mo kayang magbaon ng utak bago magbukas ng Messenger? 💯 🤪 🎒",
+  "Kailangan mo na ata ng maintenance checkup, mukhang sira na logic mo. 💯 🤪 🛠️",
+  "Akala mo witty ka? Try harder susunod pre. 💯 🤪 🎭",
+  "Chat ka nang chat, ramdam na ramdam ang kawalan mo ng magawa sa buhay. 💯 🤪 ⏳",
+  "Kung may contest sa pinaka-walang kwentang message, panalo ka na. 💯 🤪 🏆"
 ];
 
 const threadLastReplyTime = new Map();
@@ -168,9 +186,15 @@ module.exports.handleEvent = async function ({ api, event }) {
   }
   threadLastReplyTime.set(threadID, now);
 
-  // 4. AUTO REACT
+  // 4. FIX FOR AUTO REACT (PROPER FCA REACTION CALL)
   const randomEmoji = EMOJIS[Math.floor(Math.random() * EMOJIS.length)];
-  api.setMessageReaction(randomEmoji, messageID, () => {}, true);
+  try {
+    api.setMessageReaction(randomEmoji, messageID, (err) => {
+      if (err) console.error("[Reaction Error]:", err);
+    }, true);
+  } catch (e) {
+    console.error("[Reaction Catch]:", e.message);
+  }
 
   // 5. AUTO REPLY ROAST
   const randomRoast = ROASTS[Math.floor(Math.random() * ROASTS.length)];
@@ -189,7 +213,7 @@ module.exports.run = async function ({ api, event, args }) {
   // CHECK KUNG DALAWA SA INI-ALLOW NA ADMIN UIDs ANG SENDER
   if (!checkIsAdmin(senderID)) {
     const randomRoast = ROASTS[Math.floor(Math.random() * ROASTS.length)];
-    return api.sendMessage(`🔥 SUBUKAN MO PA MAG-COMMAND KAHIT HINDI KA ADMIN? ETING SA'YO:\n\n${randomRoast}`, threadID, messageID);
+    return api.sendMessage(`🔥 SUBUKAN MO PA MAG-COMMAND KAHIT HINDI KA ADMIN? ETO SA'YO:\n\n${randomRoast}`, threadID, messageID);
   }
 
   const sub = (args[0] || "").toLowerCase();
