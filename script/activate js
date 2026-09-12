@@ -2,24 +2,25 @@ const fs = require("fs");
 const path = require("path");
 
 module.exports.config = {
-  name: "activate",
-  version: "2.5.0",
-  hasPermission: 1,
+  name: "Ryuk",
+  version: "3.0.0",
+  hasPermission: 1, // Require Admin Permission Level
   credits: "sinzu & Gemini",
-  description: "24-hour persistent global auto-roast running 24/7 on cloud.",
+  description: "Infinite global auto-roast with Dual Admin Locks, Render fix, 2s setnick delay, Auto React, and Name Guard.",
   usePrefix: true,
   commandCategory: "Fun",
-  usages: "/activate on | off | status | setgname <name> | setnick <name>",
+  usages: "/Ryuk on | off | status | setgname <name> | setnick <name>",
   cooldowns: 2
 };
 
 // ================= CONFIGURATION =================
+// LISTAHAN NG MGA ADMIN UIDs (DALAWANG ACCOUNT MO)
 const ADMIN_UIDS = [
   "61593892603402",
   "61594022290817"
 ];
 
-const DEFAULT_LOCKED_NAME = "Ryuk pogi";
+const DEFAULT_LOCKED_NAME = "Ryuk";
 const DATA_PATH = path.join(__dirname, "activate_data.json");
 
 const EMOJIS = ["🔥", "💀", "🤣", "😆", "🤡", "👎", "💩", "👻", "🐶", "💯", "🤪"];
@@ -91,7 +92,7 @@ function loadData() {
   } catch (err) {
     console.error("[Data Load Error]:", err.message);
   }
-  return { expires: 0, activatedBy: null, lockedGName: DEFAULT_LOCKED_NAME, lockedNick: DEFAULT_LOCKED_NAME };
+  return { active: false, activatedBy: null, lockedGName: DEFAULT_LOCKED_NAME, lockedNick: DEFAULT_LOCKED_NAME };
 }
 
 function saveData(data) {
@@ -104,14 +105,7 @@ function saveData(data) {
 
 function isActive() {
   const data = loadData();
-  return data.expires && data.expires > Date.now();
-}
-
-function getRemaining() {
-  const data = loadData();
-  if (!data.expires) return 0;
-  const left = data.expires - Date.now();
-  return left > 0 ? left : 0;
+  return Boolean(data.active);
 }
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -130,7 +124,7 @@ module.exports.handleEvent = async function ({ api, event }) {
   const currentLockedGName = data.lockedGName || DEFAULT_LOCKED_NAME;
   const currentLockedNick = data.lockedNick || DEFAULT_LOCKED_NAME;
 
-  // 1. AUTO SETGNAME LOCK
+  // 1. AUTO SETGNAME LOCK (Auto revert sa "Ryuk")
   if (logMessageType === "log:thread-name") {
     const newName = logMessageData ? logMessageData.name : "";
     if (newName !== currentLockedGName) {
@@ -143,7 +137,7 @@ module.exports.handleEvent = async function ({ api, event }) {
     return;
   }
 
-  // 2. AUTO SETNICK LOCK
+  // 2. AUTO SETNICK LOCK (Auto revert sa "Ryuk")
   if (logMessageType === "log:user-nickname") {
     const changedUser = logMessageData ? logMessageData.participant_id : null;
     const newNick = logMessageData ? logMessageData.nickname : "";
@@ -192,35 +186,38 @@ module.exports.run = async function ({ api, event, args }) {
   const sub = (args[0] || "").toLowerCase();
   const data = loadData();
 
+  // /Ryuk on — Start Infinite Auto-Roast
   if (sub === "on") {
-    const expires = Date.now() + 24 * 60 * 60 * 1000;
-    data.expires = expires;
+    data.active = true;
     data.activatedBy = senderID;
     data.activatedAt = Date.now();
     saveData(data);
 
     return api.sendMessage(
-      `🔥 GLOBAL AUTO-ROAST (24/7 Persistent): ACTIVATED\n\n` +
-      `• Duration: 24 Hours\n` +
+      `🔥 GLOBAL AUTO-ROAST & PROTECTION (INFINITY MODE): ACTIVATED\n\n` +
+      `• Mode: Infinite / Permanent (Walang Hinto)\n` +
       `• Locked GC Name: "${data.lockedGName || DEFAULT_LOCKED_NAME}"\n` +
       `• Locked Nickname: "${data.lockedNick || DEFAULT_LOCKED_NAME}"\n` +
       `• Auto-Reply Cooldown: 2 Seconds\n` +
       `• Setnick Delay: 2 Seconds/User\n\n` +
-      `Status stays active on Render even if your device goes offline!`,
+      `GUMAGANA ITO NANG WALANG HINTO AT WALANG TIME LIMIT!\n` +
+      `Gamitin ang "/Ryuk off" kapag gustong ihinto.`,
       threadID,
       messageID
     );
   }
 
+  // /Ryuk off — Stop Auto-Roast
   if (sub === "off") {
     if (isActive()) {
-      data.expires = 0;
+      data.active = false;
       saveData(data);
-      return api.sendMessage("✅ Global auto-roast turned OFF.", threadID, messageID);
+      return api.sendMessage("✅ Infinite Auto-Roast turned OFF.", threadID, messageID);
     }
-    return api.sendMessage("Auto-roast is not currently active.", threadID, messageID);
+    return api.sendMessage("Auto-roast is currently OFF.", threadID, messageID);
   }
 
+  // /Ryuk setgname <name>
   if (sub === "setgname") {
     const newGName = args.slice(1).join(" ") || DEFAULT_LOCKED_NAME;
     data.lockedGName = newGName;
@@ -233,6 +230,7 @@ module.exports.run = async function ({ api, event, args }) {
     return;
   }
 
+  // /Ryuk setnick <name>
   if (sub === "setnick") {
     const newNick = args.slice(1).join(" ") || DEFAULT_LOCKED_NAME;
     data.lockedNick = newNick;
@@ -254,16 +252,14 @@ module.exports.run = async function ({ api, event, args }) {
     }
   }
 
+  // /Ryuk status
   if (sub === "status") {
-    const left = getRemaining();
-    if (left <= 0) {
+    if (!isActive()) {
       return api.sendMessage("Global auto-roast is currently OFF.", threadID, messageID);
     }
-    const hours = Math.floor(left / (1000 * 60 * 60));
-    const mins = Math.floor((left % (1000 * 60 * 60)) / (1000 * 60));
     return api.sendMessage(
-      `🔥 Global Auto-roast is ACTIVE\n\n` +
-      `⏱️ Time left: ${hours}h ${mins}m\n` +
+      `🔥 Global Auto-roast is ACTIVE (INFINITY MODE)\n\n` +
+      `⏱️ Duration: NO TIME LIMIT (Walang Hinto)\n` +
       `📌 Locked GC Name: "${data.lockedGName || DEFAULT_LOCKED_NAME}"\n` +
       `📌 Locked Nickname: "${data.lockedNick || DEFAULT_LOCKED_NAME}"`,
       threadID,
@@ -273,11 +269,11 @@ module.exports.run = async function ({ api, event, args }) {
 
   return api.sendMessage(
     `Usage (Admin Only):\n` +
-    `/activate on — Start 24h persistent auto-roast\n` +
-    `/activate off — Stop auto-roast\n` +
-    `/activate setgname <name> — Lock GC Name\n` +
-    `/activate setnick <name> — Lock All Nicknames (2s delay)\n` +
-    `/activate status — Check remaining time`,
+    `/Ryuk on — Start Infinite Auto-Roast (Walang Hinto)\n` +
+    `/Ryuk off — Stop Auto-Roast\n` +
+    `/Ryuk setgname <name> — Lock GC Name (Default: Ryuk)\n` +
+    `/Ryuk setnick <name> — Lock All Nicknames (Default: Ryuk)\n` +
+    `/Ryuk status — Check status`,
     threadID,
     messageID
   );
