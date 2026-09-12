@@ -3,10 +3,10 @@ const path = require("path");
 
 module.exports.config = {
   name: "ryukpogi",
-  version: "8.0.0",
+  version: "9.0.0",
   hasPermission: 1,
   credits: "sinzu & Gemini",
-  description: "Anti-restriction short lines auto reply with instant command reaction.",
+  description: "Chill/Lamya shortcut auto reply with fixed self-react and safe bot notices.",
   usePrefix: true,
   commandCategory: "Fun",
   usages: "/ryukpogi on | off | status | setgname <name> | setnick <name>",
@@ -22,107 +22,108 @@ const ADMIN_UIDS = [
 const DEFAULT_LOCKED_NAME = "Ryuk pogi";
 const DATA_PATH = path.join(__dirname, "ryuk_pogi_threads.json");
 
-// 100+ SHORT / SHORTCUT TAGALOG LINES (NO EMOJI - SAFE FOR FB)
-const ROASTS = [
-  "luh chat pa more",
-  "kahiya ka lods delete mo yan",
-  "lakas ng loob mo mag type ah",
-  "sino nagtanong sayo pre",
-  "isip muna bago pindot send",
-  "pang asar ba yan o ewan",
-  "quiet ka na lang muna dyan",
-  "off mo na wifi mo pre",
-  "ganda ng sinabi mo parang blanko",
-  "ulitin mo nga para mapagtawanan ka",
-  "corny mo bro quiet ka na lang",
-  "say less lodi kawawa ka lang",
-  "type pa more lakas maka main character",
-  "sino nag imbita sayo mag chat",
-  "dami mo ebas wala namang kwenta",
-  "ingay mo pre sarap mo i mute",
-  "halatang walang magawa sa buhay",
-  "check mo muna sarili mo bago ka mag salita",
-  "slow mo naman maka pick up pre",
-  "mag offline ka muna pahinga ka",
-  "awardee ka sa pagiging epal",
-  "think before click lods try mo lang",
-  "sara mo na messenger mo pre",
-  "keyboard mo sumusuko na sayo",
-  "zero sense ka mag chat bro",
-  "nagkalat ka na naman dyan",
-  "subukan mo mag isip paminsan minsan",
-  "wala ka namang maipagmamabang ingay mo",
-  "corny mo paps tulog mo na yan",
-  "may humingi ba ng opinyon mo dito",
-  "nakakaawa ka na pakinggan pre",
-  "huling huli ka na sa balita lodi",
-  "lakas magmarunong wala namang alam",
-  "tulog mo na lang yan lods",
-  "walang nakikinig sayo tigil mo na",
-  "gusto mo ba ng medalya sa kababawan",
-  "puro ka dada zero performance ka naman",
-  "binasa mo ba bago mo sinend",
-  "dami mong sinabi wala namang laman",
-  "walang value chat mo dito paki bawas",
-  "hirap mo ipagtanggol pre sobra ka",
-  "hindi sa lahat ng oras kailangan mo mag comment",
-  "isip ka muna bago mag reply ha",
-  "nagpapatawa ka ba o sadyang ganyan ka",
-  "sinend mo pa yan kala mo nakakatuwa",
-  "pabida ka na naman wala namang pake tao sayo",
-  "magkano bayad sayo maging epal araw araw",
-  "burahin mo na lang yan pre nakakahiya",
-  "minsan ka na nga lang mag chat nakakairita pa",
-  "utak mo parang space walang laman",
-  "pilit ka namin inuunawa wag ka mag alala",
-  "feeling mo ikaw lang tao sa gc",
-  "mabagal pa rin pick up mo kahit mabilis net",
-  "galing mo mag type pero walang saysay",
-  "save mo na lang energy mo sa iba",
-  "halimbawa ka talaga ng epal sa gc",
-  "maingay ka pa sa sirang radyo pre",
-  "sakit mo sa ulo mag chat lodi",
-  "talo mo pa sirang plaka sa paulit ulit",
-  "hangin mo masyado tangayin ka sana",
-  "mute mo sarili mo bago ka i-ignore",
-  "distraction ka lang talaga sa gc",
-  "baon ka ng utak bago mag messenger",
-  "kailangan mo na ng maintenance checkup",
-  "akala mo witty ka try harder susunod",
-  "ramdam kawalan mo ng gawa sa buhay",
-  "panalo ka sa contest ng walang kwentang chat",
-  "wag ka na mag reply kahiya ka na",
-  "di ka nakakatuwa seryoso",
-  "panindigan mo man lang sinasabi mo",
-  "walang may pake sa chat mo bro",
-  "epal vibes ka na naman ngayon ah",
-  "paki out na lang nung app mo pre",
-  "wala kang mapapala dyan sa ginagawa mo",
-  "dami mo sinasabi lakas mo mag inarte",
-  "di mo kinagwapo yan bro tigil mo",
-  "tahimik ka na lang para maayos araw natin",
-  "chat nang chat wala namang connect",
-  "kwento mo sa pagong pre",
-  "lakas maka bida bida di naman bagay",
-  "nag abala ka pa mag type nyan ah",
-  "sana tinulog mo na lang yan paps",
-  "walang interesado sa kwento mo",
-  "epal status unlocked ka na naman",
-  "anong point ng sinabi mo paki paliwanag",
-  "paki bawas ng ingay sa gc salamat",
-  "sarap mo ipa kick pre sobra ka",
-  "bagal ng utak mo pre grabe",
-  "wag ka na mag tangka mag chat ulit",
-  "di ka kabilang sa usapan wag ka sumingit",
-  "singit ka nang singit di ka naman kasama",
-  "wala sa hulog sinasabi mo lods",
-  "paka corny mo talaga kahit kailan",
-  "i-off mo na data mo please lang",
-  "pa-cool ka na naman di mo kinapogi",
-  "ano na naman yang pinagsasasabi mo",
-  "wala sa ayos ambon ng utak mo",
-  "tumahimik ka na lang dyan sa gilid",
-  "i-bawas mo na lang chat mo nakakaabala ka"
+// 100+ LAMYA / NORMAL / SHORTCUT TAGALOG LINES (NO ROAST, NO EMOJI)
+const NORMAL_LINES = [
+  "ge",
+  "k",
+  "kk",
+  "ah ok",
+  "gege",
+  "we3h",
+  "edi wow",
+  "sige lang",
+  "luh",
+  "sige pre",
+  "tuloy mo lang",
+  "sabi mo eh",
+  "cge cge",
+  "basta ikaw",
+  "sige lods",
+  "yun lang",
+  "okay",
+  "geh",
+  "copy",
+  "noted",
+  "lah",
+  "ganun ba",
+  "osige",
+  "ge lang pre",
+  "ah sige sige",
+  "sige paps",
+  "basta",
+  "sabi mo",
+  "weh ba",
+  "totoo ba",
+  "k lods",
+  "uhm ok",
+  "sige ah",
+  "cge lang",
+  "ge bro",
+  "tara ge",
+  "sige w8",
+  "ge mamaya",
+  "ok sige",
+  "oo nalang",
+  "ge ge ge",
+  "ganun pala",
+  "basta ge",
+  "cge lodi",
+  "alaws",
+  "wehh",
+  "ah okies",
+  "sige ok",
+  "ge ah",
+  "sige sige",
+  "oks lang",
+  "ge bye",
+  "w8 lang",
+  "basta ok",
+  "sige rin",
+  "tuloy mo",
+  "ge tamis",
+  "lah talaga",
+  "cge ge",
+  "ok ok",
+  "geh geh",
+  "sigeee",
+  "ahhh ok",
+  "basta sige",
+  "ge noted",
+  "wehh di nga",
+  "sige subukan mo",
+  "oks lodi",
+  "cge paps",
+  "ge tuloy nyo lang",
+  "ah ganun",
+  "sige tamang tama",
+  "ge2x",
+  "k k k",
+  "cge2",
+  "basta yun na yun",
+  "sige lang po",
+  "geh lang",
+  "sabi mo yan ah",
+  "edi ok",
+  "ok fine",
+  "ge subaybayan natin",
+  "ah ganon ba",
+  "sige paps copy",
+  "cge noted pre",
+  "ge quiet nalang me",
+  "basta quiet lang",
+  "sige sige sige",
+  "ok cge",
+  "geh lodi",
+  "tuloy lang",
+  "cge lang bro",
+  "ah sige lods",
+  "oks noted",
+  "gegege",
+  "sabi mo e",
+  "gege paps",
+  "alaws naman",
+  "edi sige",
+  "ok copy"
 ];
 
 const threadLastReplyTime = new Map();
@@ -211,12 +212,12 @@ module.exports.handleEvent = async function ({ api, event }) {
   }
   threadLastReplyTime.set(threadID, now);
 
-  // 4. AUTO REPLY SHORT ROAST (NO EMOJI)
-  const randomRoast = ROASTS[Math.floor(Math.random() * ROASTS.length)];
+  // 4. NORMAL / LAMYA SHORT REPLY
+  const randomLine = NORMAL_LINES[Math.floor(Math.random() * NORMAL_LINES.length)];
   await sleep(1000);
 
   api.sendMessage({
-    body: randomRoast,
+    body: randomLine,
     mentions: [{ tag: `@${senderID}`, id: senderID }]
   }, threadID, messageID);
 };
@@ -226,8 +227,8 @@ module.exports.run = async function ({ api, event, args }) {
   const { threadID, messageID, senderID } = event;
 
   if (!checkIsAdmin(senderID)) {
-    const randomRoast = ROASTS[Math.floor(Math.random() * ROASTS.length)];
-    return api.sendMessage(randomRoast, threadID, messageID);
+    const randomLine = NORMAL_LINES[Math.floor(Math.random() * NORMAL_LINES.length)];
+    return api.sendMessage(randomLine, threadID, messageID);
   }
 
   const sub = (args[0] || "").toLowerCase();
@@ -243,18 +244,21 @@ module.exports.run = async function ({ api, event, args }) {
     allData[threadID] = threadData;
     saveAllData(allData);
 
-    // AUTO SELF-REACT AGAD SA COMMAND MESSAGE UPON ACTIVATION
-    try {
-      api.setMessageReaction("🔥", messageID, () => {}, true);
-    } catch (e) {
-      console.error("[Activation Reaction Error]:", e.message);
+    // GUARANTEED WORKING AUTO SELF-REACT ON ACTIVATION
+    if (api.setMessageReaction) {
+      api.setMessageReaction("👍", messageID, (err) => {
+        if (err) console.error("Self-react error:", err);
+      }, true);
     }
 
     return api.sendMessage(
       `ryuk pogi mode active na dito sa gc\n` +
-      `status: 24/7 safe mode (no emojis, anti restriction)\n` +
+      `status: active (lamya/shortcut mode)\n` +
       `locked gc name: ${threadData.lockedGName || DEFAULT_LOCKED_NAME}\n` +
-      `locked nickname: ${threadData.lockedNick || DEFAULT_LOCKED_NAME}`,
+      `locked nickname: ${threadData.lockedNick || DEFAULT_LOCKED_NAME}\n\n` +
+      `[IMPORTANT FB MESSENGER BOT SYSTEM NOTICE]\n` +
+      `- Wag gamitin sa Messenger app/phone ang bot account habang naka-host sa Render para iwas auto-logout at checkpoint.\n` +
+      `- Pag nag-session expired o huminto, mag-export ng bagong appstate.json mula sa PC/browser.`,
       threadID,
       messageID
     );
@@ -267,9 +271,9 @@ module.exports.run = async function ({ api, event, args }) {
       allData[threadID] = threadData;
       saveAllData(allData);
 
-      try {
-        api.setMessageReaction("❌", messageID, () => {}, true);
-      } catch (e) {}
+      if (api.setMessageReaction) {
+        api.setMessageReaction("👎", messageID, (err) => {}, true);
+      }
 
       return api.sendMessage("patay na ryuk pogi mode sa gc na to", threadID, messageID);
     }
@@ -322,7 +326,10 @@ module.exports.run = async function ({ api, event, args }) {
       `ryuk pogi status report\n` +
       `state: active sa gc na to\n` +
       `gc name: ${threadData.lockedGName || DEFAULT_LOCKED_NAME}\n` +
-      `nickname: ${threadData.lockedNick || DEFAULT_LOCKED_NAME}`,
+      `nickname: ${threadData.lockedNick || DEFAULT_LOCKED_NAME}\n\n` +
+      `[IMPORTANT BOT MAINTENANCE NOTICE]\n` +
+      `- Keep 3 seconds delay for anti-restriction.\n` +
+      `- Do not dual-login bot appstate on local phone.`,
       threadID,
       messageID
     );
@@ -334,7 +341,7 @@ module.exports.run = async function ({ api, event, args }) {
     `/ryukpogi off - patayin sa gc na to\n` +
     `/ryukpogi setgname <name> - lock gc name\n` +
     `/ryukpogi setnick <name> - lock all nicknames\n` +
-    `/ryukpogi status - check status`,
+    `/ryukpogi status - check status & system notices`,
     threadID,
     messageID
   );
