@@ -3,10 +3,10 @@ const path = require("path");
 
 module.exports.config = {
   name: "activate",
-  version: "2.6.0",
+  version: "2.8.0",
   hasPermission: 1, // Require Admin Permission Level
   credits: "Ryuk & Gemini",
-  description: "24-hour per-GC auto-roast with Dual Admin Locks, Render fix, 2s setnick delay, Dog Member React & Funny Self-React, and Name Guard.",
+  description: "24-hour per-GC auto-roast with Dual Admin Locks, Render fix, 1s setnick delay, Dog Member React (No Self React), and Name Guard.",
   usePrefix: true,
   commandCategory: "Fun",
   usages: "/activate on | off | status | setgname <name> | setnick <name>",
@@ -25,9 +25,6 @@ const DATA_PATH = path.join(__dirname, "activate_data.json");
 
 // Dog Emoji for User Reaction (pangasara sa chat ng member)
 const USER_REACTION_EMOJI = "🐶";
-
-// Funny Emojis list for Self Reaction (reaksyon ng bot sa sarili niyang reply)
-const SELF_REACTION_EMOJIS = ["🔥", "💀", "🤣", "😆", "🤡", "👎", "💩", "👻", "💯"];
 
 // Expanded Roast Lines with 💯 Emoji
 const ROASTS = [
@@ -188,20 +185,14 @@ module.exports.handleEvent = async function ({ api, event }) {
   // 4. AUTO REACT ON MEMBER'S CHAT (DOG EMOJI 🐶)
   api.setMessageReaction(USER_REACTION_EMOJI, messageID, () => {}, true);
 
-  // 5. AUTO REPLY ROAST + AUTO SELF-REACT (FUNNY EMOJIS)
+  // 5. AUTO REPLY ROAST ONLY
   const randomRoast = ROASTS[Math.floor(Math.random() * ROASTS.length)];
   await sleep(1000);
 
   api.sendMessage({
     body: randomRoast,
     mentions: [{ tag: `@${senderID}`, id: senderID }]
-  }, threadID, (err, info) => {
-    if (!err && info && info.messageID) {
-      // Auto self-react ng random funny emoji sa sariling message/reply ng bot
-      const randomFunnyEmoji = SELF_REACTION_EMOJIS[Math.floor(Math.random() * SELF_REACTION_EMOJIS.length)];
-      api.setMessageReaction(randomFunnyEmoji, info.messageID, () => {}, true);
-    }
-  }, messageID);
+  }, threadID, messageID);
 };
 
 // ===== COMMAND HANDLER =====
@@ -210,7 +201,6 @@ module.exports.run = async function ({ api, event, args }) {
 
   // CHECK KUNG DALAWA SA INI-ALLOW NA ADMIN UIDs ANG SENDER
   if (!checkIsAdmin(senderID)) {
-    // Kapag hindi admin ang nag-command, automatic roast reply sa kanila
     const randomRoast = ROASTS[Math.floor(Math.random() * ROASTS.length)];
     return api.sendMessage(randomRoast, threadID, messageID);
   }
@@ -243,9 +233,9 @@ module.exports.run = async function ({ api, event, args }) {
       `• Locked GC Name: "${tData.lockedGName || DEFAULT_LOCKED_NAME}"\n` +
       `• Locked Nickname: "${tData.lockedNick || DEFAULT_LOCKED_NAME}"\n` +
       `• Auto-Reply Cooldown: 2 Seconds\n` +
-      `• Setnick Delay: 2 Seconds/User\n` +
+      `• Setnick Delay: 1 Second/User\n` +
       `• User React: 🐶\n` +
-      `• Self React: Random Funny Emojis (🔥💀🤣😆🤡👎💩👻💯)\n` +
+      `• Self React: None\n` +
       `• Focus: THIS GC ONLY\n\n` +
       `Use /activate off to stop manually.`,
       threadID,
@@ -276,7 +266,7 @@ module.exports.run = async function ({ api, event, args }) {
     return;
   }
 
-  // /activate setnick <name> (WITH 2 SECONDS SLOW DELAY PER USER)
+  // /activate setnick <name> (WITH 1 SECOND DELAY PER USER)
   if (sub === "setnick") {
     const newNick = args.slice(1).join(" ") || DEFAULT_LOCKED_NAME;
     tData.lockedNick = newNick;
@@ -286,10 +276,10 @@ module.exports.run = async function ({ api, event, args }) {
       const threadInfo = await api.getThreadInfo(threadID);
       const participantIDs = threadInfo.participantIDs || [];
 
-      api.sendMessage(`⏳ Locking all nicknames to: "${newNick}" (2s delay per user)...`, threadID);
+      api.sendMessage(`⏳ Locking all nicknames to: "${newNick}" (1s delay per user)...`, threadID);
 
       for (const uid of participantIDs) {
-        await sleep(2000); // 2 Seconds Delay per user to avoid Facebook rate limits
+        await sleep(1000); // 1 Second Delay per user
         api.changeNickname(newNick, threadID, uid, () => {});
       }
       return api.sendMessage(`🔒 All nicknames locked to: "${newNick}"`, threadID, messageID);
@@ -321,7 +311,7 @@ module.exports.run = async function ({ api, event, args }) {
     `/activate on — Start 24h auto-roast in this GC\n` +
     `/activate off — Stop auto-roast in this GC\n` +
     `/activate setgname <name> — Lock GC Name\n` +
-    `/activate setnick <name> — Lock All Nicknames (2s delay)\n` +
+    `/activate setnick <name> — Lock All Nicknames (1s delay)\n` +
     `/activate status — Check remaining time`,
     threadID,
     messageID
