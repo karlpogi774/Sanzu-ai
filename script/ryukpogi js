@@ -2,14 +2,14 @@ const fs = require("fs");
 const path = require("path");
 
 module.exports.config = {
-  name: "ryuk pogi",
-  version: "3.5.0",
+  name: "ryukpogi",
+  version: "4.0.0",
   hasPermission: 1, // Require Admin Permission Level
   credits: "sinzu & Gemini",
   description: "Infinite global auto-roast with Dual Admin Locks, Render fix, 2s setnick delay, Auto React, and Maangas Responses.",
   usePrefix: true,
   commandCategory: "Fun",
-  usages: "/ryuk pogi on | off | status | setgname <name> | setnick <name>",
+  usages: "/ryukpogi on | off | status | setgname <name> | setnick <name>",
   cooldowns: 2
 };
 
@@ -190,7 +190,7 @@ module.exports.run = async function ({ api, event, args }) {
   const sub = (args[0] || "").toLowerCase();
   const data = loadData();
 
-  // /ryuk pogi on
+  // /ryukpogi on
   if (sub === "on") {
     data.active = true;
     data.activatedBy = senderID;
@@ -210,7 +210,7 @@ module.exports.run = async function ({ api, event, args }) {
     );
   }
 
-  // /ryuk pogi off
+  // /ryukpogi off
   if (sub === "off") {
     if (isActive()) {
       data.active = false;
@@ -220,7 +220,7 @@ module.exports.run = async function ({ api, event, args }) {
     return api.sendMessage("💀 HINDI PA MAN NAKASINDI ANG BOT BAGO MO PATAYIN, TULOG NGA MUNA SABI EH!", threadID, messageID);
   }
 
-  // /ryuk pogi setgname <name>
+  // /ryukpogi setgname <name>
   if (sub === "setgname") {
     const newGName = args.slice(1).join(" ") || DEFAULT_LOCKED_NAME;
     data.lockedGName = newGName;
@@ -233,7 +233,7 @@ module.exports.run = async function ({ api, event, args }) {
     return;
   }
 
-  // /ryuk pogi setnick <name>
+  // /ryukpogi setnick <name>
   if (sub === "setnick") {
     const newNick = args.slice(1).join(" ") || DEFAULT_LOCKED_NAME;
     data.lockedNick = newNick;
@@ -246,7 +246,7 @@ module.exports.run = async function ({ api, event, args }) {
       api.sendMessage(`⏳ ISSUING AUTHORITATIVE COMMAND: LOCKING ALL NICKNAMES TO "${newNick}" (2s SAFE SPEED)... 💀⚡`, threadID);
 
       for (const uid of participantIDs) {
-        await sleep(2000); // 2 Seconds Delay per user
+        await sleep(2000);
         api.changeNickname(newNick, threadID, uid, () => {});
       }
       return api.sendMessage(`👑 LAHAT NG TAO DITO MAY PARUSA AT NAKA-NICKNAME NA KAY "${newNick}"! WALANG MAKAKALIGTAS! 💯 🤪`, threadID, messageID);
@@ -255,7 +255,7 @@ module.exports.run = async function ({ api, event, args }) {
     }
   }
 
-  // /ryuk pogi status
+  // /ryukpogi status
   if (sub === "status") {
     if (!isActive()) {
       return api.sendMessage("⚠️ RYUK POGI IS OFF. TULOG ANG HARING MAG-AASAR!", threadID, messageID);
@@ -274,11 +274,11 @@ module.exports.run = async function ({ api, event, args }) {
 
   return api.sendMessage(
     `🔥 RYUK POGI CONTROL PANEL (ADMIN ONLY) 🔥\n\n` +
-    `👉 /ryuk pogi on — Sindi ang maangas na infinite auto-roast\n` +
-    `👉 /ryuk pogi off — Patayin ang auto-roast mode\n` +
-    `👉 /ryuk pogi setgname <name> — I-lock ang pangalan ng GC\n` +
-    `👉 /ryuk pogi setnick <name> — I-lock ang nicknames ng lahat ng members (2s delay)\n` +
-    `👉 /ryuk pogi status — Tignan ang bagsik ng bot status`,
+    `👉 /ryukpogi on — Sindi ang maangas na infinite auto-roast\n` +
+    `👉 /ryukpogi off — Patayin ang auto-roast mode\n` +
+    `👉 /ryukpogi setgname <name> — I-lock ang pangalan ng GC\n` +
+    `👉 /ryukpogi setnick <name> — I-lock ang nicknames ng lahat ng members (2s delay)\n` +
+    `👉 /ryukpogi status — Tignan ang bagsik ng bot status`,
     threadID,
     messageID
   );
