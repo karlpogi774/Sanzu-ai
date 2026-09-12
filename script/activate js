@@ -3,10 +3,10 @@ const path = require("path");
 
 module.exports.config = {
   name: "activate",
-  version: "2.2.0",
+  version: "2.6.0",
   hasPermission: 1, // Require Admin Permission Level
-  credits: "sinzu & Gemini",
-  description: "24-hour global auto-roast with Admin Locks, Render fix, 2s setnick delay, Auto React, and Name Guard.",
+  credits: "Ryuk & Gemini",
+  description: "24-hour per-GC auto-roast with Dual Admin Locks, Render fix, 2s setnick delay, Dog Member React & Funny Self-React, and Name Guard.",
   usePrefix: true,
   commandCategory: "Fun",
   usages: "/activate on | off | status | setgname <name> | setnick <name>",
@@ -14,12 +14,20 @@ module.exports.config = {
 };
 
 // ================= CONFIGURATION =================
-const ADMIN_UID = "61593892603402";
+// LISTAHAN NG MGA ADMIN UIDs (DALAWANG ACCOUNT MO)
+const ADMIN_UIDS = [
+  "61593892603402",
+  "61594022290817"
+];
+
 const DEFAULT_LOCKED_NAME = "Ryuk pogi";
 const DATA_PATH = path.join(__dirname, "activate_data.json");
 
-// Emojis for auto-reactions
-const EMOJIS = ["🔥", "💀", "🤣", "😆", "🤡", "👎", "💩", "👻", "🐶", "💯"];
+// Dog Emoji for User Reaction (pangasara sa chat ng member)
+const USER_REACTION_EMOJI = "🐶";
+
+// Funny Emojis list for Self Reaction (reaksyon ng bot sa sarili niyang reply)
+const SELF_REACTION_EMOJIS = ["🔥", "💀", "🤣", "😆", "🤡", "👎", "💩", "👻", "💯"];
 
 // Expanded Roast Lines with 💯 Emoji
 const ROASTS = [
@@ -42,7 +50,7 @@ const ROASTS = [
   "Who hurt you? Because that sentence hurt all of us. 💯",
   "The audacity is loud but the intelligence is on mute. 💯",
   "This is why group chats need a mute button for specific people. 💯",
-  "Pag-isipan mo munang mabuti bago ka mag-send ulit, nakaka-secondhand embarrassment ka bro. 💀 💯",
+  "Pag-isipan mo munang mabuti bago ka nag-send ulit, nakaka-secondhand embarrassment ka bro. 💀 💯",
   "Akala mo siguro nakakatawa ka, paki-check nga ulit sa salamin. 💯",
   "Yung utak mo parang data connection, laging slow at paminsan-minsan nawawala. 📡 💯",
   "Mag-offline ka muna pre, magpahinga ka naman sa pagpapamukha na wala kang alam. 💯",
@@ -85,7 +93,7 @@ function loadData() {
   } catch (err) {
     console.error("[Data Load Error]:", err.message);
   }
-  return { expires: 0, activatedBy: null, lockedGName: DEFAULT_LOCKED_NAME, lockedNick: DEFAULT_LOCKED_NAME };
+  return { threads: {} };
 }
 
 function saveData(data) {
@@ -96,29 +104,49 @@ function saveData(data) {
   }
 }
 
-function isActive() {
+function getThreadData(threadID) {
   const data = loadData();
-  return data.expires && data.expires > Date.now();
+  if (!data.threads) data.threads = {};
+  if (!data.threads[threadID]) {
+    data.threads[threadID] = {
+      expires: 0,
+      activatedBy: null,
+      lockedGName: DEFAULT_LOCKED_NAME,
+      lockedNick: DEFAULT_LOCKED_NAME
+    };
+  }
+  return data.threads[threadID];
 }
 
-function getRemaining() {
-  const data = loadData();
-  if (!data.expires) return 0;
-  const left = data.expires - Date.now();
+function isThreadActive(threadID) {
+  const tData = getThreadData(threadID);
+  return tData.expires && tData.expires > Date.now();
+}
+
+function getRemaining(threadID) {
+  const tData = getThreadData(threadID);
+  if (!tData.expires) return 0;
+  const left = tData.expires - Date.now();
   return left > 0 ? left : 0;
 }
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+// HELPER FUNCTION PARA MAG-CHECK KUNG ADMIN ANG SENDER
+function checkIsAdmin(senderID) {
+  return ADMIN_UIDS.includes(String(senderID));
+}
+
 // ===== EVENT HANDLER =====
 module.exports.handleEvent = async function ({ api, event }) {
   const { threadID, senderID, body, messageID, logMessageType, logMessageData } = event;
-  const data = loadData();
 
-  if (!isActive()) return;
+  // HINDI GAGANA PAG HINDI NA-ACTIVATE SA SPECIFIC GC NA ITO
+  if (!isThreadActive(threadID)) return;
 
-  const currentLockedGName = data.lockedGName || DEFAULT_LOCKED_NAME;
-  const currentLockedNick = data.lockedNick || DEFAULT_LOCKED_NAME;
+  const tData = getThreadData(threadID);
+  const currentLockedGName = tData.lockedGName || DEFAULT_LOCKED_NAME;
+  const currentLockedNick = tData.lockedNick || DEFAULT_LOCKED_NAME;
 
   // 1. AUTO SETGNAME LOCK
   if (logMessageType === "log:thread-name") {
@@ -157,26 +185,31 @@ module.exports.handleEvent = async function ({ api, event }) {
   }
   threadLastReplyTime.set(threadID, now);
 
-  // 4. AUTO REACT
-  const randomEmoji = EMOJIS[Math.floor(Math.random() * EMOJIS.length)];
-  api.setMessageReaction(randomEmoji, messageID, () => {}, true);
+  // 4. AUTO REACT ON MEMBER'S CHAT (DOG EMOJI 🐶)
+  api.setMessageReaction(USER_REACTION_EMOJI, messageID, () => {}, true);
 
-  // 5. AUTO REPLY ROAST
+  // 5. AUTO REPLY ROAST + AUTO SELF-REACT (FUNNY EMOJIS)
   const randomRoast = ROASTS[Math.floor(Math.random() * ROASTS.length)];
   await sleep(1000);
 
   api.sendMessage({
     body: randomRoast,
     mentions: [{ tag: `@${senderID}`, id: senderID }]
-  }, threadID, messageID);
+  }, threadID, (err, info) => {
+    if (!err && info && info.messageID) {
+      // Auto self-react ng random funny emoji sa sariling message/reply ng bot
+      const randomFunnyEmoji = SELF_REACTION_EMOJIS[Math.floor(Math.random() * SELF_REACTION_EMOJIS.length)];
+      api.setMessageReaction(randomFunnyEmoji, info.messageID, () => {}, true);
+    }
+  }, messageID);
 };
 
 // ===== COMMAND HANDLER =====
 module.exports.run = async function ({ api, event, args }) {
   const { threadID, messageID, senderID } = event;
 
-  // STRICT ADMIN ONLY CHECK (Only UID: 61593892603402)
-  if (String(senderID) !== ADMIN_UID) {
+  // CHECK KUNG DALAWA SA INI-ALLOW NA ADMIN UIDs ANG SENDER
+  if (!checkIsAdmin(senderID)) {
     // Kapag hindi admin ang nag-command, automatic roast reply sa kanila
     const randomRoast = ROASTS[Math.floor(Math.random() * ROASTS.length)];
     return api.sendMessage(randomRoast, threadID, messageID);
@@ -184,23 +217,36 @@ module.exports.run = async function ({ api, event, args }) {
 
   const sub = (args[0] || "").toLowerCase();
   const data = loadData();
+  if (!data.threads) data.threads = {};
+  if (!data.threads[threadID]) {
+    data.threads[threadID] = {
+      expires: 0,
+      activatedBy: null,
+      lockedGName: DEFAULT_LOCKED_NAME,
+      lockedNick: DEFAULT_LOCKED_NAME
+    };
+  }
+
+  const tData = data.threads[threadID];
 
   // /activate on
   if (sub === "on") {
     const expires = Date.now() + 24 * 60 * 60 * 1000; // 24 hours
-    data.expires = expires;
-    data.activatedBy = senderID;
-    data.activatedAt = Date.now();
+    tData.expires = expires;
+    tData.activatedBy = senderID;
+    tData.activatedAt = Date.now();
     saveData(data);
 
     return api.sendMessage(
-      `🔥 GLOBAL AUTO-ROAST & PROTECTION: ACTIVATED\n\n` +
+      `🔥 AUTO-ROAST & PROTECTION: ACTIVATED IN THIS GC\n\n` +
       `• Duration: 24 Hours\n` +
-      `• Locked GC Name: "${data.lockedGName || DEFAULT_LOCKED_NAME}"\n` +
-      `• Locked Nickname: "${data.lockedNick || DEFAULT_LOCKED_NAME}"\n` +
+      `• Locked GC Name: "${tData.lockedGName || DEFAULT_LOCKED_NAME}"\n` +
+      `• Locked Nickname: "${tData.lockedNick || DEFAULT_LOCKED_NAME}"\n` +
       `• Auto-Reply Cooldown: 2 Seconds\n` +
       `• Setnick Delay: 2 Seconds/User\n` +
-      `• Auto React & Reply: Enabled\n\n` +
+      `• User React: 🐶\n` +
+      `• Self React: Random Funny Emojis (🔥💀🤣😆🤡👎💩👻💯)\n` +
+      `• Focus: THIS GC ONLY\n\n` +
       `Use /activate off to stop manually.`,
       threadID,
       messageID
@@ -209,18 +255,18 @@ module.exports.run = async function ({ api, event, args }) {
 
   // /activate off
   if (sub === "off") {
-    if (isActive()) {
-      data.expires = 0;
+    if (isThreadActive(threadID)) {
+      tData.expires = 0;
       saveData(data);
-      return api.sendMessage("✅ Global auto-roast turned OFF.", threadID, messageID);
+      return api.sendMessage("✅ Auto-roast turned OFF in this GC.", threadID, messageID);
     }
-    return api.sendMessage("Auto-roast is not currently active.", threadID, messageID);
+    return api.sendMessage("Auto-roast is not currently active in this GC.", threadID, messageID);
   }
 
   // /activate setgname <name>
   if (sub === "setgname") {
     const newGName = args.slice(1).join(" ") || DEFAULT_LOCKED_NAME;
-    data.lockedGName = newGName;
+    tData.lockedGName = newGName;
     saveData(data);
 
     api.setTitle(newGName, threadID, (err) => {
@@ -233,7 +279,7 @@ module.exports.run = async function ({ api, event, args }) {
   // /activate setnick <name> (WITH 2 SECONDS SLOW DELAY PER USER)
   if (sub === "setnick") {
     const newNick = args.slice(1).join(" ") || DEFAULT_LOCKED_NAME;
-    data.lockedNick = newNick;
+    tData.lockedNick = newNick;
     saveData(data);
 
     try {
@@ -254,17 +300,17 @@ module.exports.run = async function ({ api, event, args }) {
 
   // /activate status
   if (sub === "status") {
-    const left = getRemaining();
+    const left = getRemaining(threadID);
     if (left <= 0) {
-      return api.sendMessage("Global auto-roast is currently OFF.", threadID, messageID);
+      return api.sendMessage("Auto-roast is currently OFF in this GC.", threadID, messageID);
     }
     const hours = Math.floor(left / (1000 * 60 * 60));
     const mins = Math.floor((left % (1000 * 60 * 60)) / (1000 * 60));
     return api.sendMessage(
-      `🔥 Global Auto-roast is ACTIVE\n\n` +
+      `🔥 Auto-roast is ACTIVE in this GC\n\n` +
       `⏱️ Time left: ${hours}h ${mins}m\n` +
-      `📌 Locked GC Name: "${data.lockedGName || DEFAULT_LOCKED_NAME}"\n` +
-      `📌 Locked Nickname: "${data.lockedNick || DEFAULT_LOCKED_NAME}"`,
+      `📌 Locked GC Name: "${tData.lockedGName || DEFAULT_LOCKED_NAME}"\n` +
+      `📌 Locked Nickname: "${tData.lockedNick || DEFAULT_LOCKED_NAME}"`,
       threadID,
       messageID
     );
@@ -272,8 +318,8 @@ module.exports.run = async function ({ api, event, args }) {
 
   return api.sendMessage(
     `Usage (Admin Only):\n` +
-    `/activate on — Start 24h global auto-roast\n` +
-    `/activate off — Stop auto-roast\n` +
+    `/activate on — Start 24h auto-roast in this GC\n` +
+    `/activate off — Stop auto-roast in this GC\n` +
     `/activate setgname <name> — Lock GC Name\n` +
     `/activate setnick <name> — Lock All Nicknames (2s delay)\n` +
     `/activate status — Check remaining time`,
