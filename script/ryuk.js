@@ -3,17 +3,16 @@ const path = require("path");
 
 module.exports.config = {
   name: "activate",
-  version: "2.0.0",
-  hasPermission: 2, // Admin/Owner Only access
+  version: "2.1.0",
+  hasPermission: 2,
   credits: "Ryuk",
-  description: "24-hour global lamyang normal auto-reply, anti-lock nickname (1s slow), anti-lock GC name, at remote control.",
+  description: "24-hour global lamyang normal auto-reply with foolproof auto-revert lock for GC name and nickname.",
   usePrefix: true,
   commandCategory: "System",
-  usages: "/activate on | /activate off | /activate status",
+  usages: "/activate on | /activate off | /activate status | /activate lockname <name> | /activate locknick <nick>",
   cooldowns: 5
 };
 
-// ================= CONFIGURATION =================
 const ADMIN_UIDS = [
   "61594022290817",
   "61593892603402"
@@ -26,7 +25,6 @@ const COOLDOWN_DELAY = 1000;
 const threadLastReplyTime = new Map();
 const userSpamTracker = new Map();
 
-// LAMYANG NORMAL TAGALOG LINES
 const NORMAL_LINES = [
   "ge", "k", "kk", "ah ok", "gege", "we3h", "edi wow", "sige lang", "luh", "sige pre",
   "tuloy mo lang", "sabi mo eh", "cge cge", "basta ikaw", "sige lods", "yun lang", "okay",
@@ -78,42 +76,51 @@ function getRemaining() {
   return left > 0 ? left : 0;
 }
 
-// ===== 24/7 EVENT HANDLER (ANTI-LOCK NICKNAME SLOW, GC NAME & AUTO-REPLY) =====
 module.exports.handleEvent = async function ({ api, event }) {
   const { threadID, senderID, body, messageID, logMessageType, logMessageData } = event;
   const data = loadData();
 
-  if (!isActive()) return;
+  if (!threadID) return;
 
-  // 1. SLOW 1-SECOND ANTI-LOCK: USER NICKNAME OVERRIDE (HINDI MAPALITAN NG IBA)
+  // 1. FOOLPROOF AUTO REVERT PARA SA GC NAME (Kahit sino magpalit, babalik agad)
+  if (logMessageType === "log:thread-name") {
+    const newName = logMessageData ? logMessageData.name : "";
+    const targetName = data.lockedGName || DEFAULT_LOCKED_NAME;
+    if (newName !== targetName) {
+      await sleep(1000);
+      try {
+        api.setTitle(targetName, threadID, (err) => {
+          if (err) {
+            // Fallback retries kung sakaling ma-rate limit ng Facebook
+            setTimeout(() => api.setTitle(targetName, threadID, () => {}), 2000);
+          }
+        });
+      } catch (e) {}
+    }
+    return;
+  }
+
+  // 2. FOOLPROOF AUTO REVERT PARA SA NICKNAME
   if (logMessageType === "log:user-nickname") {
     const changedUser = logMessageData ? logMessageData.participant_id : null;
     const newNick = logMessageData ? logMessageData.nickname : "";
-    if (changedUser && newNick !== data.lockedNick) {
-      await sleep(1000); // Mabagal na 1-second delay bago i-revert para ligtas
+    const targetNick = data.lockedNick || DEFAULT_LOCKED_NAME;
+    if (changedUser && newNick !== targetNick) {
+      await sleep(1000);
       try {
-        api.changeNickname(data.lockedNick || DEFAULT_LOCKED_NAME, threadID, changedUser, () => {});
+        api.changeNickname(targetNick, threadID, changedUser, () => {});
       } catch (e) {}
     }
     return;
   }
 
-  // 2. SLOW 1-SECOND ANTI-LOCK: GC NAME OVERRIDE (HINDI MAPALITAN ANG GC NAME)
-  if (logMessageType === "log:thread-name") {
-    const newName = logMessageData ? logMessageData.name : "";
-    if (newName !== data.lockedGName) {
-      await sleep(1000); // Mabagal na 1-second delay
-      try {
-        api.setTitle(data.lockedGName || DEFAULT_LOCKED_NAME, threadID);
-      } catch (e) {}
-    }
-    return;
-  }
+  // Kung patay ang 24h timer, hihinto na rito at hindi mag-a-auto reply
+  if (!isActive()) return;
 
-  // IGNORE BOT'S OWN MESSAGES & COMMANDS
+  // Huwag pansinin ang sariling mensahe ng bot o mga commands na nagsisimula sa /
   if (!body || body.startsWith("/") || senderID === api.getCurrentUserID()) return;
 
-  // 3. ANTI-SPAM QUEUE & LAMYANG NORMAL AUTO-REPLY
+  // 3. AUTO REPLY SA MGA NAGMESSAGES
   const now = Date.now();
   const userKey = `${threadID}_${senderID}`;
   const userLastTime = userSpamTracker.get(userKey) || 0;
@@ -125,7 +132,7 @@ module.exports.handleEvent = async function ({ api, event }) {
   threadLastReplyTime.set(threadID, now);
 
   const randomLine = NORMAL_LINES[Math.floor(Math.random() * NORMAL_LINES.length)];
-  await sleep(1000); // Slow human-like response delay
+  await sleep(1000);
 
   try {
     api.sendMessage({
@@ -135,20 +142,18 @@ module.exports.handleEvent = async function ({ api, event }) {
   } catch (e) {}
 };
 
-// ===== COMMAND (ADMIN ONLY & REMOTE CONTROL SUPPORTED) =====
 module.exports.run = async function ({ api, event, args }) {
   const { threadID, messageID, senderID } = event;
 
-  // 👑 STRICT ADMIN CHECK (Gumagana kahit sa anong account basta nasa ADMIN_UIDS list)
   if (!checkIsAdmin(senderID)) {
-    return api.sendMessage("❌ Sensya ka na, para sa mga authorized admins lang ang command na ito.", threadID, messageID);
+    return api.sendMessage("❌ Para sa mga authorized admins lang ang command na ito.", threadID, messageID);
   }
 
   const sub = (args[0] || "").toLowerCase();
   const data = loadData();
 
   if (sub === "on") {
-    const expires = Date.now() + 24 * 60 * 60 * 1000; // Exact 24 hours
+    const expires = Date.now() + 24 * 60 * 60 * 1000;
     data.expires = expires;
     data.activatedBy = senderID;
     data.activatedAt = Date.now();
@@ -156,22 +161,21 @@ module.exports.run = async function ({ api, event, args }) {
 
     return api.sendMessage(
       `🛡️ RYUK 24H SYSTEM: ACTIVATED\n\n` +
-      `• Duration: 24 hours\n` +
-      `• Auto-Reply: Lamyang normal lines\n` +
-      `• Anti-Lock Nickname (1s slow revert) & GC Name Active.\n` +
-      `• Gamitin ang /activate off para patayin.`,
+      `• Auto-Reply: Lamyang normal lines active\n` +
+      `• Auto-Lock GC Name & Nickname: ON\n` +
+      `• Status: Mag-a-auto reply at automatic ibabalik ang GC name kapag pinalitan.`,
       threadID,
       messageID
     );
   }
 
   if (sub === "off") {
-    if (isActive()) {
+    if (data.expires > 0) {
       data.expires = 0;
       saveData(data);
       return api.sendMessage("✅ 24-hour system ay pinatay na.", threadID, messageID);
     }
-    return api.sendMessage("⚠️ Walang aktibong 24-hour system sa ngayon.", threadID, messageID);
+    return api.sendMessage("⚠️ Walang aktibong sistema na naka-on.", threadID, messageID);
   }
 
   if (sub === "status") {
@@ -194,7 +198,7 @@ module.exports.run = async function ({ api, event, args }) {
     data.lockedGName = newName;
     saveData(data);
     try { api.setTitle(newName, threadID); } catch(e){}
-    return api.sendMessage(`🔒 Na-lock ang GC name sa: "${newName}"`, threadID, messageID);
+    return api.sendMessage(`🔒 Na-lock ang GC name sa: "${newName}". Automatic na itong ibabalik kapag pinalitan ng iba.`, threadID, messageID);
   }
 
   if (sub === "locknick") {
@@ -202,7 +206,7 @@ module.exports.run = async function ({ api, event, args }) {
     if (!newNick) return api.sendMessage("❌ Maglagay ng nickname: /activate locknick <Nickname>", threadID, messageID);
     data.lockedNick = newNick;
     saveData(data);
-    return api.sendMessage(`🔒 Na-lock ang nickname sa: "${newNick}" (May 1s slow anti-change revert na).`, threadID, messageID);
+    return api.sendMessage(`🔒 Na-lock ang nickname sa: "${newNick}" (May slow auto-revert na).`, threadID, messageID);
   }
 
   return api.sendMessage(
@@ -210,11 +214,11 @@ module.exports.run = async function ({ api, event, args }) {
     `   🛡️ RYUK ADMIN SYSTEM\n` +
     `╰─────────────────╯\n\n` +
     `📌 Sub-commands:\n` +
-    `• /activate on (Simulan ang 24h Lamyang Normal system)\n` +
+    `• /activate on (Paganahin ang 24h auto-reply at auto-lock)\n` +
     `• /activate off (Patayin ang sistema)\n` +
-    `• /activate status (Tingnan ang natitirang oras)\n` +
+    `• /activate status (Tingnan ang oras)\n` +
     `• /activate lockname <Name> (I-lock ang GC name)\n` +
-    `• /activate locknick <Nick> (I-lock ang nickname ng may 1s slow revert)`,
+    `• /activate locknick <Nick> (I-lock ang nickname)`,
     threadID,
     messageID
   );
