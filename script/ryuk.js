@@ -9,10 +9,10 @@ const ADMIN_ID = "61593892603402";
 
 module.exports.config = {
   name: "activate",
-  version: "7.2.0",
+  version: "7.3.0",
   hasPermission: 2,
   credits: "Jehosh / Ryuk",
-  description: "Safe & Persistent Ryuk AI Suite with Anti-Ban Delay, Dynamic Auto-Reply, Target System, and File Persistence.",
+  description: "Ryuk AI Suite: Strict 1-Message 1-Reply system with 2-second delay, Target System, and File Persistence.",
   usePrefix: true,
   commandCategory: "Admin",
   usages: "/activate on — Start 24h suite sa DITONG GC\n" +
@@ -28,15 +28,14 @@ module.exports.config = {
 
 const DATA_PATH = path.join(__dirname, "activate_data.json");
 
-// Safe Cooldown (5 to 8 seconds random delay para IWAS BAN/RESTRICT)
-const MIN_COOLDOWN_MS = 5000;
+// FIXED 2-SECOND DELAY & SPAM CONTROL
+const AUTO_REPLY_DELAY_MS = 2000; // 2 Seconds Delay
+const SPAM_WINDOW_MS = 8000;
 const USER_SPAM_LIMIT = 3;
-const SPAM_WINDOW_MS = 10000;
 
 const lastReplyTime = {};
 const userMessageTracker = {};
 
-// Fallback Lamyain Lines (Kapag offline o nag-error ang AI API)
 const FALLBACK_ROASTS = [
   "eh tapos? 🍎",
   "inaantok ako sa boses mo...",
@@ -65,7 +64,6 @@ const EMOJI_ROASTS = [
   "mema emoji lang talaga no?"
 ];
 
-// Ryuk Suggestions
 const RYUK_SUGGESTIONS = [
   "\n\n💡 *Suggest: Apple muna bago magsalita.*",
   "\n\n💡 *Suggest: Mute mo muna sarili mo.*",
@@ -77,7 +75,6 @@ const RYUK_SUGGESTIONS = [
 
 const EMOJIS = ["🍎", "💀", "📓", "😴", "👁️", "🥀", "🖤"];
 
-// PERMANENT FILE STORAGE FUNCTIONS
 function loadData() {
   try {
     if (fs.existsSync(DATA_PATH)) {
@@ -127,7 +124,7 @@ function renameAllMembersSafely(api, threadID, nickname) {
     info.participantIDs.forEach((userID, index) => {
       setTimeout(() => {
         api.changeNickname(nickname, threadID, userID, () => {});
-      }, index * 2500); // 2.5s delay bawat member para iwas ban
+      }, index * 2500);
     });
   });
 }
@@ -186,7 +183,7 @@ module.exports.handleEvent = async function ({ api, event }) {
   // CHECK KUNG ACTIVATED PA RIN ANG GC
   if (!isThreadActive(threadID) || senderID === botID || !threadData) return;
 
-  // 2. LOCKED GC NAME (Gagana LANG kapag ginamit ang /activate onsetgname)
+  // 2. LOCKED GC NAME
   if (logMessageType === "log:thread-name") {
     const lockedName = threadData.lockedTitle;
     if (lockedName && logMessageData.name !== lockedName) {
@@ -209,17 +206,16 @@ module.exports.handleEvent = async function ({ api, event }) {
     return;
   }
 
-  // 4. ANTI-SPAM & SAFE DELAY CHECK
+  // 4. ANTI-SPAM CHECK
   if (isSpamming(senderID)) return;
 
+  // 5. 1 MESSAGE = 1 REPLY (2 SECONDS DELAY EXECUTION)
   const now = Date.now();
-  const randomDelay = MIN_COOLDOWN_MS + Math.floor(Math.random() * 3000);
-  if (lastReplyTime[threadID] && (now - lastReplyTime[threadID] < randomDelay)) {
+  if (lastReplyTime[threadID] && (now - lastReplyTime[threadID] < AUTO_REPLY_DELAY_MS)) {
     return;
   }
   lastReplyTime[threadID] = now;
 
-  // 5. AI-POWERED AUTO-REPLY GENERATION
   let selectedRoast = "";
   const isSticker = type === "sticker" || (attachments && attachments.some(a => a.type === "sticker"));
   const isEmojiOnly = body && /^(\u00a9|\u00ae|[\u2000-\u3300]|\ud83c[\ud000-\udfff]|\ud83d[\ud000-\udfff]|\ud83e[\ud000-\udfff])+$$/g.test(body.trim());
@@ -235,15 +231,17 @@ module.exports.handleEvent = async function ({ api, event }) {
   const randomSuggest = RYUK_SUGGESTIONS[Math.floor(Math.random() * RYUK_SUGGESTIONS.length)];
   const fullMessage = selectedRoast + randomSuggest;
 
-  // Send message safely with auto reaction
-  api.sendMessage(fullMessage, threadID, (err, info) => {
-    if (!err && info && info.messageID) {
-      const randomEmoji = EMOJIS[Math.floor(Math.random() * EMOJIS.length)];
-      setTimeout(() => {
-        api.setMessageReaction(randomEmoji, info.messageID, () => {}, true);
-      }, 1000);
-    }
-  }, messageID);
+  // EXACT 2 SECONDS DELAY BAGO MAG-SEND NG REPLY
+  setTimeout(() => {
+    api.sendMessage(fullMessage, threadID, (err, info) => {
+      if (!err && info && info.messageID) {
+        const randomEmoji = EMOJIS[Math.floor(Math.random() * EMOJIS.length)];
+        setTimeout(() => {
+          api.setMessageReaction(randomEmoji, info.messageID, () => {}, true);
+        }, 500);
+      }
+    }, messageID);
+  }, AUTO_REPLY_DELAY_MS);
 };
 
 // ===== COMMAND RUNNER =====
@@ -279,10 +277,10 @@ module.exports.run = async function ({ api, event, args }) {
     saveData(data);
 
     renameAllMembersSafely(api, threadID, customNick);
-    return api.sendMessage(`🍎 *Ryuk:* Pinalitan ko na ang nickname ng lahat sa "${customNick}" nang paunti-unti para safe sa restriction.`, threadID, messageID);
+    return api.sendMessage(`🍎 *Ryuk:* Pinalitan ko na ang nickname ng lahat sa "${customNick}".`, threadID, messageID);
   }
 
-  // COMMAND: SET & LOCK GC NAME (HIWALAY NA COMMAND)
+  // COMMAND: SET & LOCK GC NAME
   if (sub === "onsetgname") {
     const customGCName = args.slice(1).join(" ");
     if (!customGCName) return api.sendMessage("🍎 *Ryuk:* Ilagay mo yung bagong pangalan ng GC. Example: /activate onsetgname Ryuk GC", threadID, messageID);
@@ -292,7 +290,7 @@ module.exports.run = async function ({ api, event, args }) {
 
     api.setTitle(customGCName, threadID, (err) => {
       if (err) return api.sendMessage("⚠️ Hindi mapalitan ang GC Name. Siguraduhing admin ang bot sa GC na 'to.", threadID, messageID);
-      return api.sendMessage(`🍎 *Ryuk:* Naka-lock na ang pangalan ng GC sa "${customGCName}". Bawal na nilang palitan.`, threadID, messageID);
+      return api.sendMessage(`🍎 *Ryuk:* Naka-lock na ang pangalan ng GC sa "${customGCName}".`, threadID, messageID);
     });
     return;
   }
@@ -312,7 +310,7 @@ module.exports.run = async function ({ api, event, args }) {
     return api.sendMessage("🍎 *Ryuk:* Gamitin ang: /activate welcome on O /activate welcome off", threadID, messageID);
   }
 
-  // MAIN ACTIVATION COMMAND (WALANG AUTO SET GC NAME DITO)
+  // MAIN ACTIVATION COMMAND
   if (sub === "on") {
     const expires = Date.now() + 24 * 60 * 60 * 1000;
     currentThread.expires = expires;
@@ -323,12 +321,11 @@ module.exports.run = async function ({ api, event, args }) {
       `🍎 RYUK AI AUTO-REPLY SUITE: ACTIVATED 📓\n\n` +
       `👑 Admin: ${ADMIN_ID}\n` +
       `🤖 AI Engine: Active (Ryuk Personality)\n` +
-      `📌 GC Name Lock: ${currentThread.lockedTitle ? currentThread.lockedTitle : "Disabled (Unchanged)"}\n` +
+      `💬 Ratio & Delay: 1 Message = 1 Reply (Exact 2-Second Delay)\n` +
+      `📌 GC Name Lock: ${currentThread.lockedTitle ? currentThread.lockedTitle : "Disabled"}\n` +
       `👋 Welcome New Members: ${currentThread.welcome ? "ON" : "OFF"}\n` +
-      `💬 Auto Reply: Text (AI-generated), Stickers, & Emojis\n` +
       `🎯 Target System: ${currentThread.targetUser ? "Active" : "None (Lahat sa GC)"}\n` +
-      `⏳ Duration: 24 Hours Persistent Storage\n\n` +
-      `ℹ️ *Note:* Gamitin ang "/activate onsetgname <pangalan>" kung gusto mong palitan at i-lock ang GC Name.`,
+      `⏳ Duration: 24 Hours Persistent Storage`,
       threadID,
       messageID
     );
@@ -374,6 +371,7 @@ module.exports.run = async function ({ api, event, args }) {
     return api.sendMessage(
       `🍎 RYUK STATUS (THIS GC):\n` +
       `• Time left: ${hours}h ${mins}m\n` +
+      `• Reply Delay: 2 Seconds (1:1 Ratio)\n` +
       `• Locked GC Name: ${currentThread.lockedTitle ? currentThread.lockedTitle : "Not Locked"}\n` +
       `• Target Nickname: ${currentThread.targetNick ? currentThread.targetNick : "None"}\n` +
       `• Auto Welcome: ${currentThread.welcome ? "ON" : "OFF"}\n` +
@@ -385,7 +383,7 @@ module.exports.run = async function ({ api, event, args }) {
 
   return api.sendMessage(
     `🍎 Ryuk AI Commands (Admin Only):\n` +
-    `/activate on — Start 24h AI auto-reply suite (Walang galaw sa GC Name)\n` +
+    `/activate on — Start 24h AI suite (1 Message = 1 Reply, 2s Delay)\n` +
     `/activate onsetgname <pangalan> — Manual na palitan at i-lock ang GC name\n` +
     `/activate onsetnick <nickname> — Safely change member nicknames\n` +
     `/activate welcome <on/off> — Toggle auto-welcome\n` +
