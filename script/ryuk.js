@@ -4,58 +4,87 @@ const path = require("path");
 // ==========================================
 // CONFIGURATION
 const ADMIN_ID = "61593892603402"; 
-const TARGET_NAME = "jehosh";
+const DEFAULT_GC_NAME = "Ryuk's Death Note 📓";
 // ==========================================
 
 module.exports.config = {
   name: "activate",
-  version: "2.0.0",
+  version: "3.0.0",
   hasPermission: 2,
-  credits: "Jehosh",
-  description: "24h global auto-roast with Admin Lock, Anti-Spam, Auto Self-React, Auto Nickname, and GC Name Lock.",
+  credits: "Jehosh / Ryuk",
+  description: "Ryuk-themed auto-roast with target lock, auto rename GC/members, anti-spam & auto suggest.",
   usePrefix: true,
   commandCategory: "Admin",
-  usages: "/activate on — start 24h suite (Admin only)\n/activate off — stop\n/activate status — check remaining time",
-  cooldowns: 5
+  usages: "/activate on — Start Ryuk suite\n/activate off — Stop\n/activate target @mention — Target specific user\n/activate untarget — Clear target\n/activate status — Check status",
+  cooldowns: 3
 };
 
 const DATA_PATH = path.join(__dirname, "activate_data.json");
 
-// Anti-Spam configurations
-const COOLDOWN_MS = 3000;
+// Anti-Spam settings
+const COOLDOWN_MS = 2500;
 const USER_SPAM_LIMIT = 3;
-const SPAM_WINDOW_MS = 10000;
+const SPAM_WINDOW_MS = 8000;
 
-// Memory trackers
 const lastReplyTime = {};
 const userMessageTracker = {};
 
-// Roasts
-const ROASTS = [
-  "Bro really thought that message was necessary 💀",
-  "The confidence… the delusion… unmatched.",
-  "Say less, we already lost brain cells reading that.",
-  "You typed all that just to embarrass yourself?",
-  "Main character energy but the plot is mid.",
-  "Who hurt you? Because that sentence hurt all of us.",
-  "Please stop before the group chat files a restraining order.",
-  "You really just said that out loud… in text… permanently.",
-  "The audacity is loud but the intelligence is on mute.",
-  "This is why group chats need a mute button for specific people.",
-  "Bro woke up and chose violence against the English language.",
-  "I’m not even mad, I’m just disappointed… and second-hand embarrassed.",
-  "Your message just aged like milk left in the sun.",
-  "Somewhere a grammar teacher is crying.",
-  "This energy is giving ‘I peaked in high school’.",
-  "You dropped that like it was fire. It was not.",
-  "The group chat was peaceful until you arrived.",
-  "Please log off for the sake of everyone’s mental health.",
-  "That was a choice… a bold, terrible choice.",
-  "I’m taking notes on how not to communicate."
+// Lamyain & Maikling lines ni Ryuk (Pang-asar)
+const RYUK_ROASTS = [
+  "eh tapos? 🍎",
+  "inaantok ako sa boses mo...",
+  "labas sa ilong yung sinabi mo.",
+  "weeh? ikaw may sabi niyan?",
+  "boring mo naman kausap.",
+  "🍎... abot mo nga apples ko.",
+  "seryoso ka na diyan?",
+  "ge lang, kwento mo sa pader.",
+  "parang wala namang may pake...",
+  "yoko na magbasa, panis.",
+  "tamad na tamad ako sa'yo.",
+  "ha? hakdog.",
+  "tulog ka na lang kaya?",
+  "paka-walang kwenta naman.",
+  "pagod na utak ko sa'yo.",
+  "isa pang salita, isusulat na kita...",
+  "mema lang talaga no?",
+  "paki natin?",
+  "k.",
+  "sino nagtanong sa'yo?",
+  "corny mo bro.",
+  "ge. ambon lang yan.",
+  "wala man lang lasa sinabi mo.",
+  "buhay ka pa pala?",
+  "wala akong naintindihan, ayoko na intindihin.",
+  "di ka ba napapagod maging ganyan?",
+  "sabaw...",
+  "hangin lang lumalabas sa'yo.",
+  "mas exciting pa magbilang ng usok.",
+  "oks.",
+  "weh di nga?",
+  "ano raw? ewan sa'yo.",
+  "lipat ka ibang GC, ingay mo.",
+  "papansin din no?",
+  "walang dating.",
+  "bwisit, istorbo.",
+  "pikit ka na lang ulit.",
+  "sayang load sa'yo.",
+  "tinatanong ba kita?",
+  "parang kasalanan ko pang nabasa ko 'to.",
+  "hayy, panibagong katangahan na naman."
 ];
 
-// Emojis for auto self-react
-const EMOJIS = ["💀", "🤡", "🚮", "😴", "🤣", "💩", "🧠❌", "🤦‍♂️"];
+// Ryuk Suggestions (Dagdag pambwisit sa dulo ng reply)
+const RYUK_SUGGESTIONS = [
+  "\n\n💡 *Suggest: Apple muna bago magsalita.*",
+  "\n\n💡 *Suggest: Mute mo muna sarili mo.*",
+  "\n\n💡 *Suggest: Isulat na ba pangalan nito sa notebook?*",
+  "\n\n💡 *Suggest: Mag-off online ka muna.*",
+  "\n\n💡 *Suggest: Pahinga ka muna, puro ka sabaw.*",
+  "\n\n💡 *Suggest: Magdala ka muna ng mansanas sa akin.*"
+];
+
+const EMOJIS = ["🍎", "💀", "📓", "😴", "👁️", "🥀", "🖤"];
 
 function loadData() {
   try {
@@ -63,7 +92,7 @@ function loadData() {
       return JSON.parse(fs.readFileSync(DATA_PATH, "utf8"));
     }
   } catch {}
-  return { expires: 0, activatedBy: null, lockedTitle: TARGET_NAME };
+  return { expires: 0, activatedBy: null, lockedTitle: DEFAULT_GC_NAME, targetUser: null };
 }
 
 function saveData(data) {
@@ -84,23 +113,20 @@ function getRemaining() {
 
 function isSpamming(senderID) {
   const now = Date.now();
-  if (!userMessageTracker[senderID]) {
-    userMessageTracker[senderID] = [];
-  }
+  if (!userMessageTracker[senderID]) userMessageTracker[senderID] = [];
   userMessageTracker[senderID] = userMessageTracker[senderID].filter(t => now - t < SPAM_WINDOW_MS);
   userMessageTracker[senderID].push(now);
 
   return userMessageTracker[senderID].length > USER_SPAM_LIMIT;
 }
 
-// Safely rename all members to prevent FB rate limits
 function renameAllMembers(api, threadID, nickname) {
   api.getThreadInfo(threadID, (err, info) => {
     if (err || !info || !info.participantIDs) return;
     info.participantIDs.forEach((userID, index) => {
       setTimeout(() => {
         api.changeNickname(nickname, threadID, userID, () => {});
-      }, index * 1500);
+      }, index * 1200);
     });
   });
 }
@@ -113,18 +139,28 @@ module.exports.handleEvent = async function ({ api, event }) {
 
   if (!isActive() || senderID === botID) return;
 
-  // 1. AUTO GC NAME LOCK
+  // 1. HARD LOCKED GC NAME (HINDI MAPALITAN NG IBA)
   if (logMessageType === "log:thread-name") {
-    if (logMessageData.name !== TARGET_NAME) {
-      api.setTitle(TARGET_NAME, threadID, () => {});
+    const lockedName = data.lockedTitle || DEFAULT_GC_NAME;
+    if (logMessageData.name !== lockedName) {
+      api.setTitle(lockedName, threadID, (err) => {
+        if (!err) {
+          api.sendMessage(`🍎 *Ryuk:* Huwag niyo baguhin. Naka-lock 'to sa "${lockedName}".`, threadID);
+        }
+      });
     }
     return;
   }
 
-  // Ignore commands & empty messages
+  // Ignore commands and empty messages
   if (!body || body.startsWith("/")) return;
 
-  // 2. ANTI-SPAM CHECK
+  // 2. TARGET USER CHECK (Pag may target user, siya lang ang aasarin)
+  if (data.targetUser && senderID !== data.targetUser) {
+    return;
+  }
+
+  // 3. ANTI-SPAM CHECK
   if (isSpamming(senderID)) return;
 
   const now = Date.now();
@@ -133,10 +169,12 @@ module.exports.handleEvent = async function ({ api, event }) {
   }
   lastReplyTime[threadID] = now;
 
-  // 3. AUTO-ROAST + AUTO SELF-REACT
-  const randomRoast = ROASTS[Math.floor(Math.random() * ROASTS.length)];
-  
-  api.sendMessage(randomRoast, threadID, (err, info) => {
+  // 4. RYUK RESPONSE GENERATOR (Roast + Auto Suggest + Reaction)
+  const randomRoast = RYUK_ROASTS[Math.floor(Math.random() * RYUK_ROASTS.length)];
+  const randomSuggest = RYUK_SUGGESTIONS[Math.floor(Math.random() * RYUK_SUGGESTIONS.length)];
+  const fullMessage = randomRoast + randomSuggest;
+
+  api.sendMessage(fullMessage, threadID, (err, info) => {
     if (!err && info && info.messageID) {
       const randomEmoji = EMOJIS[Math.floor(Math.random() * EMOJIS.length)];
       api.setMessageReaction(randomEmoji, info.messageID, () => {}, true);
@@ -146,72 +184,95 @@ module.exports.handleEvent = async function ({ api, event }) {
 
 // ===== COMMAND RUNNER =====
 module.exports.run = async function ({ api, event, args }) {
-  const { threadID, messageID, senderID } = event;
+  const { threadID, messageID, senderID, mentions } = event;
   const sub = (args[0] || "").toLowerCase();
   const data = loadData();
 
   // STRICT ADMIN GUARD
   if (senderID !== ADMIN_ID) {
-    return api.sendMessage(
-      "🛑 ADMIN ONLY! You are not authorized to use this bot.",
-      threadID,
-      messageID
-    );
+    return api.sendMessage("🍎 *Ryuk:* Wala kang authority rito. Umalis ka sa harap ko.", threadID, messageID);
   }
 
   if (sub === "on") {
     const expires = Date.now() + 24 * 60 * 60 * 1000;
     data.expires = expires;
     data.activatedBy = senderID;
-    data.activatedAt = Date.now();
-    data.lockedTitle = TARGET_NAME;
+    data.lockedTitle = DEFAULT_GC_NAME;
     saveData(data);
 
-    // Lock GC Name to "jehosh"
-    api.setTitle(TARGET_NAME, threadID, () => {});
+    // Auto lock GC Name
+    api.setTitle(DEFAULT_GC_NAME, threadID, () => {});
 
-    // Rename All Members to "jehosh"
-    renameAllMembers(api, threadID, TARGET_NAME);
+    // Auto change all members nickname to "jehosh"
+    renameAllMembers(api, threadID, "jehosh");
 
     return api.sendMessage(
-      `🔥 GLOBAL SUITE ACTIVATED\n\n` +
-      `👑 Admin Authorized: ${ADMIN_ID}\n` +
-      `📌 GC Name set to: "${TARGET_NAME}"\n` +
-      `👥 Changing member nicknames to: "${TARGET_NAME}"\n` +
-      `🛡️ Anti-Spam & Self-React: Active\n` +
-      `Duration: 24 Hours`,
+      `🍎 RYUK'S DEATH NOTE MODE: ON 📓\n\n` +
+      `👑 Admin Access: Granted (${ADMIN_ID})\n` +
+      `📌 GC Name Locked to: "${DEFAULT_GC_NAME}"\n` +
+      `👥 Member Nicknames: Changing to "jehosh"\n` +
+      `🎯 Target System: ${data.targetUser ? "Active" : "None (Global)"}\n` +
+      `⏳ Duration: 24 Hours`,
       threadID,
       messageID
     );
   }
 
+  // TARGET USER PANG-TRIP COMMAND
+  if (sub === "target") {
+    const mentionIDs = Object.keys(mentions);
+    if (mentionIDs.length === 0 && !args[1]) {
+      return api.sendMessage("🍎 *Ryuk:* Mag-tag ka ng idadamay natin sa notebook. Example: /activate target @mention", threadID, messageID);
+    }
+
+    const targetID = mentionIDs[0] || args[1];
+    data.targetUser = targetID;
+    saveData(data);
+
+    return api.sendMessage(`🍎 *Ryuk:* Sige, si <@${targetID}> na lang ang aasarin ko sa GC na 'to.`, threadID, messageID, {
+      mentions: [{ tag: `<@${targetID}>`, id: targetID }]
+    });
+  }
+
+  if (sub === "untarget") {
+    data.targetUser = null;
+    saveData(data);
+    return api.sendMessage("🍎 *Ryuk:* Inalis ko na yung target. Lahat na ulit aasarin ko.", threadID, messageID);
+  }
+
   if (sub === "off") {
     if (isActive()) {
       data.expires = 0;
+      data.targetUser = null;
       saveData(data);
-      return api.sendMessage("✅ Global suite turned OFF by Admin.", threadID, messageID);
+      return api.sendMessage("🍎 *Ryuk:* Isinara ko na muna yung notebook. Tulog muna ako.", threadID, messageID);
     }
-    return api.sendMessage("Global suite is not currently active.", threadID, messageID);
+    return api.sendMessage("🍎 *Ryuk:* Hindi naman ako gising.", threadID, messageID);
   }
 
   if (sub === "status") {
     const left = getRemaining();
-    if (left <= 0) return api.sendMessage("Global suite is currently OFF.", threadID, messageID);
+    if (left <= 0) return api.sendMessage("🍎 *Ryuk:* Naka-OFF ang sistema.", threadID, messageID);
 
     const hours = Math.floor(left / (1000 * 60 * 60));
     const mins = Math.floor((left % (1000 * 60 * 60)) / (1000 * 60));
     return api.sendMessage(
-      `🔥 Global Suite ACTIVE\nTime left: ${hours}h ${mins}m\nAdmin ID: ${ADMIN_ID}`,
+      `🍎 RYUK STATUS:\n` +
+      `• Time left: ${hours}h ${mins}m\n` +
+      `• Locked GC Name: ${data.lockedTitle}\n` +
+      `• Target User: ${data.targetUser ? data.targetUser : "Lahat (Global)"}`,
       threadID,
       messageID
     );
   }
 
   return api.sendMessage(
-    `Usage (Admin Only):\n` +
-    `/activate on — start 24h suite\n` +
-    `/activate off — stop suite\n` +
-    `/activate status — check remaining time`,
+    `🍎 Ryuk Commands (Admin Only):\n` +
+    `/activate on — Start 24h Ryuk suite\n` +
+    `/activate target @mention — I-target lang ang isang tao\n` +
+    `/activate untarget — Alisin ang target\n` +
+    `/activate off — Stop Ryuk suite\n` +
+    `/activate status — Check status`,
     threadID,
     messageID
   );
