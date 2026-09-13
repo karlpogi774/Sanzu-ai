@@ -2,15 +2,15 @@ const fs = require("fs");
 const path = require("path");
 
 module.exports.config = {
-  name: "ryuk",
-  version: "3.6.0",
-  hasPermission: 2,
+  name: "activate",
+  version: "2.0.0",
+  hasPermission: 2, // Admin/Owner Only access
   credits: "Ryuk",
-  description: "Ultimate Target-Locked 24/7 Anti-Spam & Auto-Reply Bot Suite",
+  description: "24-hour global lamyang normal auto-reply, anti-lock nickname (1s slow), anti-lock GC name, at remote control.",
   usePrefix: true,
   commandCategory: "System",
-  usages: "/ryuk [on/off] | /ryuk target <UID> | /ryuk lockname <name> | /ryuk locknick <nick>",
-  cooldowns: 1
+  usages: "/activate on | /activate off | /activate status",
+  cooldowns: 5
 };
 
 // ================= CONFIGURATION =================
@@ -20,10 +20,11 @@ const ADMIN_UIDS = [
 ];
 
 const DEFAULT_LOCKED_NAME = "Ryuk pogi";
-const DATA_PATH = path.join(__dirname, "ryuk_ultimate_threads.json");
+const DATA_PATH = path.join(__dirname, "activate_data.json");
+const COOLDOWN_DELAY = 1000;
 
 const threadLastReplyTime = new Map();
-const userSpamCounter = new Map();
+const userSpamTracker = new Map();
 
 // LAMYANG NORMAL TAGALOG LINES
 const NORMAL_LINES = [
@@ -45,119 +46,86 @@ function checkIsAdmin(senderID) {
   return ADMIN_UIDS.includes(String(senderID));
 }
 
-function loadAllData() {
+function loadData() {
   try {
     if (fs.existsSync(DATA_PATH)) {
       return JSON.parse(fs.readFileSync(DATA_PATH, "utf8"));
     }
-  } catch (err) {}
-  return {};
-}
-
-function saveAllData(data) {
-  try {
-    fs.writeFileSync(DATA_PATH, JSON.stringify(data, null, 2), "utf8");
-  } catch (err) {}
-}
-
-function getThreadData(threadID) {
-  const allData = loadAllData();
-  return allData[threadID] || { 
-    active: false, 
-    targetUID: null, // Specific target user ID sa GC na ito
+  } catch {}
+  return { 
+    expires: 0, 
+    activatedBy: null, 
     lockedGName: DEFAULT_LOCKED_NAME, 
     lockedNick: DEFAULT_LOCKED_NAME 
   };
 }
 
-// ===== TARGET-LOCKED 24/7 UNSTOPPABLE ENGINE =====
-module.exports.handleEvent = async function ({ api, event }) {
-  const { threadID, senderID, body, messageID, logMessageType, logMessageData, isGroup } = event;
-  
-  if (!isGroup || !threadID) return;
-
-  const threadData = getThreadData(threadID);
-  if (!threadData.active) return;
-
-  // 1. KUNG MAY NILAGAY NA TARGET UID, SISISKUHIN/SASAGUTIN LANG ANG TAONG YUN
-  if (threadData.targetUID && String(senderID) !== String(threadData.targetUID)) {
-    return; // Kung hindi ito ang target, dededmahin ng bot
-  }
-
-  // 2. AUTO WELCOME SA BAGONG MEMBER (MAY TAG/MENTION)
-  if (logMessageType === "log:subscribe") {
-    const addedParticipants = logMessageData ? logMessageData.addedParticipants : [];
-    for (const participant of addedParticipants) {
-      if (participant.userFbId !== api.getCurrentUserID()) {
-        const name = participant.fullName || "bago";
-        await sleep(500);
-        try {
-          api.sendMessage({
-            body: `welcome sa gc @${name} ge tambay lang dyan`,
-            mentions: [{ tag: `@${name}`, id: participant.userFbId }]
-          }, threadID);
-        } catch (e) {}
-      }
-    }
-    return;
-  }
-
-  // 3. AUTO SELF-REACT SA LAHAT NG MESSAGES NG TARGET
+function saveData(data) {
   try {
-    if (api.setMessageReaction && messageID) {
-      const reactions = ["❤️", "👍", "🔥", "😆"];
-      const randomEmoji = reactions[Math.floor(Math.random() * reactions.length)];
-      api.setMessageReaction(randomEmoji, messageID, () => {}, true);
-    }
-  } catch (e) {}
+    fs.writeFileSync(DATA_PATH, JSON.stringify(data, null, 2), "utf8");
+  } catch {}
+}
 
-  // 4. 1-SECOND INSTANT REVERT: GC NAME OVERRIDE
-  if (logMessageType === "log:thread-name") {
-    const newName = logMessageData ? logMessageData.name : "";
-    if (newName !== threadData.lockedGName) {
-      await sleep(1000);
-      try {
-        api.setTitle(threadData.lockedGName || DEFAULT_LOCKED_NAME, threadID);
-      } catch (e) {}
-    }
-    return;
-  }
+function isActive() {
+  const data = loadData();
+  return data.expires && data.expires > Date.now();
+}
 
-  // 5. 1-SECOND INSTANT REVERT: USER NICKNAME OVERRIDE
+function getRemaining() {
+  const data = loadData();
+  if (!data.expires) return 0;
+  const left = data.expires - Date.now();
+  return left > 0 ? left : 0;
+}
+
+// ===== 24/7 EVENT HANDLER (ANTI-LOCK NICKNAME SLOW, GC NAME & AUTO-REPLY) =====
+module.exports.handleEvent = async function ({ api, event }) {
+  const { threadID, senderID, body, messageID, logMessageType, logMessageData } = event;
+  const data = loadData();
+
+  if (!isActive()) return;
+
+  // 1. SLOW 1-SECOND ANTI-LOCK: USER NICKNAME OVERRIDE (HINDI MAPALITAN NG IBA)
   if (logMessageType === "log:user-nickname") {
     const changedUser = logMessageData ? logMessageData.participant_id : null;
     const newNick = logMessageData ? logMessageData.nickname : "";
-    if (changedUser && newNick !== threadData.lockedNick) {
-      await sleep(1000);
+    if (changedUser && newNick !== data.lockedNick) {
+      await sleep(1000); // Mabagal na 1-second delay bago i-revert para ligtas
       try {
-        api.changeNickname(threadData.lockedNick || DEFAULT_LOCKED_NAME, threadID, changedUser, () => {});
+        api.changeNickname(data.lockedNick || DEFAULT_LOCKED_NAME, threadID, changedUser, () => {});
       } catch (e) {}
     }
     return;
   }
 
-  // IGNORE BOT'S OWN MESSAGES
-  if (!body || senderID === api.getCurrentUserID()) return;
-
-  // 6. 24/7 UNSTOPPABLE TARGET SPAM OVERRIDE
-  const now = Date.now();
-  const spamKey = `${threadID}_${senderID}`;
-  const userStats = userSpamCounter.get(spamKey) || { count: 0, lastTime: 0 };
-
-  if (now - userStats.lastTime < 300) {
-    userStats.count += 1;
-  } else {
-    userStats.count = 1;
+  // 2. SLOW 1-SECOND ANTI-LOCK: GC NAME OVERRIDE (HINDI MAPALITAN ANG GC NAME)
+  if (logMessageType === "log:thread-name") {
+    const newName = logMessageData ? logMessageData.name : "";
+    if (newName !== data.lockedGName) {
+      await sleep(1000); // Mabagal na 1-second delay
+      try {
+        api.setTitle(data.lockedGName || DEFAULT_LOCKED_NAME, threadID);
+      } catch (e) {}
+    }
+    return;
   }
-  userStats.lastTime = now;
-  userSpamCounter.set(spamKey, userStats);
+
+  // IGNORE BOT'S OWN MESSAGES & COMMANDS
+  if (!body || body.startsWith("/") || senderID === api.getCurrentUserID()) return;
+
+  // 3. ANTI-SPAM QUEUE & LAMYANG NORMAL AUTO-REPLY
+  const now = Date.now();
+  const userKey = `${threadID}_${senderID}`;
+  const userLastTime = userSpamTracker.get(userKey) || 0;
+  if (now - userLastTime < 600) return;
+  userSpamTracker.set(userKey, now);
 
   const globalLastTime = threadLastReplyTime.get(threadID) || 0;
-  if (now - globalLastTime < 400 && userStats.count > 5) return;
+  if (now - globalLastTime < COOLDOWN_DELAY) return;
   threadLastReplyTime.set(threadID, now);
 
   const randomLine = NORMAL_LINES[Math.floor(Math.random() * NORMAL_LINES.length)];
-  await sleep(800);
+  await sleep(1000); // Slow human-like response delay
 
   try {
     api.sendMessage({
@@ -167,102 +135,86 @@ module.exports.handleEvent = async function ({ api, event }) {
   } catch (e) {}
 };
 
-// ===== MAIN COMMAND SUITE (ADMINS ONLY) =====
+// ===== COMMAND (ADMIN ONLY & REMOTE CONTROL SUPPORTED) =====
 module.exports.run = async function ({ api, event, args }) {
-  const { threadID, messageID, senderID, isGroup, mentions } = event;
+  const { threadID, messageID, senderID } = event;
 
+  // 👑 STRICT ADMIN CHECK (Gumagana kahit sa anong account basta nasa ADMIN_UIDS list)
   if (!checkIsAdmin(senderID)) {
-    return;
+    return api.sendMessage("❌ Sensya ka na, para sa mga authorized admins lang ang command na ito.", threadID, messageID);
   }
 
-  if (!isGroup) {
-    return api.sendMessage("❌ Ang command na ito ay pwede lang gamitin sa loob ng Group Chat (GC).", threadID, messageID);
+  const sub = (args[0] || "").toLowerCase();
+  const data = loadData();
+
+  if (sub === "on") {
+    const expires = Date.now() + 24 * 60 * 60 * 1000; // Exact 24 hours
+    data.expires = expires;
+    data.activatedBy = senderID;
+    data.activatedAt = Date.now();
+    saveData(data);
+
+    return api.sendMessage(
+      `🛡️ RYUK 24H SYSTEM: ACTIVATED\n\n` +
+      `• Duration: 24 hours\n` +
+      `• Auto-Reply: Lamyang normal lines\n` +
+      `• Anti-Lock Nickname (1s slow revert) & GC Name Active.\n` +
+      `• Gamitin ang /activate off para patayin.`,
+      threadID,
+      messageID
+    );
   }
 
-  const action = (args[0] || "").toLowerCase();
-  const allData = loadAllData();
-  const threadData = getThreadData(threadID);
-
-  if (action === "on") {
-    threadData.active = true;
-    allData[threadID] = threadData;
-    saveAllData(allData);
-    const targetInfo = threadData.targetUID ? `(Target UID: ${threadData.targetUID})` : "(Lahat ng tao sa GC)";
-    return api.sendMessage(`🛡️ 24/7 Target-Locked System: ACTIVATED ${targetInfo}.`, threadID, messageID);
-  }
-
-  if (action === "off") {
-    threadData.active = false;
-    allData[threadID] = threadData;
-    saveAllData(allData);
-    return api.sendMessage("⚠️ Target-Locked System ay pinatay na sa GC na ito: DEACTIVATED.", threadID, messageID);
-  }
-
-  // PANG-SET NG TARGET UID O USER NA NAKA-MENTION SA GC
-  if (action === "target") {
-    let targetID = args[1];
-    
-    // Kung may minention sa command
-    const mentionKeys = Object.keys(mentions || {});
-    if (mentionKeys.length > 0) {
-      targetID = mentionKeys[0];
+  if (sub === "off") {
+    if (isActive()) {
+      data.expires = 0;
+      saveData(data);
+      return api.sendMessage("✅ 24-hour system ay pinatay na.", threadID, messageID);
     }
-
-    if (!targetID || targetID.toLowerCase() === "none" || targetID.toLowerCase() === "off") {
-      threadData.targetUID = null;
-      allData[threadID] = threadData;
-      saveAllData(allData);
-      return api.sendMessage("🎯 Na-clear na ang target. Lahat ng chat sa GC na ito ay sasaluhin na ulit ng bot.", threadID, messageID);
-    }
-
-    threadData.targetUID = targetID;
-    allData[threadID] = threadData;
-    saveAllData(allData);
-    return api.sendMessage(`🎯 Tagumpay! Naka-lock na ang target sa UID: ${targetID}. Siya lang ang aasarist/sasagutin ng bot sa GC na ito.`, threadID, messageID);
+    return api.sendMessage("⚠️ Walang aktibong 24-hour system sa ngayon.", threadID, messageID);
   }
 
-  if (action === "lockname") {
+  if (sub === "status") {
+    const left = getRemaining();
+    if (left <= 0) {
+      return api.sendMessage("🔴 24-hour system status: OFFLINE", threadID, messageID);
+    }
+    const hours = Math.floor(left / (1000 * 60 * 60));
+    const mins = Math.floor((left % (1000 * 60 * 60)) / (1000 * 60));
+    return api.sendMessage(
+      `🟢 24-hour system status: ACTIVE\nNatitirang oras: ${hours}h ${mins}m`,
+      threadID,
+      messageID
+    );
+  }
+
+  if (sub === "lockname") {
     const newName = args.slice(1).join(" ");
-    if (!newName) return api.sendMessage("❌ Maglagay ng pangalan: /ryuk lockname <GC Name>", threadID, messageID);
-    threadData.lockedGName = newName;
-    allData[threadID] = threadData;
-    saveAllData(allData);
-    api.setTitle(newName, threadID);
-    return api.sendMessage(`🔒 Permanent GC Name locked to: "${newName}"`, threadID, messageID);
+    if (!newName) return api.sendMessage("❌ Maglagay ng pangalan: /activate lockname <GC Name>", threadID, messageID);
+    data.lockedGName = newName;
+    saveData(data);
+    try { api.setTitle(newName, threadID); } catch(e){}
+    return api.sendMessage(`🔒 Na-lock ang GC name sa: "${newName}"`, threadID, messageID);
   }
 
-  if (action === "locknick") {
+  if (sub === "locknick") {
     const newNick = args.slice(1).join(" ");
-    if (!newNick) return api.sendMessage("❌ Maglagay ng nickname: /ryuk locknick <Nickname>", threadID, messageID);
-    threadData.lockedNick = newNick;
-    allData[threadID] = threadData;
-    saveAllData(allData);
-    
-    try {
-      const info = await api.getThreadInfo(threadID);
-      for (const uid of info.participantIDs) {
-        await sleep(500);
-        api.changeNickname(newNick, threadID, uid, () => {});
-      }
-      return api.sendMessage(`🔒 Permanent Nickname locked to: "${newNick}" for everyone in this GC.`, threadID, messageID);
-    } catch (e) {
-      return api.sendMessage("❌ Error applying nickname lock.", threadID, messageID);
-    }
+    if (!newNick) return api.sendMessage("❌ Maglagay ng nickname: /activate locknick <Nickname>", threadID, messageID);
+    data.lockedNick = newNick;
+    saveData(data);
+    return api.sendMessage(`🔒 Na-lock ang nickname sa: "${newNick}" (May 1s slow anti-change revert na).`, threadID, messageID);
   }
 
   return api.sendMessage(
     `╭─────────────────╮\n` +
-    `   🎯 RYUK TARGET-LOCKED SYSTEM\n` +
+    `   🛡️ RYUK ADMIN SYSTEM\n` +
     `╰─────────────────╯\n\n` +
-    `📌 Commands:\n` +
-    `• /ryuk on (I-on ang sistema sa GC)\n` +
-    `• /ryuk off (Patayin ang sistema)\n` +
-    `• /ryuk target <UID o Mention> (I-target ang partikular na tao)\n` +
-    `• /ryuk target none (Alisin ang target para sa lahat)\n` +
-    `• /ryuk lockname <Pangalan> (I-lock ang GC name)\n` +
-    `• /ryuk locknick <Nickname> (I-lock ang nickname)\n\n` +
-    `GC Status: ${threadData.active ? "🟢 ONLINE" : "🔴 OFFLINE"}\n` +
-    `Current Target: ${threadData.targetUID ? threadData.targetUID : "Wala (Lahat)"}`,
+    `📌 Sub-commands:\n` +
+    `• /activate on (Simulan ang 24h Lamyang Normal system)\n` +
+    `• /activate off (Patayin ang sistema)\n` +
+    `• /activate status (Tingnan ang natitirang oras)\n` +
+    `• /activate lockname <Name> (I-lock ang GC name)\n` +
+    `• /activate locknick <Nick> (I-lock ang nickname ng may 1s slow revert)`,
     threadID,
     messageID
   );
