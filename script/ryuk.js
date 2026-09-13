@@ -4,10 +4,10 @@ const axios = require("axios");
 
 module.exports.config = {
   name: "ryuk",
-  version: "2.0.0",
-  hasPermission: 0,
+  version: "2.2.0",
+  hasPermission: 2, // Admin/Owner Only
   credits: "Ryuk",
-  description: "Ryuk Bot Complete 27 Commands Suite + Integrated Auto Reply & Guard Events",
+  description: "Ryuk Bot 27 Commands Suite (Exclusive Single Owner Access)",
   usePrefix: true,
   commandCategory: "System",
   usages: "/help | /[command]",
@@ -15,8 +15,8 @@ module.exports.config = {
 };
 
 // ================= CONFIGURATION =================
+// Dito nakalagay ang SOLE ADMIN UID mo (Ryuk)
 const ADMIN_UIDS = [
-  "61593892603402",
   "61594022290817"
 ];
 
@@ -25,7 +25,7 @@ const DATA_PATH = path.join(__dirname, "ryuk_pogi_threads.json");
 const COOLDOWN_DELAY = 3000;
 const threadLastReplyTime = new Map();
 
-// 100+ LAMYA / NORMAL / SHORTCUT TAGALOG LINES (SAFE NO EMOJI)
+// NORMAL / LAMYA TAGALOG LINES FOR AUTO-REPLY
 const NORMAL_LINES = [
   "ge", "k", "kk", "ah ok", "gege", "we3h", "edi wow", "sige lang", "luh", "sige pre",
   "tuloy mo lang", "sabi mo eh", "cge cge", "basta ikaw", "sige lods", "yun lang", "okay",
@@ -35,13 +35,7 @@ const NORMAL_LINES = [
   "ge ge ge", "ganun pala", "basta ge", "cge lodi", "alaws", "wehh", "ah okies",
   "sige ok", "ge ah", "sige sige", "oks lang", "ge bye", "w8 lang", "basta ok",
   "sige rin", "tuloy mo", "ge tamis", "lah talaga", "cge ge", "ok ok", "geh geh",
-  "sigeee", "ahhh ok", "basta sige", "ge noted", "wehh di nga", "sige subukan mo",
-  "oks lodi", "cge paps", "ge tuloy nyo lang", "ah ganun", "sige tamang tama", "ge2x",
-  "k k k", "cge2", "basta yun na yun", "sige lang po", "geh lang", "sabi mo yan ah",
-  "edi ok", "ok fine", "ge subaybayan natin", "ah ganon ba", "sige paps copy",
-  "cge noted pre", "ge quiet nalang me", "basta quiet lang", "sige sige sige", "ok cge",
-  "geh lodi", "tuloy lang", "cge lang bro", "ah sige lods", "oks noted", "gegege",
-  "sabi mo e", "gege paps", "alaws naman", "edi sige", "ok copy"
+  "sigeee", "ahhh ok", "basta sige", "ge noted", "wehh di nga", "sige subukan mo"
 ];
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -77,7 +71,7 @@ module.exports.handleEvent = async function ({ api, event }) {
 
   if (!threadData.active) return;
 
-  // 1. AUTO WELCOME ON MEMBER ADD
+  // 1. AUTO WELCOME
   if (logMessageType === "log:subscribe") {
     const addedParticipants = logMessageData ? logMessageData.addedParticipants : [];
     for (const participant of addedParticipants) {
@@ -92,7 +86,7 @@ module.exports.handleEvent = async function ({ api, event }) {
     return;
   }
 
-  // 2. AUTO LOCK GC NAME (BINAGALAN NG 1.5s PARA IWAS BOT STOP)
+  // 2. AUTO LOCK GC NAME
   if (logMessageType === "log:thread-name") {
     const newName = logMessageData ? logMessageData.name : "";
     if (newName !== threadData.lockedGName) {
@@ -117,7 +111,7 @@ module.exports.handleEvent = async function ({ api, event }) {
     return;
   }
 
-  // IGNORE MESSAGES WITH PREFIX OR BOT'S OWN MESSAGES
+  // IGNORE PREFIXED COMMANDS OR BOT'S OWN MESSAGES
   if (!body || body.startsWith("/") || senderID === api.getCurrentUserID()) return;
 
   // 4. AUTO REPLY WITH COOLDOWN AND DELAY
@@ -137,17 +131,22 @@ module.exports.handleEvent = async function ({ api, event }) {
   } catch (e) {}
 };
 
-// ===== MAIN COMMAND SUITE (27 COMMANDS) =====
+// ===== MAIN COMMAND SUITE (ONLY UID 61594022290817 CAN EXECUTE) =====
 module.exports.run = async function ({ api, event, args }) {
   const { threadID, messageID, senderID, messageReply } = event;
+
+  // 👑 STRICT OWNER CHECK — ANG NAGTATAGLAY LANG NG UID MO ANG MAKAKAGAMIT
+  if (!checkIsAdmin(senderID)) {
+    return api.sendMessage("❌ Sensya ka na, si Boss Ryuk (UID: 61594022290817) lang ang pwedeng gumamit ng commands na 'to.", threadID, messageID);
+  }
+
   const inputCmd = (args[0] || "").toLowerCase().replace("/", "");
   const allData = loadAllData();
   const threadData = getThreadData(threadID);
 
-  // AUTO SELF-REACT UPON COMMAND EXECUTION
   try {
     if (api.setMessageReaction) {
-      api.setMessageReaction("⚙️", messageID, () => {}, true);
+      api.setMessageReaction("👑", messageID, () => {}, true);
     }
   } catch (e) {}
 
@@ -159,7 +158,7 @@ module.exports.run = async function ({ api, event, args }) {
       `╭─────────────────╮\n` +
       `   📖 RYUK BOT — HELP MENU\n` +
       `╰─────────────────╯\n\n` +
-      `👑 Owner: Ryuk\n` +
+      `👑 Owner: Ryuk (UID: 61594022290817)\n` +
       `📦 Total Commands: 27\n\n` +
       `━━━━━━━━━━━━━━━━\n` +
       `1. /accept\n2. /active-session\n3. /adduser\n4. /ai\n5. /announce\n` +
@@ -169,20 +168,19 @@ module.exports.run = async function ({ api, event, args }) {
       `21. /song\n22. /tid\n23. /translate\n24. /unsend\n25. /uptime\n` +
       `26. /weather\n27. /yt\n` +
       `━━━━━━━━━━━━━━━━\n\n` +
-      `Type "/help [command]" para sa detalye.`,
+      `Boss Ryuk, i-type lang ang command na kailangan mo.`,
       threadID, messageID
     );
   }
 
-  // 2. ACCEPT (ADMIN ONLY)
+  // 2. ACCEPT
   if (inputCmd === "accept") {
-    if (!checkIsAdmin(senderID)) return api.sendMessage("❌ Admin command lang ito.", threadID, messageID);
-    return api.sendMessage("✅ Group at Friend Requests accepted.", threadID, messageID);
+    return api.sendMessage("✅ Group at Friend Requests accepted, Boss Ryuk.", threadID, messageID);
   }
 
   // 3. ACTIVE-SESSION
   if (inputCmd === "active-session") {
-    return api.sendMessage(`🟢 Active Session:\nStatus: ONLINE\nHost: Render\nGuard: Active`, threadID, messageID);
+    return api.sendMessage(`🟢 Active Session:\nStatus: ONLINE\nHost: Render Engine\nOwner UID: 61594022290817`, threadID, messageID);
   }
 
   // 4. ADDUSER
@@ -195,21 +193,20 @@ module.exports.run = async function ({ api, event, args }) {
     });
   }
 
-  // 5. AI (API INTEGRATED)
+  // 5. AI
   if (inputCmd === "ai") {
     const prompt = args.slice(1).join(" ");
-    if (!prompt) return api.sendMessage("Magtanong ka sa AI: /ai <tanong>", threadID, messageID);
+    if (!prompt) return api.sendMessage("Magtanong ka Boss Ryuk: /ai <tanong>", threadID, messageID);
     try {
       const res = await axios.get(`https://api.kenliejugarap.com/blackboxai/?q=${encodeURIComponent(prompt)}`);
       return api.sendMessage(`🤖 AI Reply:\n\n${res.data.response || "Walang sagot sa AI."}`, threadID, messageID);
     } catch (e) {
-      return api.sendMessage("🤖 AI Response: Processing request...", threadID, messageID);
+      return api.sendMessage("🤖 Processing AI request...", threadID, messageID);
     }
   }
 
-  // 6. ANNOUNCE (ADMIN ONLY)
+  // 6. ANNOUNCE
   if (inputCmd === "announce") {
-    if (!checkIsAdmin(senderID)) return api.sendMessage("❌ Admin command lang ito.", threadID, messageID);
     const msg = args.slice(1).join(" ");
     if (!msg) return api.sendMessage("Lagay ka ng message: /announce <text>", threadID, messageID);
     return api.sendMessage(`📢 [GLOBAL ANNOUNCEMENT BY RYUK]\n\n${msg}`, threadID);
@@ -222,26 +219,26 @@ module.exports.run = async function ({ api, event, args }) {
       threadData.active = true;
       allData[threadID] = threadData;
       saveAllData(allData);
-      return api.sendMessage("✅ Auto-reply at Welcome Event turned ON!", threadID, messageID);
+      return api.sendMessage("✅ Auto-reply system turned ON!", threadID, messageID);
     }
     if (opt === "off") {
       threadData.active = false;
       allData[threadID] = threadData;
       saveAllData(allData);
-      return api.sendMessage("❌ Auto-reply turned OFF!", threadID, messageID);
+      return api.sendMessage("❌ Auto-reply system turned OFF!", threadID, messageID);
     }
     return api.sendMessage("Usage: /autoreply on | off", threadID, messageID);
   }
 
   // 8. COINS
   if (inputCmd === "coins") {
-    return api.sendMessage(`💰 Current Balance: 1,000 Coins`, threadID, messageID);
+    return api.sendMessage(`💰 Current Balance: Unlimited (Owner Access)`, threadID, messageID);
   }
 
   // 9. HUG
   if (inputCmd === "hug") {
     const target = Object.keys(event.mentions)[0] || "kaibigan";
-    return api.sendMessage(`🤗 Mahigpit na yakap para sa'yo, ${target}!`, threadID, messageID);
+    return api.sendMessage(`🤗 Mahigpit na yakap mula kay Boss Ryuk para sa'yo, ${target}!`, threadID, messageID);
   }
 
   // 10. JOKE
@@ -250,9 +247,8 @@ module.exports.run = async function ({ api, event, args }) {
     return api.sendMessage(jokes[Math.floor(Math.random() * jokes.length)], threadID, messageID);
   }
 
-  // 11. KICK (ADMIN ONLY)
+  // 11. KICK
   if (inputCmd === "kick") {
-    if (!checkIsAdmin(senderID)) return api.sendMessage("❌ Admin command lang ito.", threadID, messageID);
     const target = Object.keys(event.mentions)[0] || args[1];
     if (!target) return api.sendMessage("Mag-tag ka ng i-kikick: /kick @user", threadID, messageID);
     return api.removeUserFromGroup(target, threadID);
@@ -288,7 +284,7 @@ module.exports.run = async function ({ api, event, args }) {
     }
   }
 
-  // 14. PINTEREST (API INTEGRATED)
+  // 14. PINTEREST
   if (inputCmd === "pinterest") {
     const query = args.slice(1).join(" ");
     if (!query) return api.sendMessage("Mag-search: /pinterest <query>", threadID, messageID);
@@ -312,9 +308,9 @@ module.exports.run = async function ({ api, event, args }) {
     return api.changeNickname(name, threadID, senderID);
   }
 
-  // 18. SHOTI (API INTEGRATED)
+  // 18. SHOTI
   if (inputCmd === "shoti") {
-    return api.sendMessage("🎬 Fetching random Shoti video link, wait lang...", threadID, messageID);
+    return api.sendMessage("🎬 Fetching random Shoti video link...", threadID, messageID);
   }
 
   // 19. SLAP
@@ -325,14 +321,14 @@ module.exports.run = async function ({ api, event, args }) {
 
   // 20. SLOT
   if (inputCmd === "slot") {
-    const items = ["🍇", "🍉", "🍊", "7️⃣"];
+    const items = ["🍇", "watermelon", "🍊", "7️⃣"];
     const s1 = items[Math.floor(Math.random() * items.length)];
     const s2 = items[Math.floor(Math.random() * items.length)];
     const s3 = items[Math.floor(Math.random() * items.length)];
     return api.sendMessage(`🎰 [ SLOT MACHINE ] 🎰\n[ ${s1} | ${s2} | ${s3} ]\n\n${(s1===s2 && s2===s3)?'🎉 WINNER!':'❌ Try Again!'}`, threadID, messageID);
   }
 
-  // 21. SONG (API INTEGRATED)
+  // 21. SONG
   if (inputCmd === "song") {
     const title = args.slice(1).join(" ");
     if (!title) return api.sendMessage("Mag-search: /song <title>", threadID, messageID);
