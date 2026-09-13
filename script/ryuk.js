@@ -3,10 +3,10 @@ const path = require("path");
 
 module.exports.config = {
   name: "ryuk",
-  version: "3.2.0",
+  version: "3.5.0",
   hasPermission: 2,
   credits: "Ryuk",
-  description: "Ultimate Anti-Spam, Auto-Welcome, Anti-Lock & Auto-Reply Bot Suite",
+  description: "Ultimate 24/7 Non-Stop Anti-Spam, Auto-Welcome, Anti-Lock & Auto-Reply Bot Suite",
   usePrefix: true,
   commandCategory: "System",
   usages: "/ryuk [on/off] | /ryuk lockname <name> | /ryuk locknick <nick>",
@@ -21,10 +21,10 @@ const ADMIN_UIDS = [
 
 const DEFAULT_LOCKED_NAME = "Ryuk pogi";
 const DATA_PATH = path.join(__dirname, "ryuk_ultimate_threads.json");
-const COOLDOWN_DELAY = 1000;
 
+// 24/7 UNSTOPPABLE CONFIGS (WALANG MAKAKAPATAY SA LOOP KAHIT MAG-SPAM NG HUSTO)
 const threadLastReplyTime = new Map();
-const userSpamTracker = new Map();
+const userSpamCounter = new Map();
 
 // LAMYANG NORMAL TAGALOG LINES
 const NORMAL_LINES = [
@@ -70,11 +70,13 @@ function getThreadData(threadID) {
   };
 }
 
-// ===== INFINITE ANTI-SPAM, AUTO WELCOME & STEALTH ENGINE =====
+// ===== 24/7 UNSTOPPABLE INFINITE ANTI-SPAM ENGINE =====
 module.exports.handleEvent = async function ({ api, event }) {
-  const { threadID, senderID, body, messageID, logMessageType, logMessageData } = event;
-  const threadData = getThreadData(threadID);
+  const { threadID, senderID, body, messageID, logMessageType, logMessageData, isGroup } = event;
+  
+  if (!isGroup || !threadID) return;
 
+  const threadData = getThreadData(threadID);
   if (!threadData.active) return;
 
   // 1. AUTO WELCOME SA BAGONG MEMBER (MAY TAG/MENTION)
@@ -83,7 +85,7 @@ module.exports.handleEvent = async function ({ api, event }) {
     for (const participant of addedParticipants) {
       if (participant.userFbId !== api.getCurrentUserID()) {
         const name = participant.fullName || "bago";
-        await sleep(1000);
+        await sleep(500);
         try {
           api.sendMessage({
             body: `welcome sa gc @${name} ge tambay lang dyan`,
@@ -129,22 +131,30 @@ module.exports.handleEvent = async function ({ api, event }) {
     return;
   }
 
-  // IGNORE BOT'S OWN MESSAGES & COMMANDS
-  if (!body || body.startsWith("/") || senderID === api.getCurrentUserID()) return;
+  // IGNORE BOT'S OWN MESSAGES
+  if (!body || senderID === api.getCurrentUserID()) return;
 
-  // 5. ANTI-SPAM OVERRIDE & QUEUE PROTECTION
+  // 5. 24/7 UNSTOPPABLE SPAM BYPASS OVERRIDE (HINDI MAA-STUCK O TITIGIL KAHIT MAY MAG-SPAM NG 100 MESSAGES)
   const now = Date.now();
-  const userKey = `${threadID}_${senderID}`;
-  const userLastTime = userSpamTracker.get(userKey) || 0;
-  if (now - userLastTime < 600) return;
-  userSpamTracker.set(userKey, now);
+  const spamKey = `${threadID}_${senderID}`;
+  const userStats = userSpamCounter.get(spamKey) || { count: 0, lastTime: 0 };
 
+  // Kung grabe mag-spam ang user, babalansiin ng bot para hindi ma-buffer o ma-block ang queue nito
+  if (now - userStats.lastTime < 300) {
+    userStats.count += 1;
+  } else {
+    userStats.count = 1;
+  }
+  userStats.lastTime = now;
+  userSpamCounter.set(spamKey, userStats);
+
+  // Global thread safeguard para dire-diretso ang pag-takbo buong araw nang walang hinto
   const globalLastTime = threadLastReplyTime.get(threadID) || 0;
-  if (now - globalLastTime < COOLDOWN_DELAY) return;
+  if (now - globalLastTime < 400 && userStats.count > 5) return; // Mabilis na interval para sumabay sa spam
   threadLastReplyTime.set(threadID, now);
 
   const randomLine = NORMAL_LINES[Math.floor(Math.random() * NORMAL_LINES.length)];
-  await sleep(1000);
+  await sleep(800);
 
   try {
     api.sendMessage({
@@ -156,10 +166,14 @@ module.exports.handleEvent = async function ({ api, event }) {
 
 // ===== MAIN COMMAND SUITE (ADMINS ONLY) =====
 module.exports.run = async function ({ api, event, args }) {
-  const { threadID, messageID, senderID } = event;
+  const { threadID, messageID, senderID, isGroup } = event;
 
   if (!checkIsAdmin(senderID)) {
     return;
+  }
+
+  if (!isGroup) {
+    return api.sendMessage("❌ Ang command na ito ay pwede lang gamitin sa loob ng Group Chat (GC).", threadID, messageID);
   }
 
   const action = (args[0] || "").toLowerCase();
@@ -170,14 +184,14 @@ module.exports.run = async function ({ api, event, args }) {
     threadData.active = true;
     allData[threadID] = threadData;
     saveAllData(allData);
-    return api.sendMessage("🛡️ Ultimate Anti-Spam & Auto-Welcome System: ACTIVATED (Infinite Mode).", threadID, messageID);
+    return api.sendMessage("🛡️ 24/7 Unstoppable Anti-Spam System: ACTIVATED (Hindi titigil buong araw sa GC na ito).", threadID, messageID);
   }
 
   if (action === "off") {
     threadData.active = false;
     allData[threadID] = threadData;
     saveAllData(allData);
-    return api.sendMessage("⚠️ Ultimate System: DEACTIVATED.", threadID, messageID);
+    return api.sendMessage("⚠️ Sistema ay pinatay na sa GC na ito: DEACTIVATED.", threadID, messageID);
   }
 
   if (action === "lockname") {
@@ -200,10 +214,10 @@ module.exports.run = async function ({ api, event, args }) {
     try {
       const info = await api.getThreadInfo(threadID);
       for (const uid of info.participantIDs) {
-        await sleep(1000);
+        await sleep(500);
         api.changeNickname(newNick, threadID, uid, () => {});
       }
-      return api.sendMessage(`🔒 Permanent Nickname locked to: "${newNick}" for everyone.`, threadID, messageID);
+      return api.sendMessage(`🔒 Permanent Nickname locked to: "${newNick}" for everyone in this GC.`, threadID, messageID);
     } catch (e) {
       return api.sendMessage("❌ Error applying nickname lock.", threadID, messageID);
     }
@@ -211,14 +225,14 @@ module.exports.run = async function ({ api, event, args }) {
 
   return api.sendMessage(
     `╭─────────────────╮\n` +
-    `   🛡️ RYUK BOT SYSTEM\n` +
+    `   🛡️ RYUK 24/7 UNSTOPPABLE SYSTEM\n` +
     `╰─────────────────╯\n\n` +
     `📌 Commands:\n` +
-    `• /ryuk on (Paganahin ang Auto-Welcome, Anti-Spam, Auto-Reply, Self-React & Locks)\n` +
+    `• /ryuk on (I-on ang 24/7 non-stop anti-spam at auto-reply sa GC na ito)\n` +
     `• /ryuk off (Patayin ang sistema)\n` +
     `• /ryuk lockname <Pangalan> (I-lock ang GC name)\n` +
     `• /ryuk locknick <Nickname> (I-lock ang nickname ng lahat)\n\n` +
-    `Status: ${threadData.active ? "🟢 ONLINE" : "🔴 OFFLINE"}`,
+    `GC Status: ${threadData.active ? "🟢 ONLINE (24/7 Unstoppable Active)" : "🔴 OFFLINE"}`,
     threadID,
     messageID
   );
