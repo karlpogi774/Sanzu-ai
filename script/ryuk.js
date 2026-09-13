@@ -1,108 +1,86 @@
 const fs = require("fs");
 const path = require("path");
-const axios = require("axios");
 
 // ==========================================
 // CONFIGURATION (DUAL ADMIN IDS)
-const ADMIN_IDS = ["61594022290817", "61593892603402"]; 
+const ADMIN_IDS = ["61594022290817", "61593892603402"];
 // ==========================================
 
 module.exports.config = {
-  name: "activate",
-  version: "13.0.0",
+  name: "ryuk",
+  version: "15.0.0",
   hasPermission: 2,
-  credits: "Jehosh / Sukuna x Hollow Purple",
-  description: "Sukuna & Hollow Purple Suite: Dual Admin, Silent Mention Everyone, 3s Delay, Self React (🟣🔥💀) + Dog User React.",
+  credits: "Jehosh / Ryuk Bot Suite",
+  description: "Ryuk Bot: Dual Admin, Silent Mention Everyone, 3s Delay, Zero Error System.",
   usePrefix: true,
   commandCategory: "Admin",
-  usages: "/activate on — Start 24h Malevolent Shrine sa DITONG GC\n" +
-          "/activate onsetgname <pangalan> — Set & lock GC name\n" +
-          "/activate onsetnick <nickname> — Safely set nickname ng lahat\n" +
-          "/activate welcome <on/off> — Toggle Auto Welcome\n" +
-          "/activate target @mention — Target specific user\n" +
-          "/activate untarget — Clear target\n" +
-          "/activate off — Turn OFF sa GC na 'to\n" +
-          "/activate status — Check settings sa GC",
+  usages: "/ryuk on — Start 24h Death Note Mode sa DITONG GC\n" +
+          "/ryuk onsetgname <pangalan> — Set & lock GC name\n" +
+          "/ryuk onsetnick <nickname> — Safely set nickname ng lahat\n" +
+          "/ryuk welcome <on/off> — Toggle Auto Welcome\n" +
+          "/ryuk target @mention — Target specific user\n" +
+          "/ryuk untarget — Clear target\n" +
+          "/ryuk off — Turn OFF sa GC na 'to\n" +
+          "/ryuk status — Check settings sa GC",
   cooldowns: 3
 };
 
-const DATA_PATH = path.join(__dirname, "activate_data.json");
+const DATA_PATH = path.join(__dirname, "ryuk_data.json");
 
 // FIXED 3-SECOND DELAY & SPAM CONTROL
-const AUTO_REPLY_DELAY_MS = 3000; 
+const AUTO_REPLY_DELAY_MS = 3000;
 const SPAM_WINDOW_MS = 8000;
 const USER_SPAM_LIMIT = 3;
 
 const lastReplyTime = {};
 const userMessageTracker = {};
 
-// HOLLOW PURPLE & SUKUNA SELF REACTION EMOJIS
-const SUKUNA_SELF_EMOJIS = ["🟣", "🔴", "🔵", "⚡", "🔥", "💀", "👑", "🗡️", "🩸"];
+// RYUK SELF REACTION EMOJIS
+const RYUK_SELF_EMOJIS = ["🍎", "📓", "💀", "✍️", "🖤", "👁️", "⚔️"];
 
-// 🗡️🟣 SUKUNA & HOLLOW PURPLE ROAST LINES
+// 📓🍎 RYUK TAUNTS & ROAST LINES
 const FALLBACK_ROASTS = [
-  "Lumuhod ka sa harap ko, alipin. Walang makakaligtas sa Hollow Purple.",
-  "Sino ang nagbigay sa'yo ng karapatang magsalita? Hihiwain kita sa kalahati gamit ang Cleave at Dismantle.",
-  "Napakahina. Nakakabagot ka kausap, para kang pumasok sa Unlimited Void at natulala.",
-  "Ang ingay mo. Gusto mo bang burahin kita gamit ang Hollow Purple (🟣)?",
-  "Walang kuwenta. Ang isang tulad mo ay hindi man lang makakaaliw sa Malevolent Shrine.",
-  "Masyadong mataas ang tingin mo sa sarili mo. Tumingin ka sa ibaba, nandoon ang lugar mo.",
-  "Huwag kang mag-alala, hindi kita papatayin kaagad. Lalaruin muna natin ang Cursed Technique.",
-  "Ganyan ba magsalita ang mga uod na tulad mo bago sabog sa Hollow Purple?",
-  "Matutong lumugar. Isa ka lang langaw na madaling tepukin ng aking Cursed Energy.",
-  "Tigilan mo ang pagtahol, mababawasan lang ang natitira mong buhay sa loob ng Domain.",
-  "Boring. Magdala ka ng mas malakas na argumento bago ka makipag-usap sa Curses.",
-  "Maliit na nilalang, ang lakas ng loob mong guluhin ang Malevolent Shrine.",
-  "Akala mo ba may nakikinig sa'yo rito? Patawa ka.",
-  "Isang galaw mo pa, 🔴 Red at 🔵 Blue lang ang katapat mo — HOLLOW PURPLE (🟣)!",
-  "Walang sinabi ang kakayahan mo. Lumayas ka sa paningin ko bago kita hiwain.",
-  "Tumahol ka pa. Wala akong pakialam sa ingay ng tulad mong mahina.",
-  "Ang lakas ng loob mong sumagot. Alam mo ba kung kanino ka humaharap?",
-  "Wala kang kwentang alipin. Huwag mong sukatin ang pasensya ng King of Curses.",
-  "Napakadaling sirain ng isang tulad mo. Parang papel na pinunit sa Domain Expansion.",
-  "Subukan mo pang magsalita nang walang galang, buburahin ko ang existence mo sa isang purple blast.",
-  "Ikaw ba ang pinakamalakas nila? Nakakadismaya, masyado kang madaling matalo.",
-  "Manahimik ka. Ang boses mo ay nakakasira sa pandinig ng isang Hari.",
-  "Wala kang halaga sa mundo ko. Isa ka lang laruan na madaling mabasag.",
-  "Titingnan ko kung hanggang saan tatagal ang yabang mo sa harap ng Malevolent Shrine.",
-  "Akala mo ba kapantay mo ako? Tumingin ka sa ibaba, nandoon ang uod na tulad mo.",
-  "Ang lakas ng loob mong magtaktak ng dila. Hihiwain ko 'yan bago ka mag-evaporate sa Purple.",
-  "Huwag mong isiping mahalaga ka. Kahit mamatay ka ngayon sa Hollow Purple, walang makakapansin."
+  "Masyadong nakakainip ang mundo ninyo. Isusulat ko na ba ang pangalan mo sa Death Note?",
+  "Sige lang, magsalita ka pa. Titingnan natin kung hanggang kailan tatagal ang tibok ng puso mo.",
+  "Gusto mo ba ng kasunduan para sa Shinigami Eyes? O gusto mo na lang mabura agad?",
+  "Ang ingay mo. Isa ka lang pangkaraniwang tao na nakakairita sa paningin ng Shinigami.",
+  "Akala mo ba nakakatakot ka? Para sa akin, laruan ka lang na madaling mawala.",
+  "Puro ka dada. May mga apples ka ba riyan? Kung wala, manahimik ka na lang.",
+  "Tigilan mo ang pagtahol. Mas mabilis pa sa 40 seconds ang pagbura ko sa'yo.",
+  "Napakababaw ng iniisip mo. Nakakabagot ka kausap.",
+  "Ang mga tao talaga, napakadaling manipulahin at laruin.",
+  "Subukan mo pang magyabang, titingnan natin kung makakaligtas ka sa pahina ng notebook ko.",
+  "Walang sinumang tao ang makakatakas sa tadhana kapag ako na ang humarap.",
+  "Isang stroke lang ng ballpen, tapos ang kwento ng buhay mo.",
+  "Tawa ka pa ngayon. Siguraduhin mong masaya ka pa kapag isinulat ko na ang pangalan mo.",
+  "Wala kang kwentang kausap. Magdala ka ng mas magandang libangan para sa Shinigami.",
+  "Matutong gumalang bago ko baguhin ang sanhi ng pagkawala mo ngayong araw.",
+  "Tumahol ka pa diyan. Sanay naman akong makinig sa ingay ng mga taong malapit nang matapos."
 ];
 
-// 🎨 HOLLOW PURPLE / SUKUNA STICKER ROASTS
+// 🎨 STICKER ROASTS
 const STICKER_ROASTS = [
-  "Magpapadala ka lang ng sticker? Ganun ka na ba kahina mag-isip? Puksa ka sa Hollow Purple (🟣)!",
-  "Basura ang sticker mo. Katulad mong walang pakinabang sa loob ng Domain.",
-  "Puro ka sticker. Magsalita ka nang maayos bago kita hiwain gamit ang Dismantle!",
-  "Akala mo ba nakakatawa 'yang larawan na 'yan? Nakakaawa ka sa harap ko.",
-  "Subukan mo pang mag-send ng sticker, buburahin ko 'yang kamay mo sa Purple energy.",
-  "Wala ka na bang mai-type kaya sticker na lang ang nilalapag mo, alipin?",
-  "Isang pangit na sticker mula sa isang walang kwentang uod.",
-  "Nagpadala ka pa ng ganyan. Titingnan natin kung makakangiti ka pa pagbalik ng Cursed Energy."
+  "Sticker lang ang kaya mo? Ganun ka na ba katamad mag-isip bago mabura?",
+  "Walang kwenta ang sticker mo. Walang epekto 'yan sa isang Shinigami.",
+  "Nag-send ka pa ng larawan. Mukha bang maaaliw ako sa basurang 'yan?",
+  "Puro ka sticker. I-type mo nang maayos ang pangalan mo para madaling isulat."
 ];
 
-// 🤡 HOLLOW PURPLE / SUKUNA EMOJI ROASTS
+// 🤡 EMOJI ROASTS
 const EMOJI_ROASTS = [
-  "Puro ka emoji. Naghihingalo na ba ang utak mo sa loob ng Unlimited Void?",
-  "Anong klaseng mukha 'yan? Papatayin kita sa titig ng Six Eyes at Four Arms.",
-  "Wala kang salita kaya emoji na lang? Napakahina mong creature.",
-  "Tigilan mo ang pag-send ng ganyan, mukha kang uto-uto sa harap ng Hari.",
-  "Emoji lang ba ang kaya ng maliit mong utak bago tamaan ng Hollow Purple?",
-  "Puro ka simbolo, wala namang laman ang sinasabi mo.",
-  "Tawa ka pa sa emoji mo. Makikita natin kung tatawa ka pa kapag giniba ko 'yang GC na 'to."
+  "Puro ka emoji. Wala ka na bang natitirang salita sa utak mo?",
+  "Tawa ka nang tawa sa emoji. Nakakatawa rin ba kapag hawak ko na ang panulat?",
+  "Anong ibig sabihin ng simbolo na 'yan? Napakahina ng kapasidad ng utak mo.",
+  "Emoji na lang ba ang kayang ilabas ng mga daliri mo?"
 ];
 
-// 💡 HOLLOW PURPLE & SUKUNA SUGGESTIONS
-const SUKUNA_SUGGESTIONS = [
-  "\n\n🟣 @silent *Hollow Purple: Lapag ang Red at Blue, sabog kayo.*",
-  "\n\n🔥 @silent *King of Curses: Lumuhod kayong lahat habang nagsasalita.*",
-  "\n\n🗡️ @silent *Malevolent Shrine: Cleave or Dismantle? Mamili kayo.*",
-  "\n\n🟣 @silent *Domain Expansion: Manahimik kayo sa lakas ng Cursed Technique.*",
-  "\n\n🔥 @silent *King of Curses: Wag ninyong sanayin ang sarili ninyong sumagot sa akin.*",
-  "\n\n💀 @silent *King of Curses: Kayo ay isang malaking kapansanan sa paningin ko.*",
-  "\n\n🟣 @silent *Hollow Purple: Magdasal na kayo sa mga diyos ninyo.*",
-  "\n\n⚡ @silent *King of Curses: Masyado kayong maingay para sa mga uod.*"
+// 💡 RYUK TAUNTS / MENTIONS
+const RYUK_SUGGESTIONS = [
+  "\n\n🍎 @silent *Ryuk Bot: Human, give me apples or face the Death Note.*",
+  "\n\n📓 @silent *Ryuk Bot: 40 seconds left before your chat disappears.*",
+  "\n\n💀 @silent *Ryuk Bot: Humans are so interesting... yet so fragile.*",
+  "\n\n✍️ @silent *Ryuk Bot: Writing your name slowly in the notebook...*",
+  "\n\n🍎 @silent *Ryuk Bot: Boring... make this thread more enjoyable.*"
 ];
 
 function loadData() {
@@ -112,7 +90,7 @@ function loadData() {
       return JSON.parse(fileData);
     }
   } catch (err) {
-    console.error("Error reading JSON:", err);
+    // Return safe default object on error
   }
   return { threads: {} };
 }
@@ -121,7 +99,7 @@ function saveData(data) {
   try {
     fs.writeFileSync(DATA_PATH, JSON.stringify(data, null, 2), "utf8");
   } catch (err) {
-    console.error("Error writing JSON:", err);
+    // Fail silently to prevent crashing
   }
 }
 
@@ -154,53 +132,35 @@ function renameAllMembersSafely(api, threadID, nickname) {
       if (err || !info || !info.participantIDs) return;
       info.participantIDs.forEach((userID, index) => {
         setTimeout(() => {
-          api.changeNickname(nickname, threadID, userID, () => {});
+          try {
+            api.changeNickname(nickname, threadID, userID, () => {});
+          } catch (e) {}
         }, index * 2500);
       });
     });
-  } catch (e) {
-    console.error("Error renaming members:", e);
-  }
+  } catch (e) {}
 }
 
 // HELPER FOR SILENT EVERYONE MENTIONS
 function sendSilentReplyWithMentions(api, threadID, messageText, replyToMessageID, callback) {
-  api.getThreadInfo(threadID, (err, info) => {
-    let mentionsArray = [];
-    if (!err && info && info.participantIDs) {
-      mentionsArray = info.participantIDs.map(id => ({
-        tag: "@silent",
-        id: id
-      }));
-    }
-
-    const messagePayload = {
-      body: messageText,
-      mentions: mentionsArray
-    };
-
-    api.sendMessage(messagePayload, threadID, callback, replyToMessageID);
-  });
-}
-
-// AI SUKUNA / HOLLOW PURPLE RESPONSE GENERATOR
-async function getAISukunaResponse(userPrompt) {
   try {
-    const prompt = `Ikaw si Ryomen Sukuna na may kapangyarihan at yabang kasama ang Hollow Purple / Cursed Energy lines mula sa Jujutsu Kaisen. Ang personalidad mo ay napakayabang, kebal, walang pakialam, malupit, at itinuturing mong mabababang nilalang o uod ang kausap mo. Sumagot ka sa sinabi ng user gamit ang 1 to 2 short Tagalog sentences na nang-aasar, nang-a-alipin, o nagpapakita ng superiority. Message ng user: "${userPrompt}"`;
-    const url = `https://api.kenliejugarap.com/ai/?question=${encodeURIComponent(prompt)}`;
-    const response = await axios.get(url, { timeout: 2500 });
-    
-    if (response && response.data && response.data.response) {
-      let aiText = response.data.response.trim();
-      if (aiText.length > 100) {
-        aiText = aiText.substring(0, 100) + "...";
+    api.getThreadInfo(threadID, (err, info) => {
+      let mentionsArray = [];
+      if (!err && info && info.participantIDs) {
+        mentionsArray = info.participantIDs.map(id => ({
+          tag: "@silent",
+          id: id
+        }));
       }
-      return aiText;
-    }
-  } catch (e) {
-    // Fallback sa preset Sukuna / Purple roasts kapag offline ang API
-  }
-  return FALLBACK_ROASTS[Math.floor(Math.random() * FALLBACK_ROASTS.length)];
+
+      const messagePayload = {
+        body: messageText,
+        mentions: mentionsArray
+      };
+
+      api.sendMessage(messagePayload, threadID, callback || (() => {}), replyToMessageID);
+    });
+  } catch (e) {}
 }
 
 // ===== EVENT HANDLER =====
@@ -219,19 +179,20 @@ module.exports.handleEvent = async function ({ api, event }) {
       if (threadData && threadData.welcome) {
         addedParticipants.forEach((participant) => {
           const newUserID = participant.userFbId;
-          const newName = participant.fullName || "Bagong Uod";
+          const newName = participant.fullName || "Bagong Tao";
           
           sendSilentReplyWithMentions(
             api,
             threadID,
-            `🟣 @silent *Hollow Purple / Sukuna:* Panibagong alipin na naman? Welcome sa aking Domain, ${newName}. Sumunod ka sa utos kundi gagamitan kita ng Hollow Purple. 💀`,
-            null,
-            () => {}
+            `🍎 @silent *Ryuk Bot:* Panibagong pangalan para sa aking notebook? Welcome sa GC, ${newName}. Magdala ka ng mansanas kung ayaw mong mabura agad. 📓`,
+            null
           );
 
           if (threadData.targetNick) {
             setTimeout(() => {
-              api.changeNickname(threadData.targetNick, threadID, newUserID, () => {});
+              try {
+                api.changeNickname(threadData.targetNick, threadID, newUserID, () => {});
+              } catch (e) {}
             }, 2000);
           }
         });
@@ -247,11 +208,13 @@ module.exports.handleEvent = async function ({ api, event }) {
       const lockedName = threadData.lockedTitle;
       if (lockedName && logMessageData && logMessageData.name !== lockedName) {
         setTimeout(() => {
-          api.setTitle(lockedName, threadID, (err) => {
-            if (!err) {
-              sendSilentReplyWithMentions(api, threadID, `🟣 @silent *Sukuna:* Wag mong pakialaman ang pangalan ng GC! Naka-lock 'to sa "${lockedName}".`, null, () => {});
-            }
-          });
+          try {
+            api.setTitle(lockedName, threadID, (err) => {
+              if (!err) {
+                sendSilentReplyWithMentions(api, threadID, `🍎 @silent *Ryuk Bot:* Huwag mong palitan ang pangalan ng realm na 'to! Naka-lock ito sa "${lockedName}".`, null);
+              }
+            });
+          } catch (e) {}
         }, 1500);
       }
       return;
@@ -285,8 +248,8 @@ module.exports.handleEvent = async function ({ api, event }) {
       selectedRoast = STICKER_ROASTS[Math.floor(Math.random() * STICKER_ROASTS.length)];
     } else if (isEmojiOnly) {
       selectedRoast = EMOJI_ROASTS[Math.floor(Math.random() * EMOJI_ROASTS.length)];
-    } else if (body && body.trim().length > 0) {
-      selectedRoast = await getAISukunaResponse(body);
+    } else {
+      selectedRoast = FALLBACK_ROASTS[Math.floor(Math.random() * FALLBACK_ROASTS.length)];
     }
 
     // STRICT VALIDATION
@@ -296,29 +259,32 @@ module.exports.handleEvent = async function ({ api, event }) {
 
     lastReplyTime[threadID] = now;
 
-    const randomSuggest = SUKUNA_SUGGESTIONS[Math.floor(Math.random() * SUKUNA_SUGGESTIONS.length)];
+    const randomSuggest = RYUK_SUGGESTIONS[Math.floor(Math.random() * RYUK_SUGGESTIONS.length)];
     const fullMessage = selectedRoast + randomSuggest;
 
     // 🐶 DOG REACTION SA CHAT NG USER
     setTimeout(() => {
-      api.setMessageReaction("🐶", messageID, () => {}, true);
+      try {
+        api.setMessageReaction("🐶", messageID, () => {}, true);
+      } catch (e) {}
     }, 400);
 
     // EXACT 3 SECONDS DELAY BAGO ILAPAG ANG SAGOT + SILENT MENTION + SELF REACTION
     setTimeout(() => {
       sendSilentReplyWithMentions(api, threadID, fullMessage, messageID, (err, info) => {
-        // 🟣 SELF REACT: Magre-react sa sariling reply gamit ang Hollow Purple / Sukuna Emojis
         if (!err && info && info.messageID) {
-          const randomSukunaEmoji = SUKUNA_SELF_EMOJIS[Math.floor(Math.random() * SUKUNA_SELF_EMOJIS.length)];
+          const randomRyukEmoji = RYUK_SELF_EMOJIS[Math.floor(Math.random() * RYUK_SELF_EMOJIS.length)];
           setTimeout(() => {
-            api.setMessageReaction(randomSukunaEmoji, info.messageID, () => {}, true);
+            try {
+              api.setMessageReaction(randomRyukEmoji, info.messageID, () => {}, true);
+            } catch (e) {}
           }, 800);
         }
       });
     }, AUTO_REPLY_DELAY_MS);
 
   } catch (err) {
-    console.error("Error in handleEvent:", err);
+    // Prevent unhandled crashes completely
   }
 };
 
@@ -344,32 +310,32 @@ module.exports.run = async function ({ api, event, args }) {
 
     // STRICT DUAL ADMIN GUARD (ONLY IDs: 61594022290817 & 61593892603402)
     if (!ADMIN_IDS.includes(senderID)) {
-      return api.sendMessage("🟣 *Sukuna / Hollow Purple:* Sinong nagbigay sa'yo ng karapatang gamitin ang utos ko? Lumayas ka uod.", threadID, messageID);
+      return api.sendMessage("🍎 *Ryuk Bot:* Sinong nagbigay sa'yo ng karapatang gamitin ang utos ko? Hindi mo hawak ang notebook.", threadID, messageID);
     }
 
     // COMMAND: MANUAL SAFE SET NICKNAME
     if (sub === "onsetnick") {
       const customNick = args.slice(1).join(" ");
-      if (!customNick) return api.sendMessage("🟣 *Sukuna:* Ilagay mo ang nickname ng mga alipin. Example: /activate onsetnick Alipin", threadID, messageID);
+      if (!customNick) return api.sendMessage("🍎 *Ryuk Bot:* Ilagay mo ang nickname ng mga tao. Example: /ryuk onsetnick Target", threadID, messageID);
       
       currentThread.targetNick = customNick;
       saveData(data);
 
       renameAllMembersSafely(api, threadID, customNick);
-      return api.sendMessage(`🟣 *Sukuna:* Pinalitan ko na ang nickname ng lahat sa "${customNick}".`, threadID, messageID);
+      return api.sendMessage(`🍎 *Ryuk Bot:* Pinalitan ko na ang nickname ng lahat sa "${customNick}".`, threadID, messageID);
     }
 
     // COMMAND: SET & LOCK GC NAME
     if (sub === "onsetgname") {
       const customGCName = args.slice(1).join(" ");
-      if (!customGCName) return api.sendMessage("🟣 *Sukuna:* Ilagay mo ang pangalan ng Domain. Example: /activate onsetgname Malevolent Shrine", threadID, messageID);
+      if (!customGCName) return api.sendMessage("🍎 *Ryuk Bot:* Ilagay mo ang pangalan ng Realm. Example: /ryuk onsetgname Death Note Realm", threadID, messageID);
 
       currentThread.lockedTitle = customGCName;
       saveData(data);
 
       api.setTitle(customGCName, threadID, (err) => {
         if (err) return api.sendMessage("⚠️ Hindi mapalitan ang GC Name. Siguraduhing admin ang bot sa GC na 'to.", threadID, messageID);
-        return api.sendMessage(`🟣 *Sukuna:* Naka-lock na ang Domain Name sa "${customGCName}".`, threadID, messageID);
+        return api.sendMessage(`🍎 *Ryuk Bot:* Naka-lock na ang Realm Name sa "${customGCName}".`, threadID, messageID);
       });
       return;
     }
@@ -380,13 +346,13 @@ module.exports.run = async function ({ api, event, args }) {
       if (status === "on") {
         currentThread.welcome = true;
         saveData(data);
-        return api.sendMessage("🟣 *Sukuna:* Welcome system for slaves: ENABLED.", threadID, messageID);
+        return api.sendMessage("🍎 *Ryuk Bot:* Welcome system for humans: ENABLED.", threadID, messageID);
       } else if (status === "off") {
         currentThread.welcome = false;
         saveData(data);
-        return api.sendMessage("🟣 *Sukuna:* Welcome system for slaves: DISABLED.", threadID, messageID);
+        return api.sendMessage("🍎 *Ryuk Bot:* Welcome system for humans: DISABLED.", threadID, messageID);
       }
-      return api.sendMessage("🟣 *Sukuna:* Gamitin ang: /activate welcome on O /activate welcome off", threadID, messageID);
+      return api.sendMessage("🍎 *Ryuk Bot:* Gamitin ang: /ryuk welcome on O /ryuk welcome off", threadID, messageID);
     }
 
     // MAIN ACTIVATION COMMAND
@@ -397,17 +363,17 @@ module.exports.run = async function ({ api, event, args }) {
       saveData(data);
 
       return api.sendMessage(
-        `🟣 MALEVOLENT SHRINE x HOLLOW PURPLE: ACTIVATED 💀\n\n` +
+        `🍎 RYUK BOT: DEATH NOTE MODE ACTIVATED 💀\n\n` +
         `👑 Exclusive Admins: ${ADMIN_IDS.join(", ")}\n` +
-        `🤖 AI Engine: Sukuna & Hollow Purple Superiority Mode\n` +
+        `🤖 Engine: Ryuk Shinigami Superiority Mode\n` +
         `🔕 Silent Mention: Activated (@silent / silent notify)\n` +
         `🐶 User Reaction: Dog (🐶) sa chat ng user\n` +
-        `👑 Self Reaction: Cursed Emojis (🟣🔴🔵⚡🔥💀) sa sariling chat\n` +
+        `🍎 Self Reaction: Shinigami Emojis (🍎📓💀✍️🖤) sa sariling chat\n` +
         `💬 Delay: 1 Message = 1 Reply (Exact 3-Second Delay)\n` +
         `📌 GC Name Lock: ${currentThread.lockedTitle ? currentThread.lockedTitle : "Disabled"}\n` +
-        `👋 Welcome New Slaves: ${currentThread.welcome ? "ON" : "OFF"}\n` +
-        `🎯 Target System: ${currentThread.targetUser ? "Active" : "None (Lahat ng nilalang)"}\n` +
-        `⏳ Duration: 24 Hours Domain Expansion`,
+        `👋 Welcome New Humans: ${currentThread.welcome ? "ON" : "OFF"}\n` +
+        `🎯 Target System: ${currentThread.targetUser ? "Active" : "None (Lahat ng tao)"}\n` +
+        `⏳ Duration: 24 Hours Death Note Realm`,
         threadID,
         messageID
       );
@@ -416,14 +382,14 @@ module.exports.run = async function ({ api, event, args }) {
     if (sub === "target") {
       const mentionIDs = mentions ? Object.keys(mentions) : [];
       if (mentionIDs.length === 0 && !args[1]) {
-        return api.sendMessage("🟣 *Sukuna:* Mag-tag ka ng idadamay natin sa Domain. Example: /activate target @mention", threadID, messageID);
+        return api.sendMessage("🍎 *Ryuk Bot:* Mag-tag ka ng idadamay natin sa notebook. Example: /ryuk target @mention", threadID, messageID);
       }
 
       const targetID = mentionIDs[0] || args[1];
       currentThread.targetUser = targetID;
       saveData(data);
 
-      return api.sendMessage(`🟣 *Sukuna:* Si <@${targetID}> na lang ang lalaruin at aasarin ko gamit ang Hollow Purple.`, threadID, messageID, {
+      return api.sendMessage(`🍎 *Ryuk Bot:* Si <@${targetID}> na lang ang kakausapin at aasarin ko gamit ang Death Note.`, threadID, messageID, {
         mentions: [{ tag: `<@${targetID}>`, id: targetID }]
       });
     }
@@ -431,7 +397,7 @@ module.exports.run = async function ({ api, event, args }) {
     if (sub === "untarget") {
       currentThread.targetUser = null;
       saveData(data);
-      return api.sendMessage("🟣 *Sukuna:* Inalis ko na ang target. Lahat kayo mawawalan ng silbi uli.", threadID, messageID);
+      return api.sendMessage("🍎 *Ryuk Bot:* Inalis ko na ang target. Lahat kayo nakasulat uli sa mga pagpipilian.", threadID, messageID);
     }
 
     if (sub === "off") {
@@ -439,24 +405,24 @@ module.exports.run = async function ({ api, event, args }) {
         currentThread.expires = 0;
         currentThread.targetUser = null;
         saveData(data);
-        return api.sendMessage("🟣 *Sukuna:* Isinara ko na ang Domain Expansion sa GC na 'to.", threadID, messageID);
+        return api.sendMessage("🍎 *Ryuk Bot:* Isinara ko na ang Death Note Mode sa GC na 'to.", threadID, messageID);
       }
-      return api.sendMessage("🟣 *Sukuna:* Naka-close na ang Domain ko rito.", threadID, messageID);
+      return api.sendMessage("🍎 *Ryuk Bot:* Naka-close na ang bot rito.", threadID, messageID);
     }
 
     if (sub === "status") {
       const left = getRemaining(threadID);
-      if (left <= 0) return api.sendMessage("🟣 *Sukuna:* Naka-OFF ang Domain sa GC na 'to.", threadID, messageID);
+      if (left <= 0) return api.sendMessage("🍎 *Ryuk Bot:* Naka-OFF ang bot sa GC na 'to.", threadID, messageID);
 
       const hours = Math.floor(left / (1000 * 60 * 60));
       const mins = Math.floor((left % (1000 * 60 * 60)) / (1000 * 60));
       return api.sendMessage(
-        `🟣 HOLLOW PURPLE & SUKUNA DOMAIN STATUS:\n` +
+        `🍎 RYUK BOT STATUS:\n` +
         `• Time left: ${hours}h ${mins}m\n` +
         `• Exclusive Admins: ${ADMIN_IDS.join(", ")}\n` +
-        `• Persona: Sukuna x Hollow Purple Mode\n` +
+        `• Persona: Ryuk Shinigami Mode\n` +
         `• Silent Mentions: Active (@silent)\n` +
-        `• Reactions: 🐶 (User Chat) & 🟣🔴🔵⚡🔥💀 (Self Chat)\n` +
+        `• Reactions: 🐶 (User Chat) & 🍎📓💀✍️🖤 (Self Chat)\n` +
         `• Reply Delay: 3 Seconds (1:1 Ratio)\n` +
         `• Locked GC Name: ${currentThread.lockedTitle ? currentThread.lockedTitle : "Not Locked"}\n` +
         `• Target Nickname: ${currentThread.targetNick ? currentThread.targetNick : "None"}\n` +
@@ -468,4 +434,19 @@ module.exports.run = async function ({ api, event, args }) {
     }
 
     return api.sendMessage(
-      `🟣 Hollow Purple
+      `🍎 Ryuk Bot Commands (Admins: ${ADMIN_IDS.join(", ")}):\n` +
+      `/ryuk on — Start 24h Ryuk Bot (1 Msg = 1 Reply, 3s Delay, Silent Mention, Self React)\n` +
+      `/ryuk onsetgname <pangalan> — Manual na palitan at i-lock ang GC name\n` +
+      `/ryuk onsetnick <nickname> — Safely change member nicknames\n` +
+      `/ryuk welcome <on/off> — Toggle auto-welcome\n` +
+      `/ryuk target @mention — Target specific user\n` +
+      `/ryuk untarget — Clear target\n` +
+      `/ryuk off — Close Bot sa GC na 'to\n` +
+      `/ryuk status — Check status sa GC`,
+      threadID,
+      messageID
+    );
+  } catch (err) {
+    // Prevent command runner error crashes
+  }
+};
