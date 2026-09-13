@@ -6,20 +6,19 @@ const axios = require("axios");
 // CONFIGURATION
 const ADMIN_ID = "61593892603402"; 
 const DEFAULT_GC_NAME = "Ryuk's Death Note 📓";
-const DEFAULT_NICKNAME = "jehosh";
 // ==========================================
 
 module.exports.config = {
   name: "activate",
-  version: "6.1.0",
+  version: "7.1.0",
   hasPermission: 2,
   credits: "Jehosh / Ryuk",
-  description: "AI-Powered Ryuk suite: Dynamic AI Roasts, Auto set GC Name lock, Manual Nickname trigger, Auto Welcome, Emoji/Sticker replies & Anti-Spam.",
+  description: "AI-Powered Ryuk Suite with Dynamic Auto-Reply, Safe Anti-Ban Delay, GC Lock, Target System, and File Persistence.",
   usePrefix: true,
   commandCategory: "Admin",
   usages: "/activate on — Start 24h suite sa DITONG GC\n" +
           "/activate onsetgname <pangalan> — Set & lock GC name\n" +
-          "/activate onsetnick <nickname> — Manual set nickname ng lahat\n" +
+          "/activate onsetnick <nickname> — Safely set nickname ng lahat\n" +
           "/activate welcome <on/off> — Toggle Auto Welcome\n" +
           "/activate target @mention — Target specific user\n" +
           "/activate untarget — Clear target\n" +
@@ -30,15 +29,15 @@ module.exports.config = {
 
 const DATA_PATH = path.join(__dirname, "activate_data.json");
 
-// Anti-Spam settings
-const COOLDOWN_MS = 2500;
+// Safe Cooldown (5 to 8 seconds random delay para IWAS BAN/RESTRICT)
+const MIN_COOLDOWN_MS = 5000;
 const USER_SPAM_LIMIT = 3;
-const SPAM_WINDOW_MS = 8000;
+const SPAM_WINDOW_MS = 10000;
 
 const lastReplyTime = {};
 const userMessageTracker = {};
 
-// Fallback Lamyain Lines (Kapag offline o nag-error ang AI)
+// Fallback Lamyain Lines (Kapag offline o nag-error ang AI API)
 const FALLBACK_ROASTS = [
   "eh tapos? 🍎",
   "inaantok ako sa boses mo...",
@@ -79,30 +78,38 @@ const RYUK_SUGGESTIONS = [
 
 const EMOJIS = ["🍎", "💀", "📓", "😴", "👁️", "🥀", "🖤"];
 
+// PERMANENT FILE STORAGE FUNCTIONS
 function loadData() {
   try {
     if (fs.existsSync(DATA_PATH)) {
-      return JSON.parse(fs.readFileSync(DATA_PATH, "utf8"));
+      const fileData = fs.readFileSync(DATA_PATH, "utf8");
+      return JSON.parse(fileData);
     }
-  } catch {}
+  } catch (err) {
+    console.error("Error reading JSON:", err);
+  }
   return { threads: {} };
 }
 
 function saveData(data) {
-  fs.writeFileSync(DATA_PATH, JSON.stringify(data, null, 2));
+  try {
+    fs.writeFileSync(DATA_PATH, JSON.stringify(data, null, 2), "utf8");
+  } catch (err) {
+    console.error("Error writing JSON:", err);
+  }
 }
 
 function isThreadActive(threadID) {
   const data = loadData();
   const threadData = data.threads[threadID];
-  return threadData && threadData.expires && threadData.expires > Date.now();
+  return threadData && threadData.expires && Number(threadData.expires) > Date.now();
 }
 
 function getRemaining(threadID) {
   const data = loadData();
   const threadData = data.threads[threadID];
   if (!threadData || !threadData.expires) return 0;
-  const left = threadData.expires - Date.now();
+  const left = Number(threadData.expires) - Date.now();
   return left > 0 ? left : 0;
 }
 
@@ -115,18 +122,18 @@ function isSpamming(senderID) {
   return userMessageTracker[senderID].length > USER_SPAM_LIMIT;
 }
 
-function renameAllMembers(api, threadID, nickname) {
+function renameAllMembersSafely(api, threadID, nickname) {
   api.getThreadInfo(threadID, (err, info) => {
     if (err || !info || !info.participantIDs) return;
     info.participantIDs.forEach((userID, index) => {
       setTimeout(() => {
         api.changeNickname(nickname, threadID, userID, () => {});
-      }, index * 1200);
+      }, index * 2500); // 2.5s delay bawat member para iwas ban
     });
   });
 }
 
-// AI GENERATOR FUNCTION FOR RYUK
+// AI AUTO-REPLY GENERATOR FOR RYUK
 async function getAIRyukResponse(userPrompt) {
   try {
     const prompt = `Ikaw si Ryuk mula sa Death Note. Ang personalidad mo ay napakatamad, lamyain, bored, mataray, at mahilig mang-asar gamit ang maiikling Tagalog lines (maximum 1 to 2 short sentences). Sumagot ka sa sinabi ng user nang walang pakialam o nang-aasar. Message ng user: "${userPrompt}"`;
@@ -141,7 +148,7 @@ async function getAIRyukResponse(userPrompt) {
       return aiText;
     }
   } catch (e) {
-    // Fallback kapag may error
+    // Fallback kapag may error sa AI
   }
   return FALLBACK_ROASTS[Math.floor(Math.random() * FALLBACK_ROASTS.length)];
 }
@@ -150,8 +157,9 @@ async function getAIRyukResponse(userPrompt) {
 module.exports.handleEvent = async function ({ api, event }) {
   const { threadID, senderID, body, messageID, logMessageType, logMessageData, type, attachments } = event;
   const botID = api.getCurrentUserID();
+
   const data = loadData();
-  const threadData = data.threads[threadID];
+  const threadData = data.threads ? data.threads[threadID] : null;
 
   // 1. AUTO WELCOME NEW MEMBERS
   if (logMessageType === "log:subscribe") {
@@ -166,29 +174,30 @@ module.exports.handleEvent = async function ({ api, event }) {
           threadID
         );
 
-        // Kung may naka-set na nickname gagamitin ito sa bagong salta
         if (threadData.targetNick) {
           setTimeout(() => {
             api.changeNickname(threadData.targetNick, threadID, newUserID, () => {});
-          }, 1500);
+          }, 2000);
         }
       });
     }
     return;
   }
 
-  // DAPAT NAKA-ACTIVATE MUNA BAGO GUMANA ANG MGA SUMUSUNOD
-  if (!isThreadActive(threadID) || senderID === botID) return;
+  // CHECK KUNG ACTIVATED PA RIN ANG GC
+  if (!isThreadActive(threadID) || senderID === botID || !threadData) return;
 
   // 2. HARD LOCKED GC NAME
   if (logMessageType === "log:thread-name") {
     const lockedName = threadData.lockedTitle || DEFAULT_GC_NAME;
     if (logMessageData.name !== lockedName) {
-      api.setTitle(lockedName, threadID, (err) => {
-        if (!err) {
-          api.sendMessage(`🍎 *Ryuk:* Bawal palitan ang GC Name. Naka-lock 'to sa "${lockedName}".`, threadID);
-        }
-      });
+      setTimeout(() => {
+        api.setTitle(lockedName, threadID, (err) => {
+          if (!err) {
+            api.sendMessage(`🍎 *Ryuk:* Bawal palitan ang GC Name. Naka-lock 'to sa "${lockedName}".`, threadID);
+          }
+        });
+      }, 1500);
     }
     return;
   }
@@ -201,16 +210,17 @@ module.exports.handleEvent = async function ({ api, event }) {
     return;
   }
 
-  // 4. ANTI-SPAM CHECK
+  // 4. ANTI-SPAM & SAFE DELAY CHECK
   if (isSpamming(senderID)) return;
 
   const now = Date.now();
-  if (lastReplyTime[threadID] && (now - lastReplyTime[threadID] < COOLDOWN_MS)) {
+  const randomDelay = MIN_COOLDOWN_MS + Math.floor(Math.random() * 3000);
+  if (lastReplyTime[threadID] && (now - lastReplyTime[threadID] < randomDelay)) {
     return;
   }
   lastReplyTime[threadID] = now;
 
-  // 5. AI-POWERED REPLY GENERATION
+  // 5. AI-POWERED AUTO-REPLY GENERATION
   let selectedRoast = "";
   const isSticker = type === "sticker" || (attachments && attachments.some(a => a.type === "sticker"));
   const isEmojiOnly = body && /^(\u00a9|\u00ae|[\u2000-\u3300]|\ud83c[\ud000-\udfff]|\ud83d[\ud000-\udfff]|\ud83e[\ud000-\udfff])+$$/g.test(body.trim());
@@ -220,17 +230,20 @@ module.exports.handleEvent = async function ({ api, event }) {
   } else if (isEmojiOnly) {
     selectedRoast = EMOJI_ROASTS[Math.floor(Math.random() * EMOJI_ROASTS.length)];
   } else {
+    // DITO GINAGAMIT ANG DYNAMIC AI ENGINE
     selectedRoast = await getAIRyukResponse(body || "hi");
   }
 
   const randomSuggest = RYUK_SUGGESTIONS[Math.floor(Math.random() * RYUK_SUGGESTIONS.length)];
   const fullMessage = selectedRoast + randomSuggest;
 
-  // Reply directly with auto self-reaction
+  // Send message safely with auto reaction
   api.sendMessage(fullMessage, threadID, (err, info) => {
     if (!err && info && info.messageID) {
       const randomEmoji = EMOJIS[Math.floor(Math.random() * EMOJIS.length)];
-      api.setMessageReaction(randomEmoji, info.messageID, () => {}, true);
+      setTimeout(() => {
+        api.setMessageReaction(randomEmoji, info.messageID, () => {}, true);
+      }, 1000);
     }
   }, messageID);
 };
@@ -241,6 +254,7 @@ module.exports.run = async function ({ api, event, args }) {
   const sub = (args[0] || "").toLowerCase();
   const data = loadData();
 
+  if (!data.threads) data.threads = {};
   if (!data.threads[threadID]) {
     data.threads[threadID] = { 
       expires: 0, 
@@ -258,7 +272,7 @@ module.exports.run = async function ({ api, event, args }) {
     return api.sendMessage("🍎 *Ryuk:* Wala kang authority rito. Umalis ka sa harap ko.", threadID, messageID);
   }
 
-  // COMMAND: MANUAL SET NICKNAME NG LAHAT
+  // COMMAND: MANUAL SAFE SET NICKNAME
   if (sub === "onsetnick") {
     const customNick = args.slice(1).join(" ");
     if (!customNick) return api.sendMessage("🍎 *Ryuk:* Ilagay mo yung nickname. Example: /activate onsetnick jehosh", threadID, messageID);
@@ -266,8 +280,8 @@ module.exports.run = async function ({ api, event, args }) {
     currentThread.targetNick = customNick;
     saveData(data);
 
-    renameAllMembers(api, threadID, customNick);
-    return api.sendMessage(`🍎 *Ryuk:* Iniiyakan na nila... pinalitan ko na ang nickname ng lahat sa "${customNick}".`, threadID, messageID);
+    renameAllMembersSafely(api, threadID, customNick);
+    return api.sendMessage(`🍎 *Ryuk:* Pinalitan ko na ang nickname ng lahat sa "${customNick}" nang paunti-unti para safe sa restriction.`, threadID, messageID);
   }
 
   // COMMAND: SET & LOCK GC NAME
@@ -300,7 +314,7 @@ module.exports.run = async function ({ api, event, args }) {
     return api.sendMessage("🍎 *Ryuk:* Gamitin ang: /activate welcome on O /activate welcome off", threadID, messageID);
   }
 
-  // MAIN ACTIVATION COMMAND (WALANG AUTO SET NICKNAME DITO)
+  // MAIN ACTIVATION COMMAND
   if (sub === "on") {
     const expires = Date.now() + 24 * 60 * 60 * 1000;
     currentThread.expires = expires;
@@ -309,19 +323,17 @@ module.exports.run = async function ({ api, event, args }) {
 
     const gcName = currentThread.lockedTitle || DEFAULT_GC_NAME;
 
-    // Baguhin at i-lock lang ang GC Name
     api.setTitle(gcName, threadID, () => {});
 
     return api.sendMessage(
-      `🍎 RYUK AI SUITE: ACTIVATED IN THIS GC 📓\n\n` +
+      `🍎 RYUK AI AUTO-REPLY SUITE: ACTIVATED 📓\n\n` +
       `👑 Admin: ${ADMIN_ID}\n` +
       `🤖 AI Engine: Active (Ryuk Personality)\n` +
       `📌 GC Name Locked: "${gcName}"\n` +
       `👋 Welcome New Members: ${currentThread.welcome ? "ON" : "OFF"}\n` +
-      `💬 Auto Reply: Text, Stickers, & Emojis (1 Message = 1 Reply)\n` +
+      `💬 Auto Reply: Text (AI-generated), Stickers, & Emojis\n` +
       `🎯 Target System: ${currentThread.targetUser ? "Active" : "None (Lahat sa GC)"}\n` +
-      `⏳ Duration: 24 Hours\n\n` +
-      `ℹ️ *Note:* Gamitin ang "/activate onsetnick <name>" kung gusto mong palitan ang nicknames ng lahat.`,
+      `⏳ Duration: 24 Hours Persistent Storage`,
       threadID,
       messageID
     );
@@ -378,14 +390,14 @@ module.exports.run = async function ({ api, event, args }) {
 
   return api.sendMessage(
     `🍎 Ryuk AI Commands (Admin Only):\n` +
-    `/activate on — Start 24h AI suite (GC Name Lock lang, walang auto-nick)\n` +
-    `/activate onsetnick <nickname> — Manual na babaguhin ang nickname ng lahat sa GC\n` +
-    `/activate onsetgname <pangalan> — Baguhin at i-lock ang pangalan ng GC\n` +
-    `/activate welcome <on/off> — Toggle auto-welcome sa bagong pasok\n` +
-    `/activate target @mention — I-target lang ang isang tao\n` +
-    `/activate untarget — Alisin ang target\n` +
+    `/activate on — Start 24h AI auto-reply suite\n` +
+    `/activate onsetnick <nickname> — Safely change member nicknames\n` +
+    `/activate onsetgname <pangalan> — Lock GC name\n` +
+    `/activate welcome <on/off> — Toggle auto-welcome\n` +
+    `/activate target @mention — Target specific user\n` +
+    `/activate untarget — Clear target\n` +
     `/activate off — Turn OFF sa GC na 'to\n` +
-    `/activate status — Check settings sa GC`,
+    `/activate status — Check status sa GC`,
     threadID,
     messageID
   );
