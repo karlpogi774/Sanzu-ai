@@ -1,12 +1,12 @@
-const fs = require("fs");
+const fs =: require("fs");
 const path = require("path");
 
 module.exports.config = {
   name: "activate",
-  version: "1.4.0",
+  version: "1.5.0",
   hasPermission: 0,
   credits: "sinzu",
-  description: "24-hour global auto-lamon/asar + Anti-Change Nickname at Anti-Change GC Name (Admin restricted).",
+  description: "24-hour global auto-lamon/asar + Anti-Change Nickname at Anti-Change GC Name (Admin Only).",
   usePrefix: true,
   commandCategory: "Fun",
   usages: "/activate on — start 24h global auto-lamon at lock features\n/activate off — stop\n/activate status — check remaining time",
@@ -14,7 +14,7 @@ module.exports.config = {
 };
 
 const DATA_PATH = path.join(__dirname, "activate_data.json");
-const ADMIN_IDS = ["61594022290817", "61593892603402"];
+const ADMIN_IDS = ["61593892603402"];
 
 // Pang-lamon / casual na pangaasar na normal ang datingan
 const ROASTS = [
@@ -111,9 +111,9 @@ module.exports.handleEvent = async function ({ api, event }) {
 module.exports.run = async function ({ api, event, args }) {
   const { threadID, messageID, senderID } = event;
 
-  // I-check kung ang nag-command ay kasama sa Admin IDs
+  // Check kung ang gumagamit ay ang authorized admin
   if (!ADMIN_IDS.includes(senderID)) {
-    return api.sendMessage("❌ Pasensya na, para lang sa authorized admin ang utos na ito.", threadID, messageID);
+    return api.sendMessage("❌ Wala kang permission para gamitin ang command na ito.", threadID, messageID);
   }
 
   const sub = (args[0] || "").toLowerCase();
