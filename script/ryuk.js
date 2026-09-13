@@ -9,13 +9,13 @@ const ADMIN_ID = "61593892603402";
 
 module.exports.config = {
   name: "activate",
-  version: "7.5.0",
+  version: "9.0.0",
   hasPermission: 2,
-  credits: "Jehosh / Ryuk",
-  description: "Ryuk AI Suite: Only replies when user sends content, Dog reaction, 1:1 ratio, 2s delay.",
+  credits: "Jehosh / Sukuna",
+  description: "Sukuna Domain Suite: Ultimate Expanded Lines, Dog User React, Sukuna Self React, 1:1 Ratio, 2s Delay.",
   usePrefix: true,
   commandCategory: "Admin",
-  usages: "/activate on — Start 24h suite sa DITONG GC\n" +
+  usages: "/activate on — Start 24h Malevolent Shrine sa DITONG GC\n" +
           "/activate onsetgname <pangalan> — Set & lock GC name\n" +
           "/activate onsetnick <nickname> — Safely set nickname ng lahat\n" +
           "/activate welcome <on/off> — Toggle Auto Welcome\n" +
@@ -28,6 +28,7 @@ module.exports.config = {
 
 const DATA_PATH = path.join(__dirname, "activate_data.json");
 
+// FIXED 2-SECOND DELAY & SPAM CONTROL
 const AUTO_REPLY_DELAY_MS = 2000; 
 const SPAM_WINDOW_MS = 8000;
 const USER_SPAM_LIMIT = 3;
@@ -35,58 +36,72 @@ const USER_SPAM_LIMIT = 3;
 const lastReplyTime = {};
 const userMessageTracker = {};
 
+// SUKUNA SELF REACTION EMOJIS
+const SUKUNA_SELF_EMOJIS = ["🔥", "💀", "👑", "🗡️", "🩸", "⚡"];
+
+// PINARAMING SUKUNA FALLBACK ROAST LINES
 const FALLBACK_ROASTS = [
-  "eh tapos? 🍎",
-  "inaantok ako sa boses mo...",
-  "labas sa ilong yung sinabi mo.",
-  "boring mo naman kausap, matulog ka na lang.",
-  "seryoso ka na diyan niyan?",
-  "ge lang, kwento mo sa pader baka makinig.",
-  "parang wala namang may pake sa sinasabi mo...",
-  "tamad na tamad ako sa'yo, promise.",
-  "ha? hakdog na lang ire-reply ko sa'yo.",
-  "paka-walang kwenta naman nung trip mo.",
-  "isa pang salita, isusulat na talaga kita sa notebook...",
-  "daming sinabi, wala namang katuturan.",
-  "mas masarap pa kausap 'yung pader sa'yo.",
-  "paki-ulit nga? para bale-wala uli.",
-  "akala mo naman kina-cool mo 'yan.",
-  "ingay mo, abutan mo na lang ako ng mansanas.",
-  "sigurado ka ba sa sinasabi mo o mema lang?",
-  "tulog mo na lang 'yan, wala kang mapapala rito.",
-  "hanggang diyan lang ba talaga kaya ng utak mo?",
-  "walang dating. subok ka uli mamaya.",
-  "sana tinago mo na lang 'yang opinyon mo.",
-  "para kang sira, bakit ka nag-t-type pa?"
+  "Lumuhod ka sa harap ko, alipin.",
+  "Sino ang nagbigay sa'yo ng karapatang magsalita sa harap ko?",
+  "Napakahina. Nakakabagot ka kausap.",
+  "Ang ingay mo. Gusto mo bang hiwain kita sa kalahati?",
+  "Walang kuwenta. Ang isang tulad mo ay hindi man lang makakaaliw sa akin.",
+  "Masyadong mataas ang tingin mo sa sarili mo. Mahiya ka naman.",
+  "Huwag kang mag-alala, hindi kita papatayin kaagad. Lalaruin muna kita.",
+  "Ganyan ba magsalita ang mga uod na tulad mo?",
+  "Matutong lumugar. Isa ka lang langaw na madaling tepukin.",
+  "Tigilan mo ang pagtahol, mababawasan lang ang buhay mo.",
+  "Boring. Magdala ka ng mas malakas na argumento.",
+  "Maliit na nilalang, ang lakas ng loob mong guluhin ang katahimikan ko.",
+  "Akala mo ba may nakikinig sa'yo rito? Patawa ka.",
+  "Isang galaw mo pa, gigiba ko 'yang kinaroroonan mo.",
+  "Walang sinabi ang kakayahan mo. Lumayas ka sa paningin ko.",
+  "Tumahol ka pa. Wala akong pakialam sa ingay mo.",
+  "Ang lakas ng loob mong sumagot. Alam mo ba kung kanino ka humaharap?",
+  "Wala kang kwentang alipin. Huwag mong sukatin ang pasensya ko.",
+  "Napakadaling sirain ng isang tulad mo.",
+  "Isang ihip ko lang sa'yo, burado ka na sa mundong 'to.",
+  "Huwag mong ipahalatang napakatanga mo sa harap ko.",
+  "May sinasabi ka ba o nagpapapansin ka lang?",
+  "Kahit ang mga alikabok sa lapag, mas may pakinabang pa sa'yo.",
+  "Sadyang ganyan ka ba kahina o nagtatanga-tangahan ka lang?",
+  "Magsalita ka pa, titingnan natin kung hanggang saan ang tapang mo.",
+  "Wala kang halaga sa mga mata ko, tandaan mo 'yan."
 ];
 
+// PINARAMING SUKUNA STICKER ROASTS
 const STICKER_ROASTS = [
-  "dami mong sticker, bawas-bawasan mo 'yan. 🍎",
-  "anong klaseng sticker 'yan? baduy naman.",
-  "pa-sticker sticker ka pa, wala namang kwenta.",
-  "ingay ng sticker mo, tulog na lang tayo.",
-  "nag-send pa ng sticker, wala na bang maisip na salita?",
-  "sticker pa more, para mukhang may sinabi."
+  "Magpapadala ka lang ng sticker? Ganun ka na ba kahina mag-isip?",
+  "Basura ang sticker mo. Katulad mo.",
+  "Puro ka kabaklaan sa sticker. Magsalita ka nang maayos!",
+  "Akala mo ba nakakatawa 'yang larawan na 'yan? Nakakaawa ka.",
+  "Subukan mo pang mag-send ng sticker, hihiwain ko 'yang kamay mo.",
+  "Nag-stickers ang walang maipakitang lakas. Kaawa-awa.",
+  "Puro ka larawan, wala ka namang maipagmamayabang na utak.",
+  "Tigilan mo ang pag-tapon ng garbage stickers sa harap ko."
 ];
 
+// PINARAMING SUKUNA EMOJI ROASTS
 const EMOJI_ROASTS = [
-  "nag-emoji pa nga... ano 'yan?",
-  "puro ka emoji, wala ka bang salita?",
-  "sarap burahin nung emoji mo sa notebook. 🍎",
-  "mema emoji lang talaga no?",
-  "mukha kang emoji sa totoo lang.",
-  "daming emoji, kulang naman sa laman."
+  "Puro ka emoji. Naghihingalo na ba ang utak mo?",
+  "Anong klaseng mukha 'yan? Papatayin kita sa titig.",
+  "Wala kang salita kaya emoji na lang? Napakahina.",
+  "Tigilan mo ang pag-send ng ganyan, mukha kang uto-uto.",
+  "Emoji pa higit sa salita? Isa kang kahabag-habag na nilalang.",
+  "Ganyan ba ang paraan ng pakikipag-usap ng mga mababang uri?",
+  "Isang emoji mo pa, buburahin ko na ang existence mo."
 ];
 
-const RYUK_SUGGESTIONS = [
-  "\n\n💡 *Suggest: Apple muna bago magsalita.*",
-  "\n\n💡 *Suggest: Mute mo muna sarili mo.*",
-  "\n\n💡 *Suggest: Isulat na ba pangalan nito sa notebook?*",
-  "\n\n💡 *Suggest: Mag-off online ka muna.*",
-  "\n\n💡 *Suggest: Pahinga ka muna, puro ka sabaw.*",
-  "\n\n💡 *Suggest: Magdala ka muna ng mansanas sa akin.*",
-  "\n\n💡 *Suggest: Maghanap ka muna ng bagong kausap.*",
-  "\n\n💡 *Suggest: Bawas-awasan ang pagiging mema.*"
+// PINARAMING SUKUNA DOMAIN SUGGESTIONS / COMMANDS
+const SUKUNA_SUGGESTIONS = [
+  "\n\n🔥 *King of Curses: Lumuhod ka habang nagsasalita.*",
+  "\n\n🔥 *King of Curses: Cleave or Dismantle? Mamili ka.*",
+  "\n\n🔥 *King of Curses: Tumahol ka pa para maaliw ako.*",
+  "\n\n🔥 *King of Curses: Manahimik ka bago ko buksan ang Domain Expansion.*",
+  "\n\n🔥 *King of Curses: Wag mong sanayin ang sarili mong sumagot sa akin.*",
+  "\n\n🔥 *King of Curses: Isa kang malaking kapansanan sa paningin ko.*",
+  "\n\n🔥 *King of Curses: Mahiya ka naman sa sarili mong kababaan.*",
+  "\n\n🔥 *King of Curses: Matuto kang gumalang sa tunay na Hari.*"
 ];
 
 function loadData() {
@@ -143,9 +158,10 @@ function renameAllMembersSafely(api, threadID, nickname) {
   });
 }
 
-async function getAIRyukResponse(userPrompt) {
+// AI SUKUNA RESPONSE GENERATOR
+async function getAISukunaResponse(userPrompt) {
   try {
-    const prompt = `Ikaw si Ryuk mula sa Death Note. Ang personalidad mo ay napakatamad, lamyain, bored, mataray, at mahilig mang-asar gamit ang maiikling Tagalog lines (maximum 1 to 2 short sentences). Sumagot ka sa sinabi ng user nang walang pakialam o nang-aasar. Message ng user: "${userPrompt}"`;
+    const prompt = `Ikaw si Ryomen Sukuna mula sa Jujutsu Kaisen (King of Curses). Ang personalidad mo ay napakayabang, kebal, walang pakialam, malupit, at itinuturing mong mabababang nilalang o uod ang kausap mo. Sumagot ka sa sinabi ng user gamit ang 1 to 2 short Tagalog sentences na nang-aasar, nang-a-alipin, o nagpapakita ng superiority. Message ng user: "${userPrompt}"`;
     const url = `https://api.kenliejugarap.com/ai/?question=${encodeURIComponent(prompt)}`;
     const response = await axios.get(url, { timeout: 4000 });
     
@@ -157,7 +173,7 @@ async function getAIRyukResponse(userPrompt) {
       return aiText;
     }
   } catch (e) {
-    // Fallback kapag may error sa AI
+    // Fallback kapag may error sa AI API
   }
   return FALLBACK_ROASTS[Math.floor(Math.random() * FALLBACK_ROASTS.length)];
 }
@@ -170,16 +186,16 @@ module.exports.handleEvent = async function ({ api, event }) {
   const data = loadData();
   const threadData = data.threads ? data.threads[threadID] : null;
 
-  // 1. AUTO WELCOME NEW MEMBERS
+  // 1. AUTO WELCOME NEW MEMBERS (SUKUNA STYLE)
   if (logMessageType === "log:subscribe") {
     const addedParticipants = logMessageData.addedParticipants || [];
     if (threadData && threadData.welcome) {
       addedParticipants.forEach((participant) => {
         const newUserID = participant.userFbId;
-        const newName = participant.fullName || "Bagong Salta";
+        const newName = participant.fullName || "Bagong Uod";
         
         api.sendMessage(
-          `🍎 *Ryuk:* Welcome sa GC, ${newName}. Huwag kang maingay rito, baka isulat ko pangalan mo sa notebook. 📓`,
+          `🔥 *Sukuna:* Panibagong alipin na naman? Welcome sa aking kaharian, ${newName}. Sumunod ka sa utos kundi hihiwain kita. 💀`,
           threadID
         );
 
@@ -203,7 +219,7 @@ module.exports.handleEvent = async function ({ api, event }) {
       setTimeout(() => {
         api.setTitle(lockedName, threadID, (err) => {
           if (!err) {
-            api.sendMessage(`🍎 *Ryuk:* Bawal palitan ang GC Name. Naka-lock 'to sa "${lockedName}".`, threadID);
+            api.sendMessage(`🔥 *Sukuna:* Wag mong pakialaman ang pangalan ng GC! Naka-lock 'to sa "${lockedName}".`, threadID);
           }
         });
       }, 1500);
@@ -219,50 +235,53 @@ module.exports.handleEvent = async function ({ api, event }) {
     return;
   }
 
-  // ⚠️ CHECK KUNG MAY LINAPAG TALAGA ANG USER (TEXT, STICKER, O ATTACHMENT)
-  const hasText = body && body.trim().length > 0;
-  const isSticker = type === "sticker" || (attachments && attachments.some(a => a.type === "sticker"));
-  const hasAttachment = attachments && attachments.length > 0;
-
-  // KAPAG WALANG LINAPAG (EMPTY CHAT O HINDI RELEVANT EVENT), HUWAG MAG-REPLY!
-  if (!hasText && !isSticker && !hasAttachment) {
-    return;
-  }
-
   // 4. ANTI-SPAM CHECK
   if (isSpamming(senderID)) return;
 
-  // 5. COOLDOWN / DELAY CHECK
+  // 5. CHECK COOLDOWN INTERVAL (1:1 Ratio System)
   const now = Date.now();
   if (lastReplyTime[threadID] && (now - lastReplyTime[threadID] < AUTO_REPLY_DELAY_MS)) {
     return;
   }
-  lastReplyTime[threadID] = now;
-
-  // 🐶 REACTION SA CHAT NG USER (ASO)
-  setTimeout(() => {
-    api.setMessageReaction("🐶", messageID, () => {}, true);
-  }, 500);
 
   let selectedRoast = "";
-  const isEmojiOnly = hasText && /^(\u00a9|\u00ae|[\u2000-\u3300]|\ud83c[\ud000-\udfff]|\ud83d[\ud000-\udfff]|\ud83e[\ud000-\udfff])+$$/g.test(body.trim());
+  const isSticker = type === "sticker" || (attachments && attachments.some(a => a.type === "sticker"));
+  const isEmojiOnly = body && /^(\u00a9|\u00ae|[\u2000-\u3300]|\ud83c[\ud000-\udfff]|\ud83d[\ud000-\udfff]|\ud83e[\ud000-\udfff])+$$/g.test(body.trim());
 
   if (isSticker) {
     selectedRoast = STICKER_ROASTS[Math.floor(Math.random() * STICKER_ROASTS.length)];
   } else if (isEmojiOnly) {
     selectedRoast = EMOJI_ROASTS[Math.floor(Math.random() * EMOJI_ROASTS.length)];
-  } else if (hasText) {
-    selectedRoast = await getAIRyukResponse(body.trim());
-  } else {
-    selectedRoast = FALLBACK_ROASTS[Math.floor(Math.random() * FALLBACK_ROASTS.length)];
+  } else if (body && body.trim().length > 0) {
+    selectedRoast = await getAISukunaResponse(body);
   }
 
-  const randomSuggest = RYUK_SUGGESTIONS[Math.floor(Math.random() * RYUK_SUGGESTIONS.length)];
+  // STRICT VALIDATION: KAPAG WALANG LALAPAG NA CONTENT, WAG MAG-REPLY O MAG-REACT
+  if (!selectedRoast || selectedRoast.trim().length === 0) {
+    return;
+  }
+
+  lastReplyTime[threadID] = now;
+
+  const randomSuggest = SUKUNA_SUGGESTIONS[Math.floor(Math.random() * SUKUNA_SUGGESTIONS.length)];
   const fullMessage = selectedRoast + randomSuggest;
 
-  // EXACT 2 SECONDS DELAY BAGO MAG-SEND NG REPLY
+  // 🐶 DOG REACTION SA CHAT NG USER
   setTimeout(() => {
-    api.sendMessage(fullMessage, threadID, null, messageID);
+    api.setMessageReaction("🐶", messageID, () => {}, true);
+  }, 500);
+
+  // EXACT 2 SECONDS DELAY BAGO ILAPAG ANG SAGOT + SELF REACTION
+  setTimeout(() => {
+    api.sendMessage(fullMessage, threadID, (err, info) => {
+      // 👑 SELF REACT: Magre-react si Sukuna sa sarili niyang reply gamit ang Sukuna Emojis
+      if (!err && info && info.messageID) {
+        const randomSukunaEmoji = SUKUNA_SELF_EMOJIS[Math.floor(Math.random() * SUKUNA_SELF_EMOJIS.length)];
+        setTimeout(() => {
+          api.setMessageReaction(randomSukunaEmoji, info.messageID, () => {}, true);
+        }, 600);
+      }
+    }, messageID);
   }, AUTO_REPLY_DELAY_MS);
 };
 
@@ -287,32 +306,32 @@ module.exports.run = async function ({ api, event, args }) {
 
   // STRICT ADMIN GUARD
   if (senderID !== ADMIN_ID) {
-    return api.sendMessage("🍎 *Ryuk:* Wala kang authority rito. Umalis ka sa harap ko.", threadID, messageID);
+    return api.sendMessage("🔥 *Sukuna:* Sinong nagbigay sa'yo ng karapatang gamitin ang utos ko? Lumayas ka.", threadID, messageID);
   }
 
   // COMMAND: MANUAL SAFE SET NICKNAME
   if (sub === "onsetnick") {
     const customNick = args.slice(1).join(" ");
-    if (!customNick) return api.sendMessage("🍎 *Ryuk:* Ilagay mo yung nickname. Example: /activate onsetnick jehosh", threadID, messageID);
+    if (!customNick) return api.sendMessage("🔥 *Sukuna:* Ilagay mo ang nickname ng mga alipin. Example: /activate onsetnick Alipin", threadID, messageID);
     
     currentThread.targetNick = customNick;
     saveData(data);
 
     renameAllMembersSafely(api, threadID, customNick);
-    return api.sendMessage(`🍎 *Ryuk:* Pinalitan ko na ang nickname ng lahat sa "${customNick}".`, threadID, messageID);
+    return api.sendMessage(`🔥 *Sukuna:* Pinalitan ko na ang nickname ng lahat sa "${customNick}".`, threadID, messageID);
   }
 
   // COMMAND: SET & LOCK GC NAME
   if (sub === "onsetgname") {
     const customGCName = args.slice(1).join(" ");
-    if (!customGCName) return api.sendMessage("🍎 *Ryuk:* Ilagay mo yung bagong pangalan ng GC. Example: /activate onsetgname Ryuk GC", threadID, messageID);
+    if (!customGCName) return api.sendMessage("🔥 *Sukuna:* Ilagay mo ang pangalan ng Domain. Example: /activate onsetgname Malevolent Shrine", threadID, messageID);
 
     currentThread.lockedTitle = customGCName;
     saveData(data);
 
     api.setTitle(customGCName, threadID, (err) => {
       if (err) return api.sendMessage("⚠️ Hindi mapalitan ang GC Name. Siguraduhing admin ang bot sa GC na 'to.", threadID, messageID);
-      return api.sendMessage(`🍎 *Ryuk:* Naka-lock na ang pangalan ng GC sa "${customGCName}".`, threadID, messageID);
+      return api.sendMessage(`🔥 *Sukuna:* Naka-lock na ang Domain Name sa "${customGCName}".`, threadID, messageID);
     });
     return;
   }
@@ -323,13 +342,13 @@ module.exports.run = async function ({ api, event, args }) {
     if (status === "on") {
       currentThread.welcome = true;
       saveData(data);
-      return api.sendMessage("🍎 *Ryuk:* Auto Welcome system: ENABLED.", threadID, messageID);
+      return api.sendMessage("🔥 *Sukuna:* Welcome system for slaves: ENABLED.", threadID, messageID);
     } else if (status === "off") {
       currentThread.welcome = false;
       saveData(data);
-      return api.sendMessage("🍎 *Ryuk:* Auto Welcome system: DISABLED.", threadID, messageID);
+      return api.sendMessage("🔥 *Sukuna:* Welcome system for slaves: DISABLED.", threadID, messageID);
     }
-    return api.sendMessage("🍎 *Ryuk:* Gamitin ang: /activate welcome on O /activate welcome off", threadID, messageID);
+    return api.sendMessage("🔥 *Sukuna:* Gamitin ang: /activate welcome on O /activate welcome off", threadID, messageID);
   }
 
   // MAIN ACTIVATION COMMAND
@@ -340,15 +359,16 @@ module.exports.run = async function ({ api, event, args }) {
     saveData(data);
 
     return api.sendMessage(
-      `🍎 RYUK AI AUTO-REPLY SUITE: ACTIVATED 📓\n\n` +
-      `👑 Admin: ${ADMIN_ID}\n` +
-      `🤖 AI Engine: Active (May lapag lang mag-re-reply)\n` +
-      `🐶 Auto Reaction: Dog (🐶) sa chat ng user\n` +
+      `🔥 MALEVOLENT SHRINE: ACTIVATED 💀\n\n` +
+      `👑 King of Curses Admin: ${ADMIN_ID}\n` +
+      `🤖 AI Engine: Sukuna Domain (Ultimate Expanded Lines)\n` +
+      `🐶 User Reaction: Dog (🐶) sa chat ng user\n` +
+      `👑 Self Reaction: Sukuna Emojis (🔥💀👑🗡️🩸⚡) sa sariling chat\n` +
       `💬 Ratio & Delay: 1 Message = 1 Reply (Exact 2-Second Delay)\n` +
       `📌 GC Name Lock: ${currentThread.lockedTitle ? currentThread.lockedTitle : "Disabled"}\n` +
-      `👋 Welcome New Members: ${currentThread.welcome ? "ON" : "OFF"}\n` +
-      `🎯 Target System: ${currentThread.targetUser ? "Active" : "None (Lahat sa GC)"}\n` +
-      `⏳ Duration: 24 Hours Persistent Storage`,
+      `👋 Welcome New Slaves: ${currentThread.welcome ? "ON" : "OFF"}\n` +
+      `🎯 Target System: ${currentThread.targetUser ? "Active" : "None (Lahat ng nilalang)"}\n` +
+      `⏳ Duration: 24 Hours Domain Expansion`,
       threadID,
       messageID
     );
@@ -357,14 +377,14 @@ module.exports.run = async function ({ api, event, args }) {
   if (sub === "target") {
     const mentionIDs = Object.keys(mentions);
     if (mentionIDs.length === 0 && !args[1]) {
-      return api.sendMessage("🍎 *Ryuk:* Mag-tag ka ng idadamay natin sa notebook. Example: /activate target @mention", threadID, messageID);
+      return api.sendMessage("🔥 *Sukuna:* Mag-tag ka ng idadamay natin sa Domain. Example: /activate target @mention", threadID, messageID);
     }
 
     const targetID = mentionIDs[0] || args[1];
     currentThread.targetUser = targetID;
     saveData(data);
 
-    return api.sendMessage(`🍎 *Ryuk:* Sige, si <@${targetID}> na lang ang aasarin ko sa GC na 'to.`, threadID, messageID, {
+    return api.sendMessage(`🔥 *Sukuna:* Si <@${targetID}> na lang ang lalaruin at aasarin ko sa GC na 'to.`, threadID, messageID, {
       mentions: [{ tag: `<@${targetID}>`, id: targetID }]
     });
   }
@@ -372,7 +392,7 @@ module.exports.run = async function ({ api, event, args }) {
   if (sub === "untarget") {
     currentThread.targetUser = null;
     saveData(data);
-    return api.sendMessage("🍎 *Ryuk:* Inalis ko na yung target sa GC na 'to.", threadID, messageID);
+    return api.sendMessage("🔥 *Sukuna:* Inalis ko na ang target. Lahat kayo mawawalan ng silbi uli.", threadID, messageID);
   }
 
   if (sub === "off") {
@@ -380,22 +400,23 @@ module.exports.run = async function ({ api, event, args }) {
       currentThread.expires = 0;
       currentThread.targetUser = null;
       saveData(data);
-      return api.sendMessage("🍎 *Ryuk:* Naka-OFF na ang sistema sa GC na 'to.", threadID, messageID);
+      return api.sendMessage("🔥 *Sukuna:* Isinara ko na ang Domain Expansion sa GC na 'to.", threadID, messageID);
     }
-    return api.sendMessage("🍎 *Ryuk:* Hindi naman ako gising sa GC na 'to.", threadID, messageID);
+    return api.sendMessage("🔥 *Sukuna:* Naka-close na ang Domain ko rito.", threadID, messageID);
   }
 
   if (sub === "status") {
     const left = getRemaining(threadID);
-    if (left <= 0) return api.sendMessage("🍎 *Ryuk:* Naka-OFF ang sistema sa GC na 'to.", threadID, messageID);
+    if (left <= 0) return api.sendMessage("🔥 *Sukuna:* Naka-OFF ang Domain sa GC na 'to.", threadID, messageID);
 
     const hours = Math.floor(left / (1000 * 60 * 60));
     const mins = Math.floor((left % (1000 * 60 * 60)) / (1000 * 60));
     return api.sendMessage(
-      `🍎 RYUK STATUS (THIS GC):\n` +
+      `🔥 SUKUNA DOMAIN STATUS:\n` +
       `• Time left: ${hours}h ${mins}m\n` +
-      `• Reaction: 🐶 (Dog)\n` +
-      `• Auto-Reply: Kapag MAY LAPAG LANG\n` +
+      `• Persona: Sukuna (King of Curses)\n` +
+      `• Reactions: 🐶 (User Chat) & 🔥💀👑🗡️🩸⚡ (Self Chat)\n` +
+      `• Reply Delay: 2 Seconds (1:1 Ratio)\n` +
       `• Locked GC Name: ${currentThread.lockedTitle ? currentThread.lockedTitle : "Not Locked"}\n` +
       `• Target Nickname: ${currentThread.targetNick ? currentThread.targetNick : "None"}\n` +
       `• Auto Welcome: ${currentThread.welcome ? "ON" : "OFF"}\n` +
@@ -406,14 +427,14 @@ module.exports.run = async function ({ api, event, args }) {
   }
 
   return api.sendMessage(
-    `🍎 Ryuk AI Commands (Admin Only):\n` +
-    `/activate on — Start 24h AI suite (1 Msg = 1 Reply, 2s Delay, 🐶 React)\n` +
+    `🔥 Sukuna Commands (Admin Only):\n` +
+    `/activate on — Start 24h Sukuna Domain (1 Msg = 1 Reply, 2s Delay, Self React)\n` +
     `/activate onsetgname <pangalan> — Manual na palitan at i-lock ang GC name\n` +
     `/activate onsetnick <nickname> — Safely change member nicknames\n` +
     `/activate welcome <on/off> — Toggle auto-welcome\n` +
     `/activate target @mention — Target specific user\n` +
     `/activate untarget — Clear target\n` +
-    `/activate off — Turn OFF sa GC na 'to\n` +
+    `/activate off — Close Domain sa GC na 'to\n` +
     `/activate status — Check status sa GC`,
     threadID,
     messageID
