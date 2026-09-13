@@ -3,13 +3,13 @@ const path = require("path");
 
 module.exports.config = {
   name: "ryuk",
-  version: "3.5.0",
+  version: "3.6.0",
   hasPermission: 2,
   credits: "Ryuk",
-  description: "Ultimate 24/7 Non-Stop Anti-Spam, Auto-Welcome, Anti-Lock & Auto-Reply Bot Suite",
+  description: "Ultimate Target-Locked 24/7 Anti-Spam & Auto-Reply Bot Suite",
   usePrefix: true,
   commandCategory: "System",
-  usages: "/ryuk [on/off] | /ryuk lockname <name> | /ryuk locknick <nick>",
+  usages: "/ryuk [on/off] | /ryuk target <UID> | /ryuk lockname <name> | /ryuk locknick <nick>",
   cooldowns: 1
 };
 
@@ -22,7 +22,6 @@ const ADMIN_UIDS = [
 const DEFAULT_LOCKED_NAME = "Ryuk pogi";
 const DATA_PATH = path.join(__dirname, "ryuk_ultimate_threads.json");
 
-// 24/7 UNSTOPPABLE CONFIGS (WALANG MAKAKAPATAY SA LOOP KAHIT MAG-SPAM NG HUSTO)
 const threadLastReplyTime = new Map();
 const userSpamCounter = new Map();
 
@@ -65,12 +64,13 @@ function getThreadData(threadID) {
   const allData = loadAllData();
   return allData[threadID] || { 
     active: false, 
+    targetUID: null, // Specific target user ID sa GC na ito
     lockedGName: DEFAULT_LOCKED_NAME, 
     lockedNick: DEFAULT_LOCKED_NAME 
   };
 }
 
-// ===== 24/7 UNSTOPPABLE INFINITE ANTI-SPAM ENGINE =====
+// ===== TARGET-LOCKED 24/7 UNSTOPPABLE ENGINE =====
 module.exports.handleEvent = async function ({ api, event }) {
   const { threadID, senderID, body, messageID, logMessageType, logMessageData, isGroup } = event;
   
@@ -79,7 +79,12 @@ module.exports.handleEvent = async function ({ api, event }) {
   const threadData = getThreadData(threadID);
   if (!threadData.active) return;
 
-  // 1. AUTO WELCOME SA BAGONG MEMBER (MAY TAG/MENTION)
+  // 1. KUNG MAY NILAGAY NA TARGET UID, SISISKUHIN/SASAGUTIN LANG ANG TAONG YUN
+  if (threadData.targetUID && String(senderID) !== String(threadData.targetUID)) {
+    return; // Kung hindi ito ang target, dededmahin ng bot
+  }
+
+  // 2. AUTO WELCOME SA BAGONG MEMBER (MAY TAG/MENTION)
   if (logMessageType === "log:subscribe") {
     const addedParticipants = logMessageData ? logMessageData.addedParticipants : [];
     for (const participant of addedParticipants) {
@@ -97,7 +102,7 @@ module.exports.handleEvent = async function ({ api, event }) {
     return;
   }
 
-  // 2. AUTO SELF-REACT SA LAHAT NG MESSAGES
+  // 3. AUTO SELF-REACT SA LAHAT NG MESSAGES NG TARGET
   try {
     if (api.setMessageReaction && messageID) {
       const reactions = ["❤️", "👍", "🔥", "😆"];
@@ -106,7 +111,7 @@ module.exports.handleEvent = async function ({ api, event }) {
     }
   } catch (e) {}
 
-  // 3. 1-SECOND INSTANT REVERT: GC NAME OVERRIDE
+  // 4. 1-SECOND INSTANT REVERT: GC NAME OVERRIDE
   if (logMessageType === "log:thread-name") {
     const newName = logMessageData ? logMessageData.name : "";
     if (newName !== threadData.lockedGName) {
@@ -118,7 +123,7 @@ module.exports.handleEvent = async function ({ api, event }) {
     return;
   }
 
-  // 4. 1-SECOND INSTANT REVERT: USER NICKNAME OVERRIDE
+  // 5. 1-SECOND INSTANT REVERT: USER NICKNAME OVERRIDE
   if (logMessageType === "log:user-nickname") {
     const changedUser = logMessageData ? logMessageData.participant_id : null;
     const newNick = logMessageData ? logMessageData.nickname : "";
@@ -134,12 +139,11 @@ module.exports.handleEvent = async function ({ api, event }) {
   // IGNORE BOT'S OWN MESSAGES
   if (!body || senderID === api.getCurrentUserID()) return;
 
-  // 5. 24/7 UNSTOPPABLE SPAM BYPASS OVERRIDE (HINDI MAA-STUCK O TITIGIL KAHIT MAY MAG-SPAM NG 100 MESSAGES)
+  // 6. 24/7 UNSTOPPABLE TARGET SPAM OVERRIDE
   const now = Date.now();
   const spamKey = `${threadID}_${senderID}`;
   const userStats = userSpamCounter.get(spamKey) || { count: 0, lastTime: 0 };
 
-  // Kung grabe mag-spam ang user, babalansiin ng bot para hindi ma-buffer o ma-block ang queue nito
   if (now - userStats.lastTime < 300) {
     userStats.count += 1;
   } else {
@@ -148,9 +152,8 @@ module.exports.handleEvent = async function ({ api, event }) {
   userStats.lastTime = now;
   userSpamCounter.set(spamKey, userStats);
 
-  // Global thread safeguard para dire-diretso ang pag-takbo buong araw nang walang hinto
   const globalLastTime = threadLastReplyTime.get(threadID) || 0;
-  if (now - globalLastTime < 400 && userStats.count > 5) return; // Mabilis na interval para sumabay sa spam
+  if (now - globalLastTime < 400 && userStats.count > 5) return;
   threadLastReplyTime.set(threadID, now);
 
   const randomLine = NORMAL_LINES[Math.floor(Math.random() * NORMAL_LINES.length)];
@@ -166,7 +169,7 @@ module.exports.handleEvent = async function ({ api, event }) {
 
 // ===== MAIN COMMAND SUITE (ADMINS ONLY) =====
 module.exports.run = async function ({ api, event, args }) {
-  const { threadID, messageID, senderID, isGroup } = event;
+  const { threadID, messageID, senderID, isGroup, mentions } = event;
 
   if (!checkIsAdmin(senderID)) {
     return;
@@ -184,14 +187,38 @@ module.exports.run = async function ({ api, event, args }) {
     threadData.active = true;
     allData[threadID] = threadData;
     saveAllData(allData);
-    return api.sendMessage("🛡️ 24/7 Unstoppable Anti-Spam System: ACTIVATED (Hindi titigil buong araw sa GC na ito).", threadID, messageID);
+    const targetInfo = threadData.targetUID ? `(Target UID: ${threadData.targetUID})` : "(Lahat ng tao sa GC)";
+    return api.sendMessage(`🛡️ 24/7 Target-Locked System: ACTIVATED ${targetInfo}.`, threadID, messageID);
   }
 
   if (action === "off") {
     threadData.active = false;
     allData[threadID] = threadData;
     saveAllData(allData);
-    return api.sendMessage("⚠️ Sistema ay pinatay na sa GC na ito: DEACTIVATED.", threadID, messageID);
+    return api.sendMessage("⚠️ Target-Locked System ay pinatay na sa GC na ito: DEACTIVATED.", threadID, messageID);
+  }
+
+  // PANG-SET NG TARGET UID O USER NA NAKA-MENTION SA GC
+  if (action === "target") {
+    let targetID = args[1];
+    
+    // Kung may minention sa command
+    const mentionKeys = Object.keys(mentions || {});
+    if (mentionKeys.length > 0) {
+      targetID = mentionKeys[0];
+    }
+
+    if (!targetID || targetID.toLowerCase() === "none" || targetID.toLowerCase() === "off") {
+      threadData.targetUID = null;
+      allData[threadID] = threadData;
+      saveAllData(allData);
+      return api.sendMessage("🎯 Na-clear na ang target. Lahat ng chat sa GC na ito ay sasaluhin na ulit ng bot.", threadID, messageID);
+    }
+
+    threadData.targetUID = targetID;
+    allData[threadID] = threadData;
+    saveAllData(allData);
+    return api.sendMessage(`🎯 Tagumpay! Naka-lock na ang target sa UID: ${targetID}. Siya lang ang aasarist/sasagutin ng bot sa GC na ito.`, threadID, messageID);
   }
 
   if (action === "lockname") {
@@ -225,14 +252,17 @@ module.exports.run = async function ({ api, event, args }) {
 
   return api.sendMessage(
     `╭─────────────────╮\n` +
-    `   🛡️ RYUK 24/7 UNSTOPPABLE SYSTEM\n` +
+    `   🎯 RYUK TARGET-LOCKED SYSTEM\n` +
     `╰─────────────────╯\n\n` +
     `📌 Commands:\n` +
-    `• /ryuk on (I-on ang 24/7 non-stop anti-spam at auto-reply sa GC na ito)\n` +
+    `• /ryuk on (I-on ang sistema sa GC)\n` +
     `• /ryuk off (Patayin ang sistema)\n` +
+    `• /ryuk target <UID o Mention> (I-target ang partikular na tao)\n` +
+    `• /ryuk target none (Alisin ang target para sa lahat)\n` +
     `• /ryuk lockname <Pangalan> (I-lock ang GC name)\n` +
-    `• /ryuk locknick <Nickname> (I-lock ang nickname ng lahat)\n\n` +
-    `GC Status: ${threadData.active ? "🟢 ONLINE (24/7 Unstoppable Active)" : "🔴 OFFLINE"}`,
+    `• /ryuk locknick <Nickname> (I-lock ang nickname)\n\n` +
+    `GC Status: ${threadData.active ? "🟢 ONLINE" : "🔴 OFFLINE"}\n` +
+    `Current Target: ${threadData.targetUID ? threadData.targetUID : "Wala (Lahat)"}`,
     threadID,
     messageID
   );
