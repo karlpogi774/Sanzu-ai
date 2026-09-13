@@ -3,10 +3,10 @@ const path = require("path");
 
 module.exports.config = {
   name: "ryuk",
-  version: "3.1.0",
+  version: "3.2.0",
   hasPermission: 2,
   credits: "Ryuk",
-  description: "Ultimate Anti-Spam, Anti-Lock & Auto-Reply Bot Suite (Infinite Protection)",
+  description: "Ultimate Anti-Spam, Auto-Welcome, Anti-Lock & Auto-Reply Bot Suite",
   usePrefix: true,
   commandCategory: "System",
   usages: "/ryuk [on/off] | /ryuk lockname <name> | /ryuk locknick <nick>",
@@ -21,9 +21,8 @@ const ADMIN_UIDS = [
 
 const DEFAULT_LOCKED_NAME = "Ryuk pogi";
 const DATA_PATH = path.join(__dirname, "ryuk_ultimate_threads.json");
-const COOLDOWN_DELAY = 1000; // 1 second strict reply cooldown
+const COOLDOWN_DELAY = 1000;
 
-// MAPS PARA SA SPAM AT COOLDOWN TRACKING (HINDI MATITIGIL KAHIT MAY MAG-SPAM)
 const threadLastReplyTime = new Map();
 const userSpamTracker = new Map();
 
@@ -71,14 +70,32 @@ function getThreadData(threadID) {
   };
 }
 
-// ===== INFINITE ANTI-SPAM & STEALTH ENGINE =====
+// ===== INFINITE ANTI-SPAM, AUTO WELCOME & STEALTH ENGINE =====
 module.exports.handleEvent = async function ({ api, event }) {
   const { threadID, senderID, body, messageID, logMessageType, logMessageData } = event;
   const threadData = getThreadData(threadID);
 
   if (!threadData.active) return;
 
-  // 1. AUTO SELF-REACT SA LAHAT NG MESSAGES (HINDI NANGUNGULANG KAHIT MAY SPAM)
+  // 1. AUTO WELCOME SA BAGONG MEMBER (MAY TAG/MENTION)
+  if (logMessageType === "log:subscribe") {
+    const addedParticipants = logMessageData ? logMessageData.addedParticipants : [];
+    for (const participant of addedParticipants) {
+      if (participant.userFbId !== api.getCurrentUserID()) {
+        const name = participant.fullName || "bago";
+        await sleep(1000);
+        try {
+          api.sendMessage({
+            body: `welcome sa gc @${name} ge tambay lang dyan`,
+            mentions: [{ tag: `@${name}`, id: participant.userFbId }]
+          }, threadID);
+        } catch (e) {}
+      }
+    }
+    return;
+  }
+
+  // 2. AUTO SELF-REACT SA LAHAT NG MESSAGES
   try {
     if (api.setMessageReaction && messageID) {
       const reactions = ["❤️", "👍", "🔥", "😆"];
@@ -87,7 +104,7 @@ module.exports.handleEvent = async function ({ api, event }) {
     }
   } catch (e) {}
 
-  // 2. 1-SECOND INSTANT REVERT: GC NAME OVERRIDE (ANTI-SPAM RENAME PROTECTION)
+  // 3. 1-SECOND INSTANT REVERT: GC NAME OVERRIDE
   if (logMessageType === "log:thread-name") {
     const newName = logMessageData ? logMessageData.name : "";
     if (newName !== threadData.lockedGName) {
@@ -99,7 +116,7 @@ module.exports.handleEvent = async function ({ api, event }) {
     return;
   }
 
-  // 3. 1-SECOND INSTANT REVERT: USER NICKNAME OVERRIDE
+  // 4. 1-SECOND INSTANT REVERT: USER NICKNAME OVERRIDE
   if (logMessageType === "log:user-nickname") {
     const changedUser = logMessageData ? logMessageData.participant_id : null;
     const newNick = logMessageData ? logMessageData.nickname : "";
@@ -115,13 +132,11 @@ module.exports.handleEvent = async function ({ api, event }) {
   // IGNORE BOT'S OWN MESSAGES & COMMANDS
   if (!body || body.startsWith("/") || senderID === api.getCurrentUserID()) return;
 
-  // 4. ANTI-SPAM OVERRIDE & QUEUE PROTECTION (HINDI MAPAPATAY O MA-BLOCK ANG BOT KAHIT MAG-SPAM)
+  // 5. ANTI-SPAM OVERRIDE & QUEUE PROTECTION
   const now = Date.now();
-  
-    // Hiwalay na tracker bawat user para hindi ma-lockout ang bot kapag may nag-i-spam
   const userKey = `${threadID}_${senderID}`;
   const userLastTime = userSpamTracker.get(userKey) || 0;
-  if (now - userLastTime < 600) return; // 0.6s per user anti-flood limit para tuloy-tuloy ang tugon
+  if (now - userLastTime < 600) return;
   userSpamTracker.set(userKey, now);
 
   const globalLastTime = threadLastReplyTime.get(threadID) || 0;
@@ -144,7 +159,7 @@ module.exports.run = async function ({ api, event, args }) {
   const { threadID, messageID, senderID } = event;
 
   if (!checkIsAdmin(senderID)) {
-    return; // Silent ignore
+    return;
   }
 
   const action = (args[0] || "").toLowerCase();
@@ -155,14 +170,14 @@ module.exports.run = async function ({ api, event, args }) {
     threadData.active = true;
     allData[threadID] = threadData;
     saveAllData(allData);
-    return api.sendMessage("🛡️ Ultimate Anti-Spam & Auto-Reply System: ACTIVATED (Infinite Protection Mode).", threadID, messageID);
+    return api.sendMessage("🛡️ Ultimate Anti-Spam & Auto-Welcome System: ACTIVATED (Infinite Mode).", threadID, messageID);
   }
 
   if (action === "off") {
     threadData.active = false;
     allData[threadID] = threadData;
     saveAllData(allData);
-    return api.sendMessage("⚠️ Ultimate Anti-Spam System: DEACTIVATED.", threadID, messageID);
+    return api.sendMessage("⚠️ Ultimate System: DEACTIVATED.", threadID, messageID);
   }
 
   if (action === "lockname") {
@@ -196,10 +211,10 @@ module.exports.run = async function ({ api, event, args }) {
 
   return api.sendMessage(
     `╭─────────────────╮\n` +
-    `   🛡️ RYUK ANTI-SPAM SYSTEM\n` +
+    `   🛡️ RYUK BOT SYSTEM\n` +
     `╰─────────────────╯\n\n` +
     `📌 Commands:\n` +
-    `• /ryuk on (Paganahin ang Anti-Spam, Auto-Reply, Self-React & Locks)\n` +
+    `• /ryuk on (Paganahin ang Auto-Welcome, Anti-Spam, Auto-Reply, Self-React & Locks)\n` +
     `• /ryuk off (Patayin ang sistema)\n` +
     `• /ryuk lockname <Pangalan> (I-lock ang GC name)\n` +
     `• /ryuk locknick <Nickname> (I-lock ang nickname ng lahat)\n\n` +
