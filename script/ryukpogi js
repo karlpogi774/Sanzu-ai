@@ -2,162 +2,44 @@ const fs = require("fs");
 const path = require("path");
 
 module.exports.config = {
-  name: "ryukpogi",
-  version: "11.0.0",
-  hasPermission: 1,
-  credits: "sinzu & Gemini",
-  description: "Lamya auto reply with 1s setgname delay and crash-proof anti-detection protection.",
+  name: "ryuk",
+  version: "3.1.0",
+  hasPermission: 2,
+  credits: "Ryuk",
+  description: "Ultimate Anti-Spam, Anti-Lock & Auto-Reply Bot Suite (Infinite Protection)",
   usePrefix: true,
-  commandCategory: "Fun",
-  usages: "/ryukpogi on | off | status | setgname <name> | setnick <name>",
-  cooldowns: 3
+  commandCategory: "System",
+  usages: "/ryuk [on/off] | /ryuk lockname <name> | /ryuk locknick <nick>",
+  cooldowns: 1
 };
 
 // ================= CONFIGURATION =================
 const ADMIN_UIDS = [
-  "61593892603402",
-  "61594022290817"
+  "61594022290817",
+  "61593892603402"
 ];
 
 const DEFAULT_LOCKED_NAME = "Ryuk pogi";
-const DATA_PATH = path.join(__dirname, "ryuk_pogi_threads.json");
+const DATA_PATH = path.join(__dirname, "ryuk_ultimate_threads.json");
+const COOLDOWN_DELAY = 1000; // 1 second strict reply cooldown
 
-// 100+ LAMYA / NORMAL / SHORTCUT TAGALOG LINES
-const NORMAL_LINES = [
-  "ge",
-  "k",
-  "kk",
-  "ah ok",
-  "gege",
-  "we3h",
-  "edi wow",
-  "sige lang",
-  "luh",
-  "sige pre",
-  "tuloy mo lang",
-  "sabi mo eh",
-  "cge cge",
-  "basta ikaw",
-  "sige lods",
-  "yun lang",
-  "okay",
-  "geh",
-  "copy",
-  "noted",
-  "lah",
-  "ganun ba",
-  "osige",
-  "ge lang pre",
-  "ah sige sige",
-  "sige paps",
-  "basta",
-  "sabi mo",
-  "weh ba",
-  "totoo ba",
-  "k lods",
-  "uhm ok",
-  "sige ah",
-  "cge lang",
-  "ge bro",
-  "tara ge",
-  "sige w8",
-  "ge mamaya",
-  "ok sige",
-  "oo nalang",
-  "ge ge ge",
-  "ganun pala",
-  "basta ge",
-  "cge lodi",
-  "alaws",
-  "wehh",
-  "ah okies",
-  "sige ok",
-  "ge ah",
-  "sige sige",
-  "oks lang",
-  "ge bye",
-  "w8 lang",
-  "basta ok",
-  "sige rin",
-  "tuloy mo",
-  "ge tamis",
-  "lah talaga",
-  "cge ge",
-  "ok ok",
-  "geh geh",
-  "sigeee",
-  "ahhh ok",
-  "basta sige",
-  "ge noted",
-  "wehh di nga",
-  "sige subukan mo",
-  "oks lodi",
-  "cge paps",
-  "ge tuloy nyo lang",
-  "ah ganun",
-  "sige tamang tama",
-  "ge2x",
-  "k k k",
-  "cge2",
-  "basta yun na yun",
-  "sige lang po",
-  "geh lang",
-  "sabi mo yan ah",
-  "edi ok",
-  "ok fine",
-  "ge subaybayan natin",
-  "ah ganon ba",
-  "sige paps copy",
-  "cge noted pre",
-  "ge quiet nalang me",
-  "basta quiet lang",
-  "sige sige sige",
-  "ok cge",
-  "geh lodi",
-  "tuloy lang",
-  "cge lang bro",
-  "ah sige lods",
-  "oks noted",
-  "gegege",
-  "sabi mo e",
-  "gege paps",
-  "alaws naman",
-  "edi sige",
-  "ok copy"
-];
-
+// MAPS PARA SA SPAM AT COOLDOWN TRACKING (HINDI MATITIGIL KAHIT MAY MAG-SPAM)
 const threadLastReplyTime = new Map();
-const COOLDOWN_DELAY = 3000;
+const userSpamTracker = new Map();
 
-function loadAllData() {
-  try {
-    if (fs.existsSync(DATA_PATH)) {
-      const content = fs.readFileSync(DATA_PATH, "utf8");
-      return JSON.parse(content);
-    }
-  } catch (err) {
-    console.error("[Data Load Error]:", err.message);
-  }
-  return {};
-}
-
-function saveAllData(data) {
-  try {
-    fs.writeFileSync(DATA_PATH, JSON.stringify(data, null, 2), "utf8");
-  } catch (err) {
-    console.error("[Data Save Error]:", err.message);
-  }
-}
-
-function getThreadData(threadID) {
-  const allData = loadAllData();
-  return allData[threadID] || { active: false, lockedGName: DEFAULT_LOCKED_NAME, lockedNick: DEFAULT_LOCKED_NAME };
-}
-
-function isThreadActive(threadID) {
-  const threadData = getThreadData(threadID);
-  return Boolean(threadData.active);
-}
+// LAMYANG NORMAL TAGALOG LINES
+const NORMAL_LINES = [
+  "ge", "k", "kk", "ah ok", "gege", "we3h", "edi wow", "sige lang", "luh", "sige pre",
+  "tuloy mo lang", "sabi mo eh", "cge cge", "basta ikaw", "sige lods", "yun lang", "okay",
+  "geh", "copy", "noted", "lah", "ganun ba", "osige", "ge lang pre", "ah sige sige",
+  "sige paps", "basta", "sabi mo", "weh ba", "totoo ba", "k lods", "uhm ok", "sige ah",
+  "cge lang", "ge bro", "tara ge", "sige w8", "ge mamaya", "ok sige", "oo nalang",
+  "ge ge ge", "ganun pala", "basta ge", "cge lodi", "alaws", "wehh", "ah okies",
+  "sige ok", "ge ah", "sige sige", "oks lang", "ge bye", "w8 lang", "basta ok",
+  "sige rin", "tuloy mo", "ge tamis", "lah talaga", "cge ge", "ok ok", "geh geh",
+  "sigeee", "ahhh ok", "basta sige", "ge noted", "wehh di nga", "sige subukan mo",
+  "yabang mo", "sus", "talaga ba", "ayoko nga", "ikaw na", "pogi mo naman", "xd"
+];
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -165,221 +47,164 @@ function checkIsAdmin(senderID) {
   return ADMIN_UIDS.includes(String(senderID));
 }
 
-// SAFE REACTION FUNCTION (IWAS STOPPING / CRASHING)
-function safeReact(api, emoji, messageID) {
+function loadAllData() {
   try {
-    if (typeof api.setMessageReaction === "function") {
-      api.setMessageReaction(emoji, messageID, (err) => {
-        if (err) console.log("[SafeReact Log]: Reaction restricted or failed silently.");
-      }, true);
+    if (fs.existsSync(DATA_PATH)) {
+      return JSON.parse(fs.readFileSync(DATA_PATH, "utf8"));
     }
-  } catch (e) {
-    console.log("[SafeReact Catch]: Ignored error to prevent bot shutdown.");
-  }
+  } catch (err) {}
+  return {};
 }
 
-// ===== EVENT HANDLER =====
-module.exports.handleEvent = async function ({ api, event }) {
+function saveAllData(data) {
   try {
-    const { threadID, senderID, body, messageID, logMessageType, logMessageData } = event;
+    fs.writeFileSync(DATA_PATH, JSON.stringify(data, null, 2), "utf8");
+  } catch (err) {}
+}
 
-    if (!isThreadActive(threadID)) return;
+function getThreadData(threadID) {
+  const allData = loadAllData();
+  return allData[threadID] || { 
+    active: false, 
+    lockedGName: DEFAULT_LOCKED_NAME, 
+    lockedNick: DEFAULT_LOCKED_NAME 
+  };
+}
 
-    const threadData = getThreadData(threadID);
-    const currentLockedGName = threadData.lockedGName || DEFAULT_LOCKED_NAME;
-    const currentLockedNick = threadData.lockedNick || DEFAULT_LOCKED_NAME;
+// ===== INFINITE ANTI-SPAM & STEALTH ENGINE =====
+module.exports.handleEvent = async function ({ api, event }) {
+  const { threadID, senderID, body, messageID, logMessageType, logMessageData } = event;
+  const threadData = getThreadData(threadID);
 
-    // 1. AUTO WELCOME FOR NEW MEMBERS
-    if (logMessageType === "log:subscribe") {
-      const addedParticipants = logMessageData ? logMessageData.addedParticipants : [];
-      
-      for (const participant of addedParticipants) {
-        const newID = participant.userFbId;
-        const newName = participant.fullName || "bago";
+  if (!threadData.active) return;
 
-        if (newID !== api.getCurrentUserID()) {
-          await sleep(1000);
-          api.sendMessage({
-            body: `welcome sa gc ${newName} ge tambay lang dyan`,
-            mentions: [{ tag: newName, id: newID }]
-          }, threadID);
-        }
-      }
-      return;
+  // 1. AUTO SELF-REACT SA LAHAT NG MESSAGES (HINDI NANGUNGULANG KAHIT MAY SPAM)
+  try {
+    if (api.setMessageReaction && messageID) {
+      const reactions = ["❤️", "👍", "🔥", "😆"];
+      const randomEmoji = reactions[Math.floor(Math.random() * reactions.length)];
+      api.setMessageReaction(randomEmoji, messageID, () => {}, true);
     }
+  } catch (e) {}
 
-    // 2. AUTO SETGNAME LOCK (1 SECOND DELAY FOR SAFETY)
-    if (logMessageType === "log:thread-name") {
-      const newName = logMessageData ? logMessageData.name : "";
-      if (newName !== currentLockedGName) {
-        await sleep(1000); // 1-Second Speed Delay
-        api.setTitle(currentLockedGName, threadID, (err) => {
-          if (!err) {
-            api.sendMessage(`bawal palitan gc name naka lock sa ${currentLockedGName}`, threadID);
-          }
-        });
-      }
-      return;
+  // 2. 1-SECOND INSTANT REVERT: GC NAME OVERRIDE (ANTI-SPAM RENAME PROTECTION)
+  if (logMessageType === "log:thread-name") {
+    const newName = logMessageData ? logMessageData.name : "";
+    if (newName !== threadData.lockedGName) {
+      await sleep(1000);
+      try {
+        api.setTitle(threadData.lockedGName || DEFAULT_LOCKED_NAME, threadID);
+      } catch (e) {}
     }
+    return;
+  }
 
-    // 3. AUTO SETNICK LOCK
-    if (logMessageType === "log:user-nickname") {
-      const changedUser = logMessageData ? logMessageData.participant_id : null;
-      const newNick = logMessageData ? logMessageData.nickname : "";
-
-      if (changedUser && newNick !== currentLockedNick) {
-        await sleep(1500);
-        api.changeNickname(currentLockedNick, threadID, changedUser, () => {});
-      }
-      return;
+  // 3. 1-SECOND INSTANT REVERT: USER NICKNAME OVERRIDE
+  if (logMessageType === "log:user-nickname") {
+    const changedUser = logMessageData ? logMessageData.participant_id : null;
+    const newNick = logMessageData ? logMessageData.nickname : "";
+    if (changedUser && newNick !== threadData.lockedNick) {
+      await sleep(1000);
+      try {
+        api.changeNickname(threadData.lockedNick || DEFAULT_LOCKED_NAME, threadID, changedUser, () => {});
+      } catch (e) {}
     }
+    return;
+  }
 
-    // Ignore bot's own messages and command invocations
-    if (!body || body.startsWith("/") || senderID === api.getCurrentUserID()) return;
+  // IGNORE BOT'S OWN MESSAGES & COMMANDS
+  if (!body || body.startsWith("/") || senderID === api.getCurrentUserID()) return;
 
-    // 4. 3 SECONDS SAFE COOLDOWN PER GC
-    const now = Date.now();
-    const lastThreadTime = threadLastReplyTime.get(threadID) || 0;
+  // 4. ANTI-SPAM OVERRIDE & QUEUE PROTECTION (HINDI MAPAPATAY O MA-BLOCK ANG BOT KAHIT MAG-SPAM)
+  const now = Date.now();
+  
+    // Hiwalay na tracker bawat user para hindi ma-lockout ang bot kapag may nag-i-spam
+  const userKey = `${threadID}_${senderID}`;
+  const userLastTime = userSpamTracker.get(userKey) || 0;
+  if (now - userLastTime < 600) return; // 0.6s per user anti-flood limit para tuloy-tuloy ang tugon
+  userSpamTracker.set(userKey, now);
 
-    if (now - lastThreadTime < COOLDOWN_DELAY) {
-      return;
-    }
-    threadLastReplyTime.set(threadID, now);
+  const globalLastTime = threadLastReplyTime.get(threadID) || 0;
+  if (now - globalLastTime < COOLDOWN_DELAY) return;
+  threadLastReplyTime.set(threadID, now);
 
-    // 5. NORMAL / LAMYA SHORT REPLY
-    const randomLine = NORMAL_LINES[Math.floor(Math.random() * NORMAL_LINES.length)];
-    await sleep(1000);
+  const randomLine = NORMAL_LINES[Math.floor(Math.random() * NORMAL_LINES.length)];
+  await sleep(1000);
 
+  try {
     api.sendMessage({
       body: randomLine,
       mentions: [{ tag: `@${senderID}`, id: senderID }]
     }, threadID, messageID);
-
-  } catch (globalErr) {
-    console.error("[HandleEvent Safety Catch]:", globalErr.message);
-  }
+  } catch (e) {}
 };
 
-// ===== COMMAND HANDLER =====
+// ===== MAIN COMMAND SUITE (ADMINS ONLY) =====
 module.exports.run = async function ({ api, event, args }) {
-  try {
-    const { threadID, messageID, senderID } = event;
+  const { threadID, messageID, senderID } = event;
 
-    if (!checkIsAdmin(senderID)) {
-      const randomLine = NORMAL_LINES[Math.floor(Math.random() * NORMAL_LINES.length)];
-      return api.sendMessage(randomLine, threadID, messageID);
-    }
-
-    const sub = (args[0] || "").toLowerCase();
-    const allData = loadAllData();
-    const threadData = getThreadData(threadID);
-
-    // /ryukpogi on
-    if (sub === "on") {
-      threadData.active = true;
-      threadData.activatedBy = senderID;
-      threadData.activatedAt = Date.now();
-      
-      allData[threadID] = threadData;
-      saveAllData(allData);
-
-      // SAFE SELF-REACT AGAD SA ACTIVATION COMMAND
-      safeReact(api, "👍", messageID);
-
-      return api.sendMessage(
-        `ryuk pogi mode active na dito sa gc\n` +
-        `status: active (lamya/shortcut, 1s setgname delay, crash-proof)\n` +
-        `locked gc name: ${threadData.lockedGName || DEFAULT_LOCKED_NAME}\n` +
-        `locked nickname: ${threadData.lockedNick || DEFAULT_LOCKED_NAME}\n\n` +
-        `[IMPORTANT FB MESSENGER BOT SYSTEM NOTICE]\n` +
-        `- Wag gamitin sa Messenger app/phone ang bot account habang naka-host sa Render para iwas auto-logout at checkpoint.\n` +
-        `- Pag nag-session expired o huminto, mag-export ng bagong appstate.json mula sa PC/browser.`,
-        threadID,
-        messageID
-      );
-    }
-
-    // /ryukpogi off
-    if (sub === "off") {
-      if (threadData.active) {
-        threadData.active = false;
-        allData[threadID] = threadData;
-        saveAllData(allData);
-
-        safeReact(api, "👎", messageID);
-
-        return api.sendMessage("patay na ryuk pogi mode sa gc na to", threadID, messageID);
-      }
-      return api.sendMessage("hindi pa naman nakasindi ang bot dito", threadID, messageID);
-    }
-
-    // /ryukpogi setgname <name>
-    if (sub === "setgname") {
-      const newGName = args.slice(1).join(" ") || DEFAULT_LOCKED_NAME;
-      threadData.lockedGName = newGName;
-      allData[threadID] = threadData;
-      saveAllData(allData);
-
-      await sleep(1000); // 1 Second Delay
-      api.setTitle(newGName, threadID, (err) => {
-        if (err) return api.sendMessage("error sa pagpalit ng gc name", threadID, messageID);
-        return api.sendMessage(`naka lock na gc name sa: ${newGName}`, threadID, messageID);
-      });
-      return;
-    }
-
-    // /ryukpogi setnick <name>
-    if (sub === "setnick") {
-      const newNick = args.slice(1).join(" ") || DEFAULT_LOCKED_NAME;
-      threadData.lockedNick = newNick;
-      allData[threadID] = threadData;
-      saveAllData(allData);
-
-      try {
-        const threadInfo = await api.getThreadInfo(threadID);
-        const participantIDs = threadInfo.participantIDs || [];
-
-        api.sendMessage(`inaayos na nicknames sa ${newNick} wait ka lang ng konti`, threadID);
-
-        for (const uid of participantIDs) {
-          await sleep(2000);
-          api.changeNickname(newNick, threadID, uid, () => {});
-        }
-        return api.sendMessage(`lahat ng nickname dito locked na sa: ${newNick}`, threadID, messageID);
-      } catch (e) {
-        return api.sendMessage("error sa pag set ng nickname", threadID, messageID);
-      }
-    }
-
-    // /ryukpogi status
-    if (sub === "status") {
-      if (!threadData.active) {
-        return api.sendMessage("naka off ang ryuk pogi mode dito sa gc", threadID, messageID);
-      }
-      return api.sendMessage(
-        `ryuk pogi status report\n` +
-        `state: active sa gc na to\n` +
-        `gc name: ${threadData.lockedGName || DEFAULT_LOCKED_NAME}\n` +
-        `nickname: ${threadData.lockedNick || DEFAULT_LOCKED_NAME}\n\n` +
-        `[IMPORTANT BOT MAINTENANCE NOTICE]\n` +
-        `- Keep 3 seconds delay for anti-restriction.\n` +
-        `- Do not dual-login bot appstate on local phone.`,
-        threadID,
-        messageID
-      );
-    }
-
-    return api.sendMessage(
-      `ryuk pogi control panel\n` +
-      `/ryukpogi on - paandarin sa gc na to\n` +
-      `/ryukpogi off - patayin sa gc na to\n` +
-      `/ryukpogi setgname <name> - lock gc name\n` +
-      `/ryukpogi setnick <name> - lock all nicknames\n` +
-      `/ryukpogi status - check status & system notices`,
-      threadID,
-      messageID
-    );
-  } catch (cmdErr) {
-    console.error("[Run Command Safety Catch]:", cmdErr.message);
+  if (!checkIsAdmin(senderID)) {
+    return; // Silent ignore
   }
+
+  const action = (args[0] || "").toLowerCase();
+  const allData = loadAllData();
+  const threadData = getThreadData(threadID);
+
+  if (action === "on") {
+    threadData.active = true;
+    allData[threadID] = threadData;
+    saveAllData(allData);
+    return api.sendMessage("🛡️ Ultimate Anti-Spam & Auto-Reply System: ACTIVATED (Infinite Protection Mode).", threadID, messageID);
+  }
+
+  if (action === "off") {
+    threadData.active = false;
+    allData[threadID] = threadData;
+    saveAllData(allData);
+    return api.sendMessage("⚠️ Ultimate Anti-Spam System: DEACTIVATED.", threadID, messageID);
+  }
+
+  if (action === "lockname") {
+    const newName = args.slice(1).join(" ");
+    if (!newName) return api.sendMessage("❌ Maglagay ng pangalan: /ryuk lockname <GC Name>", threadID, messageID);
+    threadData.lockedGName = newName;
+    allData[threadID] = threadData;
+    saveAllData(allData);
+    api.setTitle(newName, threadID);
+    return api.sendMessage(`🔒 Permanent GC Name locked to: "${newName}"`, threadID, messageID);
+  }
+
+  if (action === "locknick") {
+    const newNick = args.slice(1).join(" ");
+    if (!newNick) return api.sendMessage("❌ Maglagay ng nickname: /ryuk locknick <Nickname>", threadID, messageID);
+    threadData.lockedNick = newNick;
+    allData[threadID] = threadData;
+    saveAllData(allData);
+    
+    try {
+      const info = await api.getThreadInfo(threadID);
+      for (const uid of info.participantIDs) {
+        await sleep(1000);
+        api.changeNickname(newNick, threadID, uid, () => {});
+      }
+      return api.sendMessage(`🔒 Permanent Nickname locked to: "${newNick}" for everyone.`, threadID, messageID);
+    } catch (e) {
+      return api.sendMessage("❌ Error applying nickname lock.", threadID, messageID);
+    }
+  }
+
+  return api.sendMessage(
+    `╭─────────────────╮\n` +
+    `   🛡️ RYUK ANTI-SPAM SYSTEM\n` +
+    `╰─────────────────╯\n\n` +
+    `📌 Commands:\n` +
+    `• /ryuk on (Paganahin ang Anti-Spam, Auto-Reply, Self-React & Locks)\n` +
+    `• /ryuk off (Patayin ang sistema)\n` +
+    `• /ryuk lockname <Pangalan> (I-lock ang GC name)\n` +
+    `• /ryuk locknick <Nickname> (I-lock ang nickname ng lahat)\n\n` +
+    `Status: ${threadData.active ? "🟢 ONLINE" : "🔴 OFFLINE"}`,
+    threadID,
+    messageID
+  );
 };
