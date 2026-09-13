@@ -9,10 +9,10 @@ const ADMIN_ID = "61593892603402";
 
 module.exports.config = {
   name: "activate",
-  version: "7.3.0",
+  version: "7.5.0",
   hasPermission: 2,
   credits: "Jehosh / Ryuk",
-  description: "Ryuk AI Suite: Strict 1-Message 1-Reply system with 2-second delay, Target System, and File Persistence.",
+  description: "Ryuk AI Suite: Only replies when user sends content, Dog reaction, 1:1 ratio, 2s delay.",
   usePrefix: true,
   commandCategory: "Admin",
   usages: "/activate on — Start 24h suite sa DITONG GC\n" +
@@ -28,8 +28,7 @@ module.exports.config = {
 
 const DATA_PATH = path.join(__dirname, "activate_data.json");
 
-// FIXED 2-SECOND DELAY & SPAM CONTROL
-const AUTO_REPLY_DELAY_MS = 2000; // 2 Seconds Delay
+const AUTO_REPLY_DELAY_MS = 2000; 
 const SPAM_WINDOW_MS = 8000;
 const USER_SPAM_LIMIT = 3;
 
@@ -40,28 +39,43 @@ const FALLBACK_ROASTS = [
   "eh tapos? 🍎",
   "inaantok ako sa boses mo...",
   "labas sa ilong yung sinabi mo.",
-  "boring mo naman kausap.",
-  "seryoso ka na diyan?",
-  "ge lang, kwento mo sa pader.",
-  "parang wala namang may pake...",
-  "tamad na tamad ako sa'yo.",
-  "ha? hakdog.",
-  "paka-walang kwenta naman.",
-  "isa pang salita, isusulat na kita..."
+  "boring mo naman kausap, matulog ka na lang.",
+  "seryoso ka na diyan niyan?",
+  "ge lang, kwento mo sa pader baka makinig.",
+  "parang wala namang may pake sa sinasabi mo...",
+  "tamad na tamad ako sa'yo, promise.",
+  "ha? hakdog na lang ire-reply ko sa'yo.",
+  "paka-walang kwenta naman nung trip mo.",
+  "isa pang salita, isusulat na talaga kita sa notebook...",
+  "daming sinabi, wala namang katuturan.",
+  "mas masarap pa kausap 'yung pader sa'yo.",
+  "paki-ulit nga? para bale-wala uli.",
+  "akala mo naman kina-cool mo 'yan.",
+  "ingay mo, abutan mo na lang ako ng mansanas.",
+  "sigurado ka ba sa sinasabi mo o mema lang?",
+  "tulog mo na lang 'yan, wala kang mapapala rito.",
+  "hanggang diyan lang ba talaga kaya ng utak mo?",
+  "walang dating. subok ka uli mamaya.",
+  "sana tinago mo na lang 'yang opinyon mo.",
+  "para kang sira, bakit ka nag-t-type pa?"
 ];
 
 const STICKER_ROASTS = [
   "dami mong sticker, bawas-bawasan mo 'yan. 🍎",
-  "anong klaseng sticker 'yan? baduy.",
+  "anong klaseng sticker 'yan? baduy naman.",
   "pa-sticker sticker ka pa, wala namang kwenta.",
-  "ingay ng sticker mo, tulog na lang tayo."
+  "ingay ng sticker mo, tulog na lang tayo.",
+  "nag-send pa ng sticker, wala na bang maisip na salita?",
+  "sticker pa more, para mukhang may sinabi."
 ];
 
 const EMOJI_ROASTS = [
   "nag-emoji pa nga... ano 'yan?",
   "puro ka emoji, wala ka bang salita?",
   "sarap burahin nung emoji mo sa notebook. 🍎",
-  "mema emoji lang talaga no?"
+  "mema emoji lang talaga no?",
+  "mukha kang emoji sa totoo lang.",
+  "daming emoji, kulang naman sa laman."
 ];
 
 const RYUK_SUGGESTIONS = [
@@ -70,10 +84,10 @@ const RYUK_SUGGESTIONS = [
   "\n\n💡 *Suggest: Isulat na ba pangalan nito sa notebook?*",
   "\n\n💡 *Suggest: Mag-off online ka muna.*",
   "\n\n💡 *Suggest: Pahinga ka muna, puro ka sabaw.*",
-  "\n\n💡 *Suggest: Magdala ka muna ng mansanas sa akin.*"
+  "\n\n💡 *Suggest: Magdala ka muna ng mansanas sa akin.*",
+  "\n\n💡 *Suggest: Maghanap ka muna ng bagong kausap.*",
+  "\n\n💡 *Suggest: Bawas-awasan ang pagiging mema.*"
 ];
-
-const EMOJIS = ["🍎", "💀", "📓", "😴", "👁️", "🥀", "🖤"];
 
 function loadData() {
   try {
@@ -129,7 +143,6 @@ function renameAllMembersSafely(api, threadID, nickname) {
   });
 }
 
-// AI AUTO-REPLY GENERATOR FOR RYUK
 async function getAIRyukResponse(userPrompt) {
   try {
     const prompt = `Ikaw si Ryuk mula sa Death Note. Ang personalidad mo ay napakatamad, lamyain, bored, mataray, at mahilig mang-asar gamit ang maiikling Tagalog lines (maximum 1 to 2 short sentences). Sumagot ka sa sinabi ng user nang walang pakialam o nang-aasar. Message ng user: "${userPrompt}"`;
@@ -206,26 +219,42 @@ module.exports.handleEvent = async function ({ api, event }) {
     return;
   }
 
+  // ⚠️ CHECK KUNG MAY LINAPAG TALAGA ANG USER (TEXT, STICKER, O ATTACHMENT)
+  const hasText = body && body.trim().length > 0;
+  const isSticker = type === "sticker" || (attachments && attachments.some(a => a.type === "sticker"));
+  const hasAttachment = attachments && attachments.length > 0;
+
+  // KAPAG WALANG LINAPAG (EMPTY CHAT O HINDI RELEVANT EVENT), HUWAG MAG-REPLY!
+  if (!hasText && !isSticker && !hasAttachment) {
+    return;
+  }
+
   // 4. ANTI-SPAM CHECK
   if (isSpamming(senderID)) return;
 
-  // 5. 1 MESSAGE = 1 REPLY (2 SECONDS DELAY EXECUTION)
+  // 5. COOLDOWN / DELAY CHECK
   const now = Date.now();
   if (lastReplyTime[threadID] && (now - lastReplyTime[threadID] < AUTO_REPLY_DELAY_MS)) {
     return;
   }
   lastReplyTime[threadID] = now;
 
+  // 🐶 REACTION SA CHAT NG USER (ASO)
+  setTimeout(() => {
+    api.setMessageReaction("🐶", messageID, () => {}, true);
+  }, 500);
+
   let selectedRoast = "";
-  const isSticker = type === "sticker" || (attachments && attachments.some(a => a.type === "sticker"));
-  const isEmojiOnly = body && /^(\u00a9|\u00ae|[\u2000-\u3300]|\ud83c[\ud000-\udfff]|\ud83d[\ud000-\udfff]|\ud83e[\ud000-\udfff])+$$/g.test(body.trim());
+  const isEmojiOnly = hasText && /^(\u00a9|\u00ae|[\u2000-\u3300]|\ud83c[\ud000-\udfff]|\ud83d[\ud000-\udfff]|\ud83e[\ud000-\udfff])+$$/g.test(body.trim());
 
   if (isSticker) {
     selectedRoast = STICKER_ROASTS[Math.floor(Math.random() * STICKER_ROASTS.length)];
   } else if (isEmojiOnly) {
     selectedRoast = EMOJI_ROASTS[Math.floor(Math.random() * EMOJI_ROASTS.length)];
+  } else if (hasText) {
+    selectedRoast = await getAIRyukResponse(body.trim());
   } else {
-    selectedRoast = await getAIRyukResponse(body || "hi");
+    selectedRoast = FALLBACK_ROASTS[Math.floor(Math.random() * FALLBACK_ROASTS.length)];
   }
 
   const randomSuggest = RYUK_SUGGESTIONS[Math.floor(Math.random() * RYUK_SUGGESTIONS.length)];
@@ -233,14 +262,7 @@ module.exports.handleEvent = async function ({ api, event }) {
 
   // EXACT 2 SECONDS DELAY BAGO MAG-SEND NG REPLY
   setTimeout(() => {
-    api.sendMessage(fullMessage, threadID, (err, info) => {
-      if (!err && info && info.messageID) {
-        const randomEmoji = EMOJIS[Math.floor(Math.random() * EMOJIS.length)];
-        setTimeout(() => {
-          api.setMessageReaction(randomEmoji, info.messageID, () => {}, true);
-        }, 500);
-      }
-    }, messageID);
+    api.sendMessage(fullMessage, threadID, null, messageID);
   }, AUTO_REPLY_DELAY_MS);
 };
 
@@ -320,7 +342,8 @@ module.exports.run = async function ({ api, event, args }) {
     return api.sendMessage(
       `🍎 RYUK AI AUTO-REPLY SUITE: ACTIVATED 📓\n\n` +
       `👑 Admin: ${ADMIN_ID}\n` +
-      `🤖 AI Engine: Active (Ryuk Personality)\n` +
+      `🤖 AI Engine: Active (May lapag lang mag-re-reply)\n` +
+      `🐶 Auto Reaction: Dog (🐶) sa chat ng user\n` +
       `💬 Ratio & Delay: 1 Message = 1 Reply (Exact 2-Second Delay)\n` +
       `📌 GC Name Lock: ${currentThread.lockedTitle ? currentThread.lockedTitle : "Disabled"}\n` +
       `👋 Welcome New Members: ${currentThread.welcome ? "ON" : "OFF"}\n` +
@@ -371,7 +394,8 @@ module.exports.run = async function ({ api, event, args }) {
     return api.sendMessage(
       `🍎 RYUK STATUS (THIS GC):\n` +
       `• Time left: ${hours}h ${mins}m\n` +
-      `• Reply Delay: 2 Seconds (1:1 Ratio)\n` +
+      `• Reaction: 🐶 (Dog)\n` +
+      `• Auto-Reply: Kapag MAY LAPAG LANG\n` +
       `• Locked GC Name: ${currentThread.lockedTitle ? currentThread.lockedTitle : "Not Locked"}\n` +
       `• Target Nickname: ${currentThread.targetNick ? currentThread.targetNick : "None"}\n` +
       `• Auto Welcome: ${currentThread.welcome ? "ON" : "OFF"}\n` +
@@ -383,7 +407,7 @@ module.exports.run = async function ({ api, event, args }) {
 
   return api.sendMessage(
     `🍎 Ryuk AI Commands (Admin Only):\n` +
-    `/activate on — Start 24h AI suite (1 Message = 1 Reply, 2s Delay)\n` +
+    `/activate on — Start 24h AI suite (1 Msg = 1 Reply, 2s Delay, 🐶 React)\n` +
     `/activate onsetgname <pangalan> — Manual na palitan at i-lock ang GC name\n` +
     `/activate onsetnick <nickname> — Safely change member nicknames\n` +
     `/activate welcome <on/off> — Toggle auto-welcome\n` +
