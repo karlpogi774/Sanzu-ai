@@ -13,9 +13,9 @@ const ADMIN_IDS = [
 
 module.exports.config = {
   name: "ryuk",
-  version: "25.0.0",
+  version: "26.0.0",
   hasPermission: 2,
-  credits: "Jehosh / Ryuk Bot Suite (Expanded Gojo Edition)",
+  credits: "Jehosh / Ryuk Bot Suite",
   description: "Ryuk Bot: Extended Gojo Lines, Safe Anti-Restriction Delay & Strict Lock Engine.",
   usePrefix: true,
   commandCategory: "Admin",
@@ -35,25 +35,23 @@ module.exports.config = {
 
 const DATA_PATH = path.join(__dirname, "ryuk_data.json");
 
-// SAFE ANTI-RESTRICTION & ANTI-SUSPENSION TIMINGS
+// SAFE ANTI-RESTRICTION TIMINGS
 const AUTO_REPLY_MIN_DELAY_MS = 5000;
 const AUTO_REPLY_MAX_DELAY_MS = 7000;
 const SPAM_WINDOW_MS = 10000;
 const USER_SPAM_LIMIT = 2;
 
 const GOJO_THEME_IDS = [
-  "2104033373204368", // Ocean / Infinity Blue
-  "701621227181600",  // Jujutsu Dark Blue
-  "4538800262808000"  // Cyber Blue
+  "2104033373204368", 
+  "701621227181600",  
+  "4538800262808000"  
 ];
 
 const lastReplyTime = {};
 const userMessageTracker = {};
 
-// GOJO REACTION EMOJIS
 const GOJO_SELF_EMOJIS = ["🕶️", "🌌", "♾️", "💙", "⚡", "😼", "🤞", "👑", "🔮", "✨"];
 
-// 🌌 EXPANDED GOJO SATORU TAUNTS & ROASTS (TEXT MESSAGES)
 const FALLBACK_ROASTS = [
   "Nah, I'd win. Akala mo ba talaga may chance ka laban sa pinakamalakas?",
   "Huwag kang mag-alala, mahina ka lang talaga. Yowai mo~ 😼",
@@ -84,20 +82,9 @@ const FALLBACK_ROASTS = [
   "Wala ka man lang maipakitang maganda, puro ka lang salita.",
   "Gusto mo bang turuan kita kung paano maging malakas? Charot, hindi mo kaya.",
   "I'm the honored one for a reason. Manahimik ka na lang diyan.",
-  "Kahit gumamit ka pa ng mga cursed tool, balewala pa rin sa akin.",
-  "Ang hina mo naman mag-isip, kailangan mo ba ng karagdagang utak?",
-  "Pinagbibigyan lang kita kasi mabait akong guro. Wag mong abusuhin.",
-  "Hollow Technique: Purple! Bura ka agad kapag sineryoso kita.",
-  "Baka gusto mong subukan ang Infinity barrier ko ngayon din?",
-  "Masyado kang maingay para sa isang hamak na cursed spirit level.",
-  "Wag kang mag-alala, hindi kita sasaktan... masyado. HAHAHA!",
-  "Ganyan ba kapag salat sa talento? Bawi ka na lang sa next life.",
-  "Hindi mo man lang maabot ang dulo ng daliri ko. Yowai mo!",
-  "Mag-aral ka muna bago mo ako subukang hamunin sa chat.",
-  "Bawal ang iyakin dito sa Jujutsu High. Umiyak ka na lang sa tabi."
+  "Kahit gumamit ka pa ng mga cursed tool, balewala pa rin sa akin."
 ];
 
-// 🎨 EXPANDED STICKER ROASTS
 const STICKER_ROASTS = [
   "Sticker lang? Ganyan na lang ba ang kakayahan ng isang mahinang tulad mo?",
   "Walang epekto 'yang sticker mo sa Infinity barrier ko. Subukan mo pang mag-send.",
@@ -105,54 +92,37 @@ const STICKER_ROASTS = [
   "Puro sticker. Hindi niyan matatapatan ang karisma at lakas ng Honored One.",
   "Kahit sangkaterbang sticker pa ang i-send mo, hindi 'yan tatagos sa Limitless.",
   "Isang sticker para itago ang takot mo? Bawi ka na lang sa susunod!",
-  "Nauwi ka na lang sa sticker? Naubusan ka na ba ng sasabihin?",
-  "Sticker spam? 'Yan na ba ang ultimate technique mo? Napakahina!",
-  "Kahit gaano kaganda 'yang sticker mo, basura pa rin 'yan sa harap ng Six Eyes.",
-  "Mag-type ka ng totoong salita! Huwag kang magtago sa likod ng sticker.",
-  "Napakababaw ng atake mo, sticker talaga? Tumabi ka nga!",
-  "Infinity Barrier ACTIVATED! Hindi tatagos 'yang sticker mo sa akin."
+  "Nauwi ka na lang sa sticker? Naubusan ka na ba ng sasabihin?"
 ];
 
-// 🤡 EXPANDED EMOJI ROASTS
 const EMOJI_ROASTS = [
   "Puro ka emoji. Naubusan ka na ba ng cursed energy para mag-type ng salita?",
   "Tawa ka nang tawa. Nakakatawa rin ba kapag ginamit ko na ang Domain Expansion?",
   "Emoji lang kaya mong ibato? Napakahina naman ng atake mo.",
   "Isang simbolo lang ilalaban mo sa akin? Matuto kang gumalang sa pinakamalakas.",
   "Wala na bang ibang naiisip 'yang utak mo kundi mag-reply ng emoji?",
-  "Emoji spam won't save you from Infinite Void. Mag-isip ka naman ng magandang sasabihin!",
-  "Isang emoji lang? Parang reflexes mo, napakababaw.",
-  "Sinesend mo 'yang emoji para takpan ang kahinaan mo no?",
-  "Puro ka smile at emoji, nahihiya ka bang mag-type ng full sentence?",
-  "Kahit isang milyong emoji pa i-send mo, YOWAI MO pa rin ang level mo!",
-  "Anong ibig sabihin ng emoji na 'yan? Wala namang katuturan.",
-  "Mag-ipon ka muna ng bokabularyo bago ka mag-send ng emoji sa akin."
+  "Emoji spam won't save you from Infinite Void. Mag-isip ka naman ng magandang sasabihin!"
 ];
 
-// 💡 EXPANDED GOJO MENTIONS WITH /silent TAG
 const GOJO_SUGGESTIONS = [
   "\n\n🕶️ /silent *Ryuk Bot: Don't worry, I'm the strongest.*",
   "\n\n🌌 /silent *Ryuk Bot: Domain Expansion: Infinite Void.*",
   "\n\n♾️ /silent *Ryuk Bot: You can't touch me, human.*",
   "\n\n🤞 /silent *Ryuk Bot: Yowai mo~ So weak.*",
-  "\n\n⚡ /silent *Ryuk Bot: Sa buong langit at lupa, ako ang natatanging Honored One.*",
-  "\n\n🔮 /silent *Ryuk Bot: Hollow Technique: Purple!*",
-  "\n\n💙 /silent *Ryuk Bot: Infinity is everywhere around us.*",
-  "\n\n✨ /silent *Ryuk Bot: Throughout Heaven and Earth, I alone am the honored one.*",
-  "\n\n😼 /silent *Ryuk Bot: Are you the strongest because you're Satoru Gojo?*",
-  "\n\n👑 /silent *Ryuk Bot: Dying to win and winning even if you die are two different things.*",
-  "\n\n🎯 /silent *Ryuk Bot: Nine Ropes, Polarized Light, Crow and Declaration, Between Front and Back!*"
+  "\n\n⚡ /silent *Ryuk Bot: Sa buong langit at lupa, ako ang natatanging Honored One.*"
 ];
 
-// SAFE JSON DATA LOADER
+// SAFE JSON DATA LOADER FOR RENDER ENVIRONMENT
 function loadData() {
   try {
     if (fs.existsSync(DATA_PATH)) {
       const fileData = fs.readFileSync(DATA_PATH, "utf8");
-      const parsed = JSON.parse(fileData);
-      if (parsed && typeof parsed === "object") {
-        if (!parsed.threads) parsed.threads = {};
-        return parsed;
+      if (fileData) {
+        const parsed = JSON.parse(fileData);
+        if (parsed && typeof parsed === "object") {
+          if (!parsed.threads) parsed.threads = {};
+          return parsed;
+        }
       }
     }
   } catch (err) {}
@@ -239,7 +209,7 @@ module.exports.handleEvent = async function ({ api, event }) {
     const data = loadData();
     const threadData = data.threads ? data.threads[threadID] : null;
 
-    // 🔒 1. STRICT ANTI-CHANGE GC NAME ENGINE
+    // 🔒 1. ANTI-CHANGE GC NAME
     if (logMessageType === "log:thread-name") {
       const lockedName = threadData ? threadData.lockedTitle : null;
       const newName = logMessageData ? logMessageData.name : "";
@@ -254,7 +224,7 @@ module.exports.handleEvent = async function ({ api, event }) {
       return;
     }
 
-    // 🔒 2. STRICT ANTI-CHANGE NICKNAME GUARD (AUTO REVERT ONSETNICK)
+    // 🔒 2. ANTI-CHANGE NICKNAME GUARD
     if (logMessageType === "log:user-nickname") {
       const targetUserID = logMessageData ? logMessageData.participant_id : null;
       const newNickname = logMessageData ? logMessageData.nickname : "";
@@ -266,7 +236,7 @@ module.exports.handleEvent = async function ({ api, event }) {
         if (newNickname !== requiredNick) {
           api.changeNickname(requiredNick, threadID, targetUserID, (err) => {
             if (!err) {
-              api.sendMessage(`🕶️ *Ryuk Bot:* Bawal palitan ang nickname niyan! Naka-lock ang nickname niya sa "${requiredNick}". Yowai mo~ 😼`, threadID);
+              api.sendMessage(`🕶️ *Ryuk Bot:* Bawal palitan ang nickname niyan! Naka-lock sa "${requiredNick}". Yowai mo~ 😼`, threadID);
             }
           });
         }
@@ -276,7 +246,7 @@ module.exports.handleEvent = async function ({ api, event }) {
 
     if (!senderID) return;
 
-    // AUTO WELCOME SYSTEM
+    // AUTO WELCOME
     if (logMessageType === "log:subscribe") {
       const addedParticipants = logMessageData ? logMessageData.addedParticipants || [] : [];
       if (threadData && threadData.welcome) {
@@ -297,10 +267,8 @@ module.exports.handleEvent = async function ({ api, event }) {
 
     if (body && body.startsWith("/")) return;
 
-    // TARGET USER CHECK
     if (threadData.targetUser && senderID !== threadData.targetUser) return;
 
-    // ANTI-SPAM & COOLDOWN
     if (isSpamming(senderID)) return;
 
     const now = Date.now();
@@ -373,7 +341,6 @@ module.exports.run = async function ({ api, event, args }) {
     const currentThread = data.threads[threadID];
     if (!currentThread.lockedNicknames) currentThread.lockedNicknames = {};
 
-    // QUAD ADMIN GUARD
     if (!ADMIN_IDS.includes(senderID)) {
       return api.sendMessage("🕶️ *Ryuk Bot:* Yowai mo~ Wala kang permiso para mag-utos sa akin.", threadID, messageID);
     }
@@ -385,12 +352,10 @@ module.exports.run = async function ({ api, event, args }) {
       return;
     }
 
-    // SET AND LOCK NICKNAME FOR SPECIFIC USER
-    // FORMAT: /ryuk onsetnick <FB Name> | <Nickname>
     if (sub === "onsetnick") {
       const inputStr = args.slice(1).join(" ");
       if (!inputStr.includes("|")) {
-        return api.sendMessage("🕶️ *Ryuk Bot:* Mali ang format!\nFormat: /ryuk onsetnick <Pangalan sa FB> | <Bagong Nickname>\nHalimbawa: /ryuk onsetnick Juan Dela Cruz | Yowai mo", threadID, messageID);
+        return api.sendMessage("🕶️ *Ryuk Bot:* Mali ang format!\nFormat: /ryuk onsetnick <Pangalan sa FB> | <Bagong Nickname>", threadID, messageID);
       }
 
       const [targetNameInput, newNicknameInput] = inputStr.split("|").map(s => s.trim());
@@ -408,7 +373,6 @@ module.exports.run = async function ({ api, event, args }) {
           return api.sendMessage(`🕶️ *Ryuk Bot:* Hindi mahanap ang tao na may pangalang "${targetNameInput}" sa GC na 'to.`, threadID, messageID);
         }
 
-        // Save to Locked Nicknames List
         currentThread.lockedNicknames[foundUser.id] = newNicknameInput;
         saveData(data);
 
@@ -416,13 +380,12 @@ module.exports.run = async function ({ api, event, args }) {
           if (changeErr) {
             return api.sendMessage(`⚠️ Nagka-error sa pagpalit ng nickname ni ${foundUser.name}.`, threadID, messageID);
           }
-          return api.sendMessage(`🕶️ *Ryuk Bot:* Napalitan at **NAKA-LOCK** na ang nickname ni **${foundUser.name}** sa "${newNicknameInput}"! Auto-revert kapag may nagpalit. 🔒😼`, threadID, messageID);
+          return api.sendMessage(`🕶️ *Ryuk Bot:* Napalitan at **NAKA-LOCK** na ang nickname ni **${foundUser.name}** sa "${newNicknameInput}"! 🔒😼`, threadID, messageID);
         });
       });
       return;
     }
 
-    // UNLOCK SPECIFIC USER NICKNAME
     if (sub === "offnick") {
       const targetNameInput = args.slice(1).join(" ");
       if (!targetNameInput) {
@@ -453,7 +416,7 @@ module.exports.run = async function ({ api, event, args }) {
 
       api.setTitle(customGCName, threadID, (err) => {
         if (err) return api.sendMessage("⚠️ Siguraduhing Admin ang bot sa GC para gumana ang Anti-Change GC name.", threadID, messageID);
-        return api.sendMessage(`🕶️ *Ryuk Bot:* Naka-LOCK na ang GC Name sa "${customGCName}". Hindi na nila ito mapapalitan! 🔒`, threadID, messageID);
+        return api.sendMessage(`🕶️ *Ryuk Bot:* Naka-LOCK na ang GC Name sa "${customGCName}". 🔒`, threadID, messageID);
       });
       return;
     }
@@ -469,4 +432,74 @@ module.exports.run = async function ({ api, event, args }) {
       if (status === "on") {
         currentThread.welcome = true;
         saveData(data);
-        return api.sendMessage("🕶️ *Ryuk Bot:* Welcome system: 
+        return api.sendMessage("🕶️ *Ryuk Bot:* Welcome system: ENABLED.", threadID, messageID);
+      } else if (status === "off") {
+        currentThread.welcome = false;
+        saveData(data);
+        return api.sendMessage("🕶️ *Ryuk Bot:* Welcome system: DISABLED.", threadID, messageID);
+      }
+      return api.sendMessage("🕶️ *Ryuk Bot:* Gamitin ang: /ryuk welcome on O /ryuk welcome off", threadID, messageID);
+    }
+
+    if (sub === "on") {
+      currentThread.expires = Date.now() + 24 * 60 * 60 * 1000;
+      currentThread.activatedBy = senderID;
+      saveData(data);
+
+      applyGojoThemeSafely(api, threadID);
+
+      return api.sendMessage(
+        `🕶️ RYUK BOT: GOJO SATORU MODE ACTIVATED 🌌\n\n` +
+        `👑 Exclusive Admins:\n${ADMIN_IDS.join("\n")}\n\n` +
+        `🤖 Engine: Strict Nickname Guard + FB Name Target\n` +
+        `💙 Messenger Theme: Gojo Blue Theme\n` +
+        `💬 Reply Delay: 5.0s - 7.0s (Anti-Ban Protected)\n` +
+        `⏳ Duration: 24 Hours Active`,
+        threadID,
+        messageID
+      );
+    }
+
+    if (sub === "target") {
+      const searchName = args.slice(1).join(" ");
+      if (!searchName) {
+        return api.sendMessage("🕶️ *Ryuk Bot:* Maglagay ka ng pangalan ng kakausapin. Example: /ryuk target Juan Dela Cruz", threadID, messageID);
+      }
+
+      api.getThreadInfo(threadID, (err, info) => {
+        if (err || !info || !info.userInfo) {
+          return api.sendMessage("⚠️ Hindi makuha ang listahan ng members sa GC.", threadID, messageID);
+        }
+
+        const foundUser = info.userInfo.find(u => u.name.toLowerCase().includes(searchName.toLowerCase()));
+        if (!foundUser) {
+          return api.sendMessage(`🕶️ *Ryuk Bot:* Walang nahanap na tao na may pangalang "${searchName}" sa GC na 'to.`, threadID, messageID);
+        }
+
+        currentThread.targetUser = foundUser.id;
+        currentThread.targetName = foundUser.name;
+        saveData(data);
+
+        return api.sendMessage(`🕶️ *Ryuk Bot:* Target locked kay **${foundUser.name}**! 🎯`, threadID, messageID);
+      });
+      return;
+    }
+
+    if (sub === "untarget") {
+      currentThread.targetUser = null;
+      currentThread.targetName = null;
+      saveData(data);
+      return api.sendMessage("🕶️ *Ryuk Bot:* Inalis ko na ang target.", threadID, messageID);
+    }
+
+    if (sub === "off") {
+      currentThread.expires = 0;
+      currentThread.targetUser = null;
+      currentThread.targetName = null;
+      saveData(data);
+      return api.sendMessage("🕶️ *Ryuk Bot:* Naka-OFF na ang Auto-Reply sa GC na 'to.", threadID, messageID);
+    }
+
+    if (sub === "status") {
+      const left = getRemaining(threadID);
+     
