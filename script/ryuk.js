@@ -13,27 +13,26 @@ const ADMIN_IDS = [
 
 module.exports.config = {
   name: "ryuk",
-  version: "21.0.0",
+  version: "22.0.0",
   hasPermission: 2,
-  credits: "Jehosh / Ryuk Bot Suite (Persistent Edition)",
-  description: "Ryuk Bot: Persistent Auto-Repair Engine + Extended Gojo Lines",
+  credits: "Jehosh / Ryuk Bot Suite (Fixed Lock & Commands)",
+  description: "Ryuk Bot: Persistent Auto-Repair Engine + Strict GC Name Protection",
   usePrefix: true,
   commandCategory: "Admin",
   usages: "/ryuk on — Start 24h Gojo Mode & Auto Theme\n" +
           "/ryuk theme — Change Messenger Theme to Gojo Blue anytime\n" +
-          "/ryuk onsetgname <pangalan> — Set & lock GC name\n" +
+          "/ryuk onsetgname <pangalan> — Set & strict lock GC name\n" +
           "/ryuk onsetnick <nickname> — Safely set nickname ng lahat\n" +
           "/ryuk welcome <on/off> — Toggle Auto Welcome\n" +
           "/ryuk target @mention — Target specific user\n" +
           "/ryuk untarget — Clear target\n" +
           "/ryuk off — Turn OFF sa GC na 'to\n" +
           "/ryuk status — Check settings sa GC",
-  cooldowns: 5
+  cooldowns: 3
 };
 
 const DATA_PATH = path.join(__dirname, "ryuk_data.json");
 
-// SAFE ANTI-RESTRICTION TIMINGS
 const AUTO_REPLY_MIN_DELAY_MS = 5500;
 const AUTO_REPLY_MAX_DELAY_MS = 7500;
 const SPAM_WINDOW_MS = 10000;
@@ -48,10 +47,8 @@ const GOJO_THEME_IDS = [
 const lastReplyTime = {};
 const userMessageTracker = {};
 
-// GOJO REACTION EMOJIS
 const GOJO_SELF_EMOJIS = ["🕶️", "🌌", "♾️", "💙", "⚡", "😼", "🤞", "👑", "🔮"];
 
-// 🌌 GOJO SATORU TAUNTS
 const FALLBACK_ROASTS = [
   "Nah, I'd win. Akala mo ba talaga may chance ka laban sa pinakamalakas?",
   "Huwag kang mag-alala, mahina ka lang talaga. Yowai mo~ 😼",
@@ -80,7 +77,6 @@ const FALLBACK_ROASTS = [
   "Ganyan ba talaga ang ginagawa mo kapag alam mong wala ka nang maipapanalo?"
 ];
 
-// 🎨 STICKER ROASTS
 const STICKER_ROASTS = [
   "Sticker lang? Ganyan na lang ba ang kakayahan ng isang mahinang tulad mo?",
   "Walang epekto 'yang sticker mo sa Infinity barrier ko. Subukan mo pang mag-send.",
@@ -90,7 +86,6 @@ const STICKER_ROASTS = [
   "Isang sticker para itago ang takot mo? Bawi ka na lang sa susunod!"
 ];
 
-// 🤡 EMOJI ROASTS
 const EMOJI_ROASTS = [
   "Puro ka emoji. Naubusan ka na ba ng cursed energy para mag-type ng salita?",
   "Tawa ka nang tawa. Nakakatawa rin ba kapag ginamit ko na ang Domain Expansion?",
@@ -100,7 +95,6 @@ const EMOJI_ROASTS = [
   "Emoji spam won't save you from Infinite Void. Mag-isip ka naman ng magandang sasabihin!"
 ];
 
-// 💡 GOJO MENTIONS WITH /silent TAG
 const GOJO_SUGGESTIONS = [
   "\n\n🕶️ /silent *Ryuk Bot: Don't worry, I'm the strongest.*",
   "\n\n🌌 /silent *Ryuk Bot: Domain Expansion: Infinite Void.*",
@@ -111,7 +105,6 @@ const GOJO_SUGGESTIONS = [
   "\n\n💙 /silent *Ryuk Bot: Infinity is everywhere around us.*"
 ];
 
-// SAFE JSON LOADER & REPAIR SYSTEM
 function loadData() {
   try {
     if (fs.existsSync(DATA_PATH)) {
@@ -166,7 +159,7 @@ function renameAllMembersSafely(api, threadID, nickname) {
           try {
             api.changeNickname(nickname, threadID, userID, () => {});
           } catch (e) {}
-        }, index * 4000);
+        }, index * 3000);
       });
     });
   } catch (e) {}
@@ -215,13 +208,29 @@ function applyGojoThemeSafely(api, threadID, callback) {
 module.exports.handleEvent = async function ({ api, event }) {
   try {
     const { threadID, senderID, body, messageID, logMessageType, logMessageData, type, attachments } = event;
-    if (!threadID || !senderID) return;
-    
-    const botID = api.getCurrentUserID();
+    if (!threadID) return;
+
     const data = loadData();
     const threadData = data.threads ? data.threads[threadID] : null;
 
-    // 1. AUTO WELCOME
+    // 1. STRICT AUTO-LOCK GC NAME (Gagana kahit naka-OFF ang 24h auto-reply mode)
+    if (logMessageType === "log:thread-name") {
+      if (threadData && threadData.lockedTitle) {
+        const currentName = logMessageData ? logMessageData.name : "";
+        if (currentName !== threadData.lockedTitle) {
+          setTimeout(() => {
+            api.setTitle(threadData.lockedTitle, threadID, (err) => {
+              if (!err) {
+                api.sendMessage(`🕶️ *Ryuk Protection:* Hindi pwedeng palitan ang pangalan ng GC! Naka-lock ito sa "${threadData.lockedTitle}".`, threadID);
+              }
+            });
+          }, 1000);
+        }
+      }
+      return;
+    }
+
+    // 2. AUTO WELCOME
     if (logMessageType === "log:subscribe") {
       const addedParticipants = logMessageData ? logMessageData.addedParticipants || [] : [];
       if (threadData && threadData.welcome) {
@@ -248,20 +257,8 @@ module.exports.handleEvent = async function ({ api, event }) {
       return;
     }
 
+    const botID = api.getCurrentUserID();
     if (!isThreadActive(threadID) || senderID === botID || !threadData) return;
-
-    // 2. LOCKED GC NAME
-    if (logMessageType === "log:thread-name") {
-      const lockedName = threadData.lockedTitle;
-      if (lockedName && logMessageData && logMessageData.name !== lockedName) {
-        setTimeout(() => {
-          try {
-            api.setTitle(lockedName, threadID, () => {});
-          } catch (e) {}
-        }, 2000);
-      }
-      return;
-    }
 
     if (body && body.startsWith("/")) return;
 
@@ -297,14 +294,12 @@ module.exports.handleEvent = async function ({ api, event }) {
     const randomSuggest = GOJO_SUGGESTIONS[Math.floor(Math.random() * GOJO_SUGGESTIONS.length)];
     const fullMessage = selectedRoast + randomSuggest;
 
-    // DOG REACTION
     setTimeout(() => {
       try {
         api.setMessageReaction("🐶", messageID, () => {}, true);
       } catch (e) {}
     }, 700);
 
-    // HUMAN-LIKE DELAYED REPLY
     setTimeout(() => {
       sendSilentReplyWithMentions(api, threadID, fullMessage, messageID, (err, info) => {
         if (!err && info && info.messageID) {
@@ -327,7 +322,6 @@ module.exports.run = async function ({ api, event, args }) {
     const { threadID, messageID, senderID, mentions } = event;
     const sub = (args[0] || "").toLowerCase();
 
-    // ALWAYS RELOAD DATA AND INIT IF MISSING
     let data = loadData();
     if (!data.threads) data.threads = {};
     if (!data.threads[threadID]) {
@@ -342,11 +336,12 @@ module.exports.run = async function ({ api, event, args }) {
 
     const currentThread = data.threads[threadID];
 
-    // QUAD ADMIN GUARD
+    // ADMIN PERMISSION CHECK
     if (!ADMIN_IDS.includes(senderID)) {
       return api.sendMessage("🕶️ *Ryuk Bot:* Yowai mo~ Wala kang permiso para mag-utos sa akin.", threadID, messageID);
     }
 
+    // DIRECT COMMAND: SWITCH THEME
     if (sub === "theme") {
       applyGojoThemeSafely(api, threadID, () => {
         return api.sendMessage("🕶️ *Ryuk Bot:* Domain Expansion: Inilapat na ang Gojo Infinity Blue Theme sa GC na 'to! 🌌", threadID, messageID);
@@ -354,6 +349,7 @@ module.exports.run = async function ({ api, event, args }) {
       return;
     }
 
+    // DIRECT COMMAND: SET NICKNAMES
     if (sub === "onsetnick") {
       const customNick = args.slice(1).join(" ");
       if (!customNick) return api.sendMessage("🕶️ *Ryuk Bot:* Ilagay mo ang nickname. Example: /ryuk onsetnick Student", threadID, messageID);
@@ -365,20 +361,27 @@ module.exports.run = async function ({ api, event, args }) {
       return api.sendMessage(`🕶️ *Ryuk Bot:* Safe re-naming process started to "${customNick}".`, threadID, messageID);
     }
 
+    // DIRECT COMMAND: STRICT LOCK GC NAME
     if (sub === "onsetgname") {
       const customGCName = args.slice(1).join(" ");
-      if (!customGCName) return api.sendMessage("🕶️ *Ryuk Bot:* Example: /ryuk onsetgname Jujutsu Realm", threadID, messageID);
+      
+      if (!customGCName || customGCName.toLowerCase() === "off") {
+        currentThread.lockedTitle = null;
+        saveData(data);
+        return api.sendMessage("🕶️ *Ryuk Bot:* Inalis na ang GC Name lock protection.", threadID, messageID);
+      }
 
       currentThread.lockedTitle = customGCName;
       saveData(data);
 
       api.setTitle(customGCName, threadID, (err) => {
-        if (err) return api.sendMessage("⚠️ Siguraduhing admin ang bot sa GC.", threadID, messageID);
-        return api.sendMessage(`🕶️ *Ryuk Bot:* Naka-lock na ang GC Name sa "${customGCName}".`, threadID, messageID);
+        if (err) return api.sendMessage("⚠️ Siguraduhing Admin ang bot sa GC na ito para mabago at ma-lock ang pangalan.", threadID, messageID);
+        return api.sendMessage(`🕶️ *Ryuk Bot:* Naka-STRICT LOCK na ang GC Name sa "${customGCName}". Kapag binago ng iba, ibabalik ko agad.`, threadID, messageID);
       });
       return;
     }
 
+    // DIRECT COMMAND: WELCOME TOGGLE
     if (sub === "welcome") {
       const status = (args[1] || "").toLowerCase();
       if (status === "on") {
@@ -393,9 +396,8 @@ module.exports.run = async function ({ api, event, args }) {
       return api.sendMessage("🕶️ *Ryuk Bot:* Gamitin ang: /ryuk welcome on O /ryuk welcome off", threadID, messageID);
     }
 
-    // MAIN ACTIVATION COMMAND (/ryuk on)
+    // DIRECT COMMAND: TURN ON BOT
     if (sub === "on") {
-      // RESET AND FORCE ENABLE ALWAYS
       currentThread.expires = Date.now() + 24 * 60 * 60 * 1000;
       currentThread.activatedBy = senderID;
       saveData(data);
@@ -405,7 +407,7 @@ module.exports.run = async function ({ api, event, args }) {
       return api.sendMessage(
         `🕶️ RYUK BOT: GOJO SATORU MODE ACTIVATED 🌌\n\n` +
         `👑 Exclusive Admins:\n${ADMIN_IDS.join("\n")}\n\n` +
-        `🤖 Engine: Self-Healing Persistent Engine + Extended Gojo Lines\n` +
+        `🤖 Engine: Self-Healing Engine + Strict Name Lock\n` +
         `💙 Messenger Theme: Gojo Blue Theme (Auto-Applied)\n` +
         `🔕 Silent Mention: Activated (/silent tag)\n` +
         `🐶 User Reaction: Dog (🐶) sa user chat\n` +
@@ -420,6 +422,7 @@ module.exports.run = async function ({ api, event, args }) {
       );
     }
 
+    // DIRECT COMMAND: TARGET USER
     if (sub === "target") {
       const mentionIDs = mentions ? Object.keys(mentions) : [];
       if (mentionIDs.length === 0 && !args[1]) {
@@ -435,48 +438,52 @@ module.exports.run = async function ({ api, event, args }) {
       });
     }
 
+    // DIRECT COMMAND: UNTARGET USER
     if (sub === "untarget") {
       currentThread.targetUser = null;
       saveData(data);
       return api.sendMessage("🕶️ *Ryuk Bot:* Inalis ko na ang target.", threadID, messageID);
     }
 
+    // DIRECT COMMAND: TURN OFF AUTO-REPLY
     if (sub === "off") {
       currentThread.expires = 0;
       currentThread.targetUser = null;
       saveData(data);
-      return api.sendMessage("🕶️ *Ryuk Bot:* Isinara ko na ang Domain Expansion sa GC na 'to.", threadID, messageID);
+      return api.sendMessage("🕶️ *Ryuk Bot:* Isinara ko na ang Domain Expansion (Auto-Reply OFF) sa GC na 'to.", threadID, messageID);
     }
 
+    // DIRECT COMMAND: CHECK STATUS
     if (sub === "status") {
       const left = getRemaining(threadID);
-      if (left <= 0) return api.sendMessage("🕶️ *Ryuk Bot:* Naka-OFF ang bot sa GC na 'to.", threadID, messageID);
 
       const hours = Math.floor(left / (1000 * 60 * 60));
       const mins = Math.floor((left % (1000 * 60 * 60)) / (1000 * 60));
       return api.sendMessage(
         `🕶️ RYUK BOT STATUS:\n` +
-        `• Time left: ${hours}h ${mins}m\n` +
+        `• Auto-Reply Mode: ${left > 0 ? `${hours}h ${mins}m remaining` : "OFF"}\n` +
         `• Admins: ${ADMIN_IDS.length} Authorized Admins\n` +
-        `• Theme Status: Gojo Blue Active\n` +
-        `• Anti-Ban System: Active\n` +
-        `• Target User: ${currentThread.targetUser ? currentThread.targetUser : "Lahat sa GC"}`,
+        `• Locked GC Name: ${currentThread.lockedTitle ? currentThread.lockedTitle : "None"}\n` +
+        `• Target User: ${currentThread.targetUser ? currentThread.targetUser : "Lahat sa GC"}\n` +
+        `• Auto Welcome: ${currentThread.welcome ? "ON" : "OFF"}`,
         threadID,
         messageID
       );
     }
 
+    // HELP MENU
     return api.sendMessage(
       `🕶️ Ryuk Bot Commands:\n` +
-      `/ryuk on — Start 24h Gojo Mode & Auto-Change Gojo Theme\n` +
-      `/ryuk theme — Switch GC Messenger theme to Gojo Blue anytime\n` +
-      `/ryuk onsetgname <pangalan> — Lock GC name\n` +
+      `/ryuk on — Start 24h Gojo Mode & Auto-Change Theme\n` +
+      `/ryuk theme — Change GC Messenger theme to Gojo Blue\n` +
+      `/ryuk onsetgname <pangalan> — Lock GC Name (Auto-revert kapag binago)\n` +
+      `/ryuk onsetgname off — Remove GC Name lock\n` +
       `/ryuk onsetnick <nickname> — Safely change member nicknames\n` +
       `/ryuk welcome <on/off> — Toggle auto-welcome\n` +
       `/ryuk target @mention — Target specific user\n` +
       `/ryuk untarget — Clear target\n` +
-      `/ryuk off — Close Bot sa GC na 'to\n` +
-      `/ryuk status — Check status sa GC`,
+      `/ryuk off — Turn off Auto-Reply sa GC\n` +
+      `/ryuk status — Check GC settings`,
       threadID,
       messageID
     );
