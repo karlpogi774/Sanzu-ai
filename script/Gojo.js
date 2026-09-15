@@ -14,15 +14,19 @@ const ADMIN_IDS = [
 module.exports = {
   config: {
     name: "gojo",
-    version: "34.0.0",
+    version: "37.0.0",
+    hasPermssion: 0,
     hasPermission: 0,
+    role: 0,
     credits: "Jehosh / Gojo Bot Suite",
-    description: "100+ Sequential Lines Gojo Auto-Reply & Full Guard Bot",
+    description: "100 Lines Gojo Auto-Reply, Admin Guard & Auto GC Name Lock",
     usePrefix: true,
     prefix: true,
     commandCategory: "admin",
-    usages: "/gojo [on|off|status|target|locktitle|locknick|unlocknick]",
-    cooldowns: 2
+    category: "admin",
+    usages: "/gojo [on|off|status|target|setgname|locktitle|unlocktitle|locknick|unlocknick]",
+    cooldowns: 2,
+    countDown: 2
   },
 
   onStart: async function ({ api, event, args }) {
@@ -69,14 +73,40 @@ module.exports = {
 
       if (sub === "status") {
         const textPos = (currentThread.textIndex || 0) + 1;
+        const currentTitle = currentThread.lockedTitle ? currentThread.lockedTitle : "Walang naka-lock";
         return api.sendMessage(
           `🕶️ GOJO BOT STATUS:\n` +
           `• Active: ${currentThread.infinite ? "YES ♾️" : "NO"}\n` +
+          `• Auto GC Name: ${currentTitle}\n` +
           `• Current Text Line: ${textPos} / ${FALLBACK_ROASTS.length}\n` +
           `• Current Sticker Line: ${(currentThread.stickerIndex || 0) + 1} / ${STICKER_ROASTS.length}\n` +
           `• Current Emoji Line: ${(currentThread.emojiIndex || 0) + 1} / ${EMOJI_ROASTS.length}`, 
           threadID, messageID
         );
+      }
+
+      // SET AND LOCK GC NAME (AUTO-PROTECT)
+      if (sub === "setgname" || sub === "locktitle") {
+        const newTitle = args.slice(1).join(" ");
+        if (!newTitle) {
+          return api.sendMessage("🕶️ Maglagay ng pangalan ng GC!\nHalimbawa: /gojo setgname Gojo Domain", threadID, messageID);
+        }
+        
+        currentThread.lockedTitle = newTitle;
+        saveData(data);
+
+        // Palitan ang GC name agad
+        api.setTitle(newTitle, threadID, (err) => {
+          if (err) return api.sendMessage("🕶️ Nagka-error sa pagpapalit ng GC name. Siguraduhing admin ang bot.", threadID, messageID);
+        });
+
+        return api.sendMessage(`🕶️ Bagong GC Name: "${newTitle}"\n🔒 Naka-lock na ito! Awtomatikong ibabalik ng bot kapag pinalitan ng iba.`, threadID, messageID);
+      }
+
+      if (sub === "unlocktitle") {
+        currentThread.lockedTitle = null;
+        saveData(data);
+        return api.sendMessage("🕶️ Unlocked na ang GC Name. Pwede na uli itong palitan ng sinuman.", threadID, messageID);
       }
 
       if (sub === "target") {
@@ -98,21 +128,6 @@ module.exports = {
         currentThread.targetUser = targetID;
         saveData(data);
         return api.sendMessage(`🕶️ Target locked sa User ID: ${targetID}!`, threadID, messageID);
-      }
-
-      if (sub === "locktitle") {
-        const newTitle = args.slice(1).join(" ");
-        if (!newTitle) return api.sendMessage("🕶️ Maglagay ng pangalan ng GC!", threadID, messageID);
-        currentThread.lockedTitle = newTitle;
-        saveData(data);
-        api.setTitle(newTitle, threadID, () => {});
-        return api.sendMessage(`🕶️ Naka-lock na ang GC Name sa "${newTitle}"`, threadID, messageID);
-      }
-
-      if (sub === "unlocktitle") {
-        currentThread.lockedTitle = null;
-        saveData(data);
-        return api.sendMessage("🕶️ Unlocked na ang GC Name.", threadID, messageID);
       }
 
       if (sub === "locknick") {
@@ -151,11 +166,16 @@ module.exports = {
       }
 
       return api.sendMessage(
-        "🕶️ **GOJO COMMANDS**:\n" +
-        "/gojo on | /gojo off | /gojo status\n" +
-        "/gojo target <@user/ID/clear>\n" +
-        "/gojo locktitle <name> | /gojo unlocktitle\n" +
-        "/gojo locknick <@user/ID> <nick> | /gojo unlocknick <@user/ID>",
+        "🕶️ **GOJO COMMANDS LIST** 🕶️\n\n" +
+        "• /gojo on — Paganahin ang Auto-Reply\n" +
+        "• /gojo off — Patayin ang Auto-Reply\n" +
+        "• /gojo status — Tingnan ang status ng GC\n" +
+        "• /gojo setgname <name> — Set GC Name & Auto-Lock\n" +
+        "• /gojo unlocktitle — Unlock GC Name\n" +
+        "• /gojo target @user — Isa lang ang aasarin\n" +
+        "• /gojo target clear — Lahat ulit aasarin\n" +
+        "• /gojo locknick @user <nick> — Lock User Nick\n" +
+        "• /gojo unlocknick @user — Unlock User Nick",
         threadID, messageID
       );
 
@@ -173,13 +193,17 @@ module.exports = {
       const data = loadData();
       const threadData = data.threads ? data.threads[threadID] : null;
 
+      // 1. AUTO REVERT GC NAME IF CHANGED BY OTHERS
       if (logMessageType === "log:thread-name" && threadData && threadData.lockedTitle) {
-        if (logMessageData && logMessageData.name !== threadData.lockedTitle) {
+        const newName = logMessageData ? logMessageData.name : "";
+        if (newName !== threadData.lockedTitle) {
           api.setTitle(threadData.lockedTitle, threadID, () => {});
+          api.sendMessage(`🕶️ *Gojo Guard:* Bawal palitan ang pangalan ng GC! Naka-lock ito sa "${threadData.lockedTitle}".`, threadID);
         }
         return;
       }
 
+      // 2. AUTO REVERT NICKNAME
       if (logMessageType === "log:user-nickname" && threadData && threadData.lockedNicknames) {
         const targetUID = logMessageData ? logMessageData.participant_id : null;
         const newNick = logMessageData ? logMessageData.nickname : "";
@@ -241,7 +265,7 @@ const DATA_PATH = path.join(__dirname, "gojo_data.json");
 const AUTO_REPLY_MIN_DELAY_MS = 5000;
 const lastReplyTime = {};
 
-// 100 SEQUENTIAL TEXT ROASTS (LOOPING)
+// 100 SEQUENTIAL TEXT ROASTS
 const FALLBACK_ROASTS = [
   "1. Nah, I'd win. Akala mo ba talaga may chance ka laban sa pinakamalakas? 🕶️✨",
   "2. Huwag kang mag-alala, mahina ka lang talaga. Yowai mo~ 😼⚡",
@@ -345,7 +369,7 @@ const FALLBACK_ROASTS = [
   "100. Line 100! Congratulations sa pagiging paboritong punching bag ng Honored One! Babalik na tayo sa Simula! 👑🌌"
 ];
 
-// SEQUENTIAL STICKER ROASTS
+// STICKER ROASTS
 const STICKER_ROASTS = [
   "1. Sticker lang? Ganyan na lang ba ang kakayahan ng isang mahinang tulad mo? 🕶️😼",
   "2. Walang epekto 'yang sticker mo sa Infinity barrier ko. Subukan mo pang mag-send! ♾️⚡",
@@ -359,33 +383,9 @@ const STICKER_ROASTS = [
   "10. Isang sticker pa at gagamitan na kita ng Domain Expansion! 🌌⚡"
 ];
 
-// SEQUENTIAL EMOJI ROASTS
+// EMOJI ROASTS
 const EMOJI_ROASTS = [
   "1. Puro ka emoji. Naubusan ka na ba ng cursed energy para mag-type ng salita? 🕶️⚡",
   "2. Tawa ka nang tawa. Nakakatawa rin ba kapag ginamit ko na ang Domain Expansion? 🌌👁️",
   "3. Emoji lang kaya mong ibato? Napakahina naman ng atake mo. Yowai mo~ 🤞😼",
-  "4. Isang simbolo lang ilalaban mo sa akin? Matuto kang gumalang sa pinakamalakas. 👑✨",
-  "5. Wala na bang ibang naiisip 'yang utak mo kundi mag-reply ng emoji? 🔮🕶️",
-  "6. Emoji spam won't save you from Infinite Void. Mag-isip ka naman ng magandang sasabihin! ♾️🌌",
-  "7. Nag-reply ka lang ng emoji kasi alam mong wala kang binatbat sa akin. 😼⚡",
-  "8. Tawa pa higit sa emoji, pero sa loob-loob mo umiiyak ka na sa asar! 🍭💙",
-  "9. Emoji master ka pala ha? Pang-elementary level lang 'yan sa harapan ko! 👁️✨",
-  "10. Kahit sampung libong emoji pa i-send mo, ako pa rin ang Honored One! 👑⚡"
-];
-
-// SEQUENTIAL SUFFIXES / GOJO PHRASES
-const GOJO_SUGGESTIONS = [
-  "\n\n🕶️ /silent *Gojo Satoru: Don't worry, I'm the strongest.* 🌌",
-  "\n\n🌌 /silent *Gojo Satoru: Domain Expansion: Infinite Void.* ♾️",
-  "\n\n♾️ /silent *Gojo Satoru: You can't touch me, weakling.* ⚡",
-  "\n\n🤞 /silent *Gojo Satoru: Yowai mo~ So weak.* 😼",
-  "\n\n⚡ /silent *Gojo Satoru: Sa buong langit at lupa, ako ang natatanging Honored One.* 👑"
-];
-
-function loadData() {
-  try {
-    if (fs.existsSync(DATA_PATH)) {
-      const fileData = fs.readFileSync(DATA_PATH, "utf8");
-      if (fileData) return JSON.parse(fileData);
-    }
-  
+  "4. Isang simbolo 
