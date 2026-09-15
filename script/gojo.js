@@ -14,25 +14,25 @@ const ADMIN_IDS = [
 module.exports = {
   config: {
     name: "gojo",
-    version: "28.0.0",
+    version: "30.0.0",
     hasPermssion: 0,
     hasPermission: 0,
     credits: "Jehosh / Gojo Bot Suite",
-    description: "Gojo Satoru Auto-Reply, Lock Engine & Anti-Restriction Tool",
+    description: "Gojo Satoru Unlimited Mode: ID-Based Nickname Lock, Infinite Auto-Reply & Pure Gojo Persona",
     usePrefix: true,
     prefix: true,
     commandCategory: "admin",
-    usages: "/gojo on — Start 24h Gojo Mode & Auto Theme\n" +
-            "/gojo theme — Change Messenger Theme to Gojo Blue\n" +
-            "/gojo onsetgname <pangalan> — Lock GC Name (Anti-Change)\n" +
+    usages: "/gojo on — Start Infinite Gojo Mode\n" +
+            "/gojo theme — Change Theme to Gojo Blue\n" +
+            "/gojo onsetgname <pangalan> — Lock GC Name\n" +
             "/gojo offgname — Unlock GC Name\n" +
-            "/gojo onsetnick <FB Name> | <Bagong Nickname> — Lock & change nickname ng tao\n" +
-            "/gojo offnick <FB Name> — Unlock nickname ng tao\n" +
+            "/gojo onsetnick <Facebook User ID> | <Bagong Nickname> — Lock Nickname via User ID\n" +
+            "/gojo offnick <Facebook User ID> — Unlock Nickname via User ID\n" +
             "/gojo welcome <on/off> — Toggle Auto Welcome\n" +
-            "/gojo target <FB Name> — Target specific user gamit ang FB name\n" +
+            "/gojo target <Facebook User ID> — Target user via ID\n" +
             "/gojo untarget — Clear target\n" +
-            "/gojo off — Turn OFF sa GC na 'to\n" +
-            "/gojo status — Check settings sa GC",
+            "/gojo off — Turn OFF Gojo Mode\n" +
+            "/gojo status — Check Status",
     cooldowns: 2
   },
 
@@ -57,14 +57,14 @@ module.exports = {
         if (lockedName && newName !== lockedName) {
           api.setTitle(lockedName, threadID, (err) => {
             if (!err) {
-              api.sendMessage(`🕶️ *Gojo Satoru:* Subukan mo pang palitan ang GC name. Naka-lock ito sa "${lockedName}". 🌌`, threadID);
+              api.sendMessage(`🕶️ ♾️ *Gojo Satoru:* Subukan mo pang palitan ang GC name. Naka-lock ang Domain na 'to sa "${lockedName}". 🌌⚡`, threadID);
             }
           });
         }
         return;
       }
 
-      // 🔒 2. ANTI-CHANGE NICKNAME GUARD
+      // 🔒 2. ANTI-CHANGE NICKNAME GUARD (ID-BASED)
       if (logMessageType === "log:user-nickname") {
         const targetUserID = logMessageData ? logMessageData.participant_id : null;
         const newNickname = logMessageData ? logMessageData.nickname : "";
@@ -76,7 +76,7 @@ module.exports = {
           if (newNickname !== requiredNick) {
             api.changeNickname(requiredNick, threadID, targetUserID, (err) => {
               if (!err) {
-                api.sendMessage(`🕶️ *Gojo Satoru:* Bawal palitan ang nickname niyan! Naka-lock sa "${requiredNick}". Yowai mo~ 😼`, threadID);
+                api.sendMessage(`🕶️ 🤞 *Gojo Satoru:* Walang makakatagos sa Infinity Lock ko! Naka-lock ang ID na [${targetUserID}] sa "${requiredNick}". Yowai mo~ 😼⚡`, threadID);
               }
             });
           }
@@ -91,11 +91,11 @@ module.exports = {
         const addedParticipants = logMessageData ? logMessageData.addedParticipants || [] : [];
         if (threadData && threadData.welcome) {
           addedParticipants.forEach((participant) => {
-            const newName = participant.fullName || "Bagong Student";
+            const newName = participant.fullName || "Bagong Sorcerer";
             sendSilentReplyWithMentions(
               api,
               threadID,
-              `🕶️ /silent *Gojo Satoru:* Welcome sa GC, ${newName}! Protektado ka ng pinakamalakas rito. 🌌`,
+              `🕶️ /silent *Gojo Satoru:* Welcome sa Jujutsu Realm, ${newName}! Protektado ka ng pinakamalakas sa buong mundo. 🌌✨`,
               null
             );
           });
@@ -168,9 +168,8 @@ module.exports = {
       if (!data.threads) data.threads = {};
       if (!data.threads[threadID]) {
         data.threads[threadID] = { 
-          expires: 0, 
+          infinite: false,
           targetUser: null, 
-          targetName: null,
           lockedTitle: null, 
           lockedNicknames: {},
           welcome: true 
@@ -181,81 +180,66 @@ module.exports = {
       if (!currentThread.lockedNicknames) currentThread.lockedNicknames = {};
 
       if (!ADMIN_IDS.includes(senderID)) {
-        return api.sendMessage("🕶️ *Gojo Satoru:* Yowai mo~ Admin IDs lang ang pwedeng gumamit nito.", threadID, messageID);
+        return api.sendMessage("🕶️ 😼 *Gojo Satoru:* Yowai mo~ Hindi ka pwedeng magbigay ng utos sa Honored One.", threadID, messageID);
       }
 
       if (sub === "theme") {
         applyGojoThemeSafely(api, threadID, () => {
-          return api.sendMessage("🕶️ *Gojo Satoru:* Domain Expansion: Inilapat na ang Gojo Infinity Blue Theme sa GC na 'to! 🌌", threadID, messageID);
+          return api.sendMessage("🕶️ 🌌 *Gojo Satoru:* Domain Expansion: Infinite Void Blue Theme fully applied! 🔮⚡", threadID, messageID);
         });
         return;
       }
 
+      // ID-BASED ONSETNICK
       if (sub === "onsetnick") {
         const inputStr = args.slice(1).join(" ");
         if (!inputStr.includes("|")) {
-          return api.sendMessage("🕶️ *Gojo Satoru:* Mali ang format!\nFormat: /gojo onsetnick <Pangalan sa FB> | <Bagong Nickname>", threadID, messageID);
+          return api.sendMessage("🕶️ 🤞 *Gojo Satoru:* Mali ang format!\nFormat: /gojo onsetnick <Facebook User ID> | <Bagong Nickname>", threadID, messageID);
         }
 
-        const [targetNameInput, newNicknameInput] = inputStr.split("|").map(s => s.trim());
-        if (!targetNameInput || !newNicknameInput) {
-          return api.sendMessage("🕶️ *Gojo Satoru:* Paki-kumpleto ang pangalan sa FB at ang bagong nickname.", threadID, messageID);
+        const [targetUID, newNicknameInput] = inputStr.split("|").map(s => s.trim());
+        if (!targetUID || !newNicknameInput) {
+          return api.sendMessage("🕶️ ⚡ *Gojo Satoru:* Maglagay ng Valid User ID at Bagong Nickname.", threadID, messageID);
         }
 
-        api.getThreadInfo(threadID, (err, info) => {
-          if (err || !info || !info.userInfo) {
-            return api.sendMessage("⚠️ Hindi makuha ang impormasyon ng mga members sa GC.", threadID, messageID);
+        currentThread.lockedNicknames[targetUID] = newNicknameInput;
+        saveData(data);
+
+        api.changeNickname(newNicknameInput, threadID, targetUID, (changeErr) => {
+          if (changeErr) {
+            return api.sendMessage(`⚠️ 🕶️ *Gojo Satoru:* Na-save ang Lock pero may error sa pag-apply sa ID [${targetUID}]. Siguraduhing Member siya ng GC at Admin ang bot!`, threadID, messageID);
           }
-
-          const foundUser = info.userInfo.find(u => u.name.toLowerCase().includes(targetNameInput.toLowerCase()));
-          if (!foundUser) {
-            return api.sendMessage(`🕶️ *Gojo Satoru:* Hindi mahanap ang tao na may pangalang "${targetNameInput}" sa GC na 'to.`, threadID, messageID);
-          }
-
-          currentThread.lockedNicknames[foundUser.id] = newNicknameInput;
-          saveData(data);
-
-          api.changeNickname(newNicknameInput, threadID, foundUser.id, (changeErr) => {
-            if (changeErr) {
-              return api.sendMessage(`⚠️ Nagka-error sa pagpalit ng nickname ni ${foundUser.name}.`, threadID, messageID);
-            }
-            return api.sendMessage(`🕶️ *Gojo Satoru:* Napalitan at **NAKA-LOCK** na ang nickname ni **${foundUser.name}** sa "${newNicknameInput}"! 🔒😼`, threadID, messageID);
-          });
+          return api.sendMessage(`🕶️ 🔒 *Gojo Satoru:* NAKA-LOCK NA ANG INFINITY NICKNAME!\n• User ID: ${targetUID}\n• Nickname: "${newNicknameInput}" 😼⚡`, threadID, messageID);
         });
         return;
       }
 
+      // ID-BASED OFFNICK
       if (sub === "offnick") {
-        const targetNameInput = args.slice(1).join(" ");
-        if (!targetNameInput) {
-          return api.sendMessage("🕶️ *Gojo Satoru:* Maglagay ng pangalan sa FB. Example: /gojo offnick Juan Dela Cruz", threadID, messageID);
+        const targetUID = args[1] ? args[1].trim() : null;
+        if (!targetUID) {
+          return api.sendMessage("🕶️ 🤞 *Gojo Satoru:* Maglagay ng User ID. Example: /gojo offnick 100012345678", threadID, messageID);
         }
 
-        api.getThreadInfo(threadID, (err, info) => {
-          if (err || !info || !info.userInfo) return;
-          const foundUser = info.userInfo.find(u => u.name.toLowerCase().includes(targetNameInput.toLowerCase()));
-          
-          if (foundUser && currentThread.lockedNicknames[foundUser.id]) {
-            delete currentThread.lockedNicknames[foundUser.id];
-            saveData(data);
-            return api.sendMessage(`🕶️ *Gojo Satoru:* Inalis na ang Nickname Lock para kay **${foundUser.name}**.`, threadID, messageID);
-          } else {
-            return api.sendMessage(`🕶️ *Gojo Satoru:* Walang naka-lock na nickname para sa name na "${targetNameInput}".`, threadID, messageID);
-          }
-        });
-        return;
+        if (currentThread.lockedNicknames[targetUID]) {
+          delete currentThread.lockedNicknames[targetUID];
+          saveData(data);
+          return api.sendMessage(`🕶️ 🌌 *Gojo Satoru:* Inalis na ang Nickname Lock para sa ID [${targetUID}].`, threadID, messageID);
+        } else {
+          return api.sendMessage(`🕶️ 😼 *Gojo Satoru:* Walang naka-lock na nickname para sa ID [${targetUID}].`, threadID, messageID);
+        }
       }
 
       if (sub === "onsetgname") {
         const customGCName = args.slice(1).join(" ");
-        if (!customGCName) return api.sendMessage("🕶️ *Gojo Satoru:* Maglagay ng pangalan. Example: /gojo onsetgname Jujutsu Realm", threadID, messageID);
+        if (!customGCName) return api.sendMessage("🕶️ 🔮 *Gojo Satoru:* Maglagay ng pangalan. Example: /gojo onsetgname Jujutsu Realm", threadID, messageID);
 
         currentThread.lockedTitle = customGCName;
         saveData(data);
 
         api.setTitle(customGCName, threadID, (err) => {
-          if (err) return api.sendMessage("⚠️ Siguraduhing Admin ang bot sa GC para gumana ang Anti-Change GC name.", threadID, messageID);
-          return api.sendMessage(`🕶️ *Gojo Satoru:* Naka-LOCK na ang GC Name sa "${customGCName}". 🔒`, threadID, messageID);
+          if (err) return api.sendMessage("⚠️ 🕶️ *Gojo Satoru:* Siguraduhing Admin ako para ma-lock ang GC Name.", threadID, messageID);
+          return api.sendMessage(`🕶️ 🔒 *Gojo Satoru:* Naka-LOCK na ang GC Name sa "${customGCName}". 🌌`, threadID, messageID);
         });
         return;
       }
@@ -263,7 +247,7 @@ module.exports = {
       if (sub === "offgname") {
         currentThread.lockedTitle = null;
         saveData(data);
-        return api.sendMessage("🕶️ *Gojo Satoru:* Inalis na ang Lock sa GC Name.", threadID, messageID);
+        return api.sendMessage("🕶️ 🔓 *Gojo Satoru:* Inalis na ang Lock sa GC Name.", threadID, messageID);
       }
 
       if (sub === "welcome") {
@@ -271,96 +255,81 @@ module.exports = {
         if (status === "on") {
           currentThread.welcome = true;
           saveData(data);
-          return api.sendMessage("🕶️ *Gojo Satoru:* Welcome system: ENABLED.", threadID, messageID);
+          return api.sendMessage("🕶️ ✨ *Gojo Satoru:* Welcome system: ENABLED.", threadID, messageID);
         } else if (status === "off") {
           currentThread.welcome = false;
           saveData(data);
-          return api.sendMessage("🕶️ *Gojo Satoru:* Welcome system: DISABLED.", threadID, messageID);
+          return api.sendMessage("🕶️ ⚡ *Gojo Satoru:* Welcome system: DISABLED.", threadID, messageID);
         }
-        return api.sendMessage("🕶️ *Gojo Satoru:* Gamitin ang: /gojo welcome on O /gojo welcome off", threadID, messageID);
+        return api.sendMessage("🕶️ 🤞 *Gojo Satoru:* Gamitin ang: /gojo welcome on O /gojo welcome off", threadID, messageID);
       }
 
+      // INFINITE DURATION ACTIVATION
       if (sub === "on") {
-        currentThread.expires = Date.now() + 24 * 60 * 60 * 1000;
+        currentThread.infinite = true;
         currentThread.activatedBy = senderID;
         saveData(data);
 
         applyGojoThemeSafely(api, threadID);
 
         return api.sendMessage(
-          `🕶️ GOJO SATORU MODE ACTIVATED 🌌\n\n` +
+          `🕶️ 🌌 GOJO SATORU INFINITE MODE ACTIVATED ♾️\n\n` +
           `👑 Exclusive Admins:\n${ADMIN_IDS.join("\n")}\n\n` +
-          `🤖 Engine: Strict Nickname Guard + Target System\n` +
+          `🤖 Engine: Strict ID Nickname Guard & Target Lock\n` +
           `💙 Messenger Theme: Gojo Blue Theme\n` +
-          `💬 Reply Delay: 5.0s - 7.0s (Anti-Ban Protected)\n` +
-          `⏳ Duration: 24 Hours Active`,
+          `💬 Reply Delay: 5.0s - 7.0s (Anti-Ban Guard)\n` +
+          `⏳ Duration: INFINITE / FOREVER ACTIVE ♾️⚡`,
           threadID,
           messageID
         );
       }
 
+      // ID-BASED TARGET
       if (sub === "target") {
-        const searchName = args.slice(1).join(" ");
-        if (!searchName) {
-          return api.sendMessage("🕶️ *Gojo Satoru:* Maglagay ka ng pangalan ng kakausapin. Example: /gojo target Juan Dela Cruz", threadID, messageID);
+        const targetUID = args[1] ? args[1].trim() : null;
+        if (!targetUID) {
+          return api.sendMessage("🕶️ 🎯 *Gojo Satoru:* Maglagay ng User ID ng ie-eliminate. Example: /gojo target 100012345678", threadID, messageID);
         }
 
-        api.getThreadInfo(threadID, (err, info) => {
-          if (err || !info || !info.userInfo) {
-            return api.sendMessage("⚠️ Hindi makuha ang listahan ng members sa GC.", threadID, messageID);
-          }
+        currentThread.targetUser = targetUID;
+        saveData(data);
 
-          const foundUser = info.userInfo.find(u => u.name.toLowerCase().includes(searchName.toLowerCase()));
-          if (!foundUser) {
-            return api.sendMessage(`🕶️ *Gojo Satoru:* Walang nahanap na tao na may pangalang "${searchName}" sa GC na 'to.`, threadID, messageID);
-          }
-
-          currentThread.targetUser = foundUser.id;
-          currentThread.targetName = foundUser.name;
-          saveData(data);
-
-          return api.sendMessage(`🕶️ *Gojo Satoru:* Target locked kay **${foundUser.name}**! 🎯`, threadID, messageID);
-        });
-        return;
+        return api.sendMessage(`🕶️ 🎯 *Gojo Satoru:* Target locked sa User ID [${targetUID}]! Walang makakatakas sa Six Eyes ko. 🌌`, threadID, messageID);
       }
 
       if (sub === "untarget") {
         currentThread.targetUser = null;
-        currentThread.targetName = null;
         saveData(data);
-        return api.sendMessage("🕶️ *Gojo Satoru:* Inalis ko na ang target.", threadID, messageID);
+        return api.sendMessage("🕶️ 🔓 *Gojo Satoru:* Inalis na ang Target Lock.", threadID, messageID);
       }
 
       if (sub === "off") {
-        currentThread.expires = 0;
+        currentThread.infinite = false;
         currentThread.targetUser = null;
-        currentThread.targetName = null;
         saveData(data);
-        return api.sendMessage("🕶️ *Gojo Satoru:* Naka-OFF na ang Auto-Reply sa GC na 'to.", threadID, messageID);
+        return api.sendMessage("🕶️ ⚡ *Gojo Satoru:* Naka-OFF na ang Auto-Reply sa GC na 'to.", threadID, messageID);
       }
 
       if (sub === "status") {
-        const left = getRemaining(threadID);
-        const hours = Math.floor(left / (1000 * 60 * 60));
-        const mins = Math.floor((left % (1000 * 60 * 60)) / (1000 * 60));
-
         return api.sendMessage(
-          `🕶️ GOJO BOT STATUS:\n` +
-          `• Auto-Reply: ${left > 0 ? `ON (${hours}h ${mins}m left)` : "OFF"}\n` +
+          `🕶️ 👑 GOJO BOT INFINITE STATUS ♾️:\n` +
+          `• Auto-Reply: ${currentThread.infinite ? "INFINITE ACTIVE ♾️" : "OFF"}\n` +
           `• GC Name Lock: ${currentThread.lockedTitle ? currentThread.lockedTitle : "OFF"}\n` +
-          `• Target User: ${currentThread.targetName ? currentThread.targetName : "Lahat sa GC"}`,
+          `• Target ID: ${currentThread.targetUser ? currentThread.targetUser : "Lahat sa GC"}\n` +
+          `• Total Locked IDs: ${Object.keys(currentThread.lockedNicknames).length}`,
           threadID,
           messageID
         );
       }
 
       return api.sendMessage(
-        `🕶️ Gojo Commands:\n` +
-        `/gojo on — Start 24h Gojo Mode\n` +
-        `/gojo theme — Change Theme\n` +
+        `🕶️ 🌌 GOJO SATORU UNLIMITED COMMANDS ♾️:\n` +
+        `/gojo on — Start Infinite Gojo Mode\n` +
+        `/gojo theme — Apply Gojo Blue Theme\n` +
         `/gojo onsetgname <name> — Lock GC Name\n` +
-        `/gojo onsetnick <FB Name> | <Nickname> — Lock Nickname\n` +
-        `/gojo target <FB Name> — Target User\n` +
+        `/gojo onsetnick <User ID> | <Nickname> — Lock Nickname via ID\n` +
+        `/gojo offnick <User ID> — Unlock Nickname via ID\n` +
+        `/gojo target <User ID> — Lock Target via ID\n` +
         `/gojo off — Turn OFF`,
         threadID,
         messageID
@@ -382,29 +351,69 @@ const userMessageTracker = {};
 
 const GOJO_SELF_EMOJIS = ["🕶️", "🌌", "♾️", "💙", "⚡", "😼", "🤞", "👑", "🔮", "✨"];
 
+// EXTENDED GOJO AUTO-REPLY LINES
 const FALLBACK_ROASTS = [
-  "Nah, I'd win. Akala mo ba talaga may chance ka laban sa pinakamalakas?",
-  "Huwag kang mag-alala, mahina ka lang talaga. Yowai mo~ 😼",
-  "Sa buong langit at lupa... ako lang ang natatanging Honored One.",
-  "Limitless ang pagitan natin. Kahit anong gawin mo, hindi mo man lang ako madidikit.",
-  "Masyadong mababa ang level mo. Kailangan mo pa ng ilang daang taon para makahabol sa akin.",
-  "Domain Expansion: Infinite Void! Sobrang daming impormasyon ba sa utak mo kaya ka napapahinto?",
-  "It's fine. After all, you're weak. 🤞"
+  "Nah, I'd win. Akala mo ba talaga may chance ka laban sa pinakamalakas? 🕶️✨",
+  "Huwag kang mag-alala, mahina ka lang talaga. Yowai mo~ 😼⚡",
+  "Sa buong langit at lupa... ako lang ang natatanging Honored One. 🌌👑",
+  "Limitless ang pagitan natin. Kahit anong gawin mo, hindi mo man lang ako madidikit. ♾️🕶️",
+  "Masyadong mababa ang level mo. Kailangan mo pa ng ilang daang taon para makahabol sa akin. 🔮😼",
+  "Domain Expansion: Infinite Void! Sobrang daming impormasyon ba sa utak mo kaya ka napapahinto? 🌌👁️",
+  "It's fine. After all, you're weak. 🤞✨",
+  "Titingnan mo ba ako nang ganyan dahil lang sa gwapo ako at napakalakas? 🕶️💙",
+  "Relax ka lang. Ako ang pinakamalakas, kaya sanay na akong makakita ng mga sumusuko. 😼⚡",
+  "Puro ka dada, subukan mo kayang itaas ang Cursed Energy mo? Masyadong boring. 🔮♾️",
+  "Six Eyes ko pa lang, kitang-kita ko na kung gaano kababaw ang iniisip mo. 👁️🕶️",
+  "Akala mo ba nakakatakot ka? Maski sa panaginip mo, hindi mo ako matatalo. 🌌😼",
+  "Isang snap ko lang, bura agad ang kayabangan mo. Magtino ka. ⚡🤞",
+  "Subukan mong magyabang ulit, ipapadama ko sa'yo ang Cursed Technique Reversal: Red sa mukha mo! 🔴🔥",
+  "Mabilis ka nga ba talaga o sadyang mabagal lang ang reflexes mo sa harapan ko? 🕶️⚡",
+  "Gusto mo ba ng sweet treats muna bago kita padapanin sa pagsasanay? 🍭😼",
+  "Huwag ka nang umasa. Sa dulo ng laban na 'to, ako pa rin ang nakatayo bilang Pinakamalakas. 👑♾️",
+  "Ang lakas ng loob mo mag-chat, may Cursed Technique ka ba man lang? 🔮🕶️",
+  "Wala sa bokabularyo ko ang matalo. Subukan mo uli sa susunod mong buhay. 🌌🤞",
+  "Baka kailangan mo muna ng blindfold para hindi ka ma-overwhelm sa aura ko. 🕶️✨",
+  "Napakadali mong basahin. Para kang libro na bukas ang bawat pahina. 👁️😼",
+  "Gojo Satoru lang naman ang kausap mo, matuto kang gumalang sa tuktok! 👑⚡",
+  "Kahit magsama pa kayo ng buong tropa mo, balewala pa rin 'yan sa Infinity ko. ♾️💙",
+  "Ganyan ba talaga ang ginagawa mo kapag alam mong wala ka nang maipapanalo? 😼✨",
+  "Anong pakiramdam ng tumingala sa pinakamalakas? Nakakalula ba? 🌌🕶️",
+  "Wala ka man lang maipakitang maganda, puro ka lang salita. 🔮⚡",
+  "Gusto mo bang turuan kita kung paano maging malakas? Charot, hindi mo kaya. 🍭😼",
+  "I'm the honored one for a reason. Manahimik ka na lang diyan. 👑🤞",
+  "Kahit gumamit ka pa ng mga cursed tool, balewala pa rin sa Infinity barrier ko. ♾️🕶️",
+  "Cursed Technique Lapse: Blue! Hihilahin kita pabalik sa katotohanan na mahina ka! 🔵🌌"
 ];
 
+// EXTENDED GOJO STICKER ROASTS
 const STICKER_ROASTS = [
-  "Sticker lang? Ganyan na lang ba ang kakayahan ng isang mahinang tulad mo?",
-  "Walang epekto 'yang sticker mo sa Infinity barrier ko. Subukan mo pang mag-send."
+  "Sticker lang? Ganyan na lang ba ang kakayahan ng isang mahinang tulad mo? 🕶️😼",
+  "Walang epekto 'yang sticker mo sa Infinity barrier ko. Subukan mo pang mag-send! ♾️⚡",
+  "Nag-send ka ng sticker dahil wala ka nang maipuntang magandang argumento? Yowai mo~ 🤞✨",
+  "Puro sticker. Hindi niyan matatapatan ang karisma at lakas ng Honored One. 👑🕶️",
+  "Kahit sangkaterbang sticker pa ang i-send mo, hindi 'yan tatagos sa Limitless. 🌌♾️",
+  "Isang sticker para itago ang takot mo? Bawi ka na lang sa susunod mong buhay! 🔮😼",
+  "Nauwi ka na lang sa sticker? Naubusan ka na ba ng cursed energy para mag-type? ⚡🕶️",
+  "Ang cute ng sticker mo, mukhang kasing-hina mo rin! 🍭😼"
 ];
 
+// EXTENDED GOJO EMOJI ROASTS
 const EMOJI_ROASTS = [
-  "Puro ka emoji. Naubusan ka na ba ng cursed energy para mag-type ng salita?",
-  "Emoji spam won't save you from Infinite Void. Mag-isip ka naman ng magandang sasabihin!"
+  "Puro ka emoji. Naubusan ka na ba ng cursed energy para mag-type ng salita? 🕶️⚡",
+  "Tawa ka nang tawa. Nakakatawa rin ba kapag ginamit ko na ang Domain Expansion? 🌌👁️",
+  "Emoji lang kaya mong ibato? Napakahina naman ng atake mo. Yowai mo~ 🤞😼",
+  "Isang simbolo lang ilalaban mo sa akin? Matuto kang gumalang sa pinakamalakas. 👑✨",
+  "Wala na bang ibang naiisip 'yang utak mo kundi mag-reply ng emoji? 🔮🕶️",
+  "Emoji spam won't save you from Infinite Void. Mag-isip ka naman ng magandang sasabihin! ♾️🌌",
+  "Nag-reply ka lang ng emoji kasi alam mong wala kang binatbat sa akin. 😼⚡"
 ];
 
 const GOJO_SUGGESTIONS = [
-  "\n\n🕶️ /silent *Gojo Satoru: Don't worry, I'm the strongest.*",
-  "\n\n🌌 /silent *Gojo Satoru: Domain Expansion: Infinite Void.*"
+  "\n\n🕶️ /silent *Gojo Satoru: Don't worry, I'm the strongest.* 🌌",
+  "\n\n🌌 /silent *Gojo Satoru: Domain Expansion: Infinite Void.* ♾️",
+  "\n\n♾️ /silent *Gojo Satoru: You can't touch me, weakling.* ⚡",
+  "\n\n🤞 /silent *Gojo Satoru: Yowai mo~ So weak.* 😼",
+  "\n\n⚡ /silent *Gojo Satoru: Sa buong langit at lupa, ako ang natatanging Honored One.* 👑"
 ];
 
 function loadData() {
@@ -434,15 +443,7 @@ function saveData(data) {
 function isThreadActive(threadID) {
   const data = loadData();
   const threadData = data.threads ? data.threads[threadID] : null;
-  return threadData && threadData.expires && Number(threadData.expires) > Date.now();
-}
-
-function getRemaining(threadID) {
-  const data = loadData();
-  const threadData = data.threads ? data.threads[threadID] : null;
-  if (!threadData || !threadData.expires) return 0;
-  const left = Number(threadData.expires) - Date.now();
-  return left > 0 ? left : 0;
+  return threadData && threadData.infinite === true;
 }
 
 function isSpamming(senderID) {
@@ -465,17 +466,4 @@ function sendSilentReplyWithMentions(api, threadID, messageText, replyToMessageI
   } catch (e) {}
 }
 
-function applyGojoThemeSafely(api, threadID, callback) {
-  try {
-    const selectedTheme = GOJO_THEME_IDS[Math.floor(Math.random() * GOJO_THEME_IDS.length)];
-    if (typeof api.changeThreadColor === "function") {
-      api.changeThreadColor(selectedTheme, threadID, () => {
-        if (callback) callback();
-      });
-    } else {
-      if (callback) callback();
-    }
-  } catch (e) {
-    if (callback) callback();
-  }
-                }
+function applyGojoThemeSafely(api, threadID, callback) 
