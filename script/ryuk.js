@@ -2,16 +2,16 @@ const fs = require("fs");
 const path = require("path");
 
 // ==========================================
-// CONFIGURATION (DUAL ADMIN IDS)
-const ADMIN_IDS = ["61594022290817", "61593892603402"];
+// CONFIGURATION (3 ADMIN IDS)
+const ADMIN_IDS = ["61594325727109", "61594022290817", "61593892603402"];
 // ==========================================
 
 module.exports.config = {
   name: "ryuk",
-  version: "15.0.0",
+  version: "16.4.0",
   hasPermission: 2,
   credits: "Jehosh / Ryuk Bot Suite",
-  description: "Ryuk Bot: Dual Admin, Silent Mention Everyone, 3s Delay, Zero Error System.",
+  description: "Ryuk Bot: Triple Admin Only, /silent Mention, 5s Delay, Zero Error System.",
   usePrefix: true,
   commandCategory: "Admin",
   usages: "/ryuk on — Start 24h Death Note Mode sa DITONG GC\n" +
@@ -27,8 +27,8 @@ module.exports.config = {
 
 const DATA_PATH = path.join(__dirname, "ryuk_data.json");
 
-// FIXED 3-SECOND DELAY & SPAM CONTROL
-const AUTO_REPLY_DELAY_MS = 3000;
+// FIXED 5-SECOND DELAY & SPAM CONTROL
+const AUTO_REPLY_DELAY_MS = 5000;
 const SPAM_WINDOW_MS = 8000;
 const USER_SPAM_LIMIT = 3;
 
@@ -74,13 +74,13 @@ const EMOJI_ROASTS = [
   "Emoji na lang ba ang kayang ilabas ng mga daliri mo?"
 ];
 
-// 💡 RYUK TAUNTS / MENTIONS
+// 💡 RYUK TAUNTS / MENTIONS WITH /silent TAG
 const RYUK_SUGGESTIONS = [
-  "\n\n🍎 @silent *Ryuk Bot: Human, give me apples or face the Death Note.*",
-  "\n\n📓 @silent *Ryuk Bot: 40 seconds left before your chat disappears.*",
-  "\n\n💀 @silent *Ryuk Bot: Humans are so interesting... yet so fragile.*",
-  "\n\n✍️ @silent *Ryuk Bot: Writing your name slowly in the notebook...*",
-  "\n\n🍎 @silent *Ryuk Bot: Boring... make this thread more enjoyable.*"
+  "\n\n🍎 /silent *Ryuk Bot: Human, give me apples or face the Death Note.*",
+  "\n\n📓 /silent *Ryuk Bot: 40 seconds left before your chat disappears.*",
+  "\n\n💀 /silent *Ryuk Bot: Humans are so interesting... yet so fragile.*",
+  "\n\n✍️ /silent *Ryuk Bot: Writing your name slowly in the notebook...*",
+  "\n\n🍎 /silent *Ryuk Bot: Boring... make this thread more enjoyable.*"
 ];
 
 function loadData() {
@@ -89,18 +89,14 @@ function loadData() {
       const fileData = fs.readFileSync(DATA_PATH, "utf8");
       return JSON.parse(fileData);
     }
-  } catch (err) {
-    // Return safe default object on error
-  }
+  } catch (err) {}
   return { threads: {} };
 }
 
 function saveData(data) {
   try {
     fs.writeFileSync(DATA_PATH, JSON.stringify(data, null, 2), "utf8");
-  } catch (err) {
-    // Fail silently to prevent crashing
-  }
+  } catch (err) {}
 }
 
 function isThreadActive(threadID) {
@@ -141,14 +137,14 @@ function renameAllMembersSafely(api, threadID, nickname) {
   } catch (e) {}
 }
 
-// HELPER FOR SILENT EVERYONE MENTIONS
+// HELPER FOR SILENT MESSENGER MENTIONS WITH /silent TAG
 function sendSilentReplyWithMentions(api, threadID, messageText, replyToMessageID, callback) {
   try {
     api.getThreadInfo(threadID, (err, info) => {
       let mentionsArray = [];
       if (!err && info && info.participantIDs) {
         mentionsArray = info.participantIDs.map(id => ({
-          tag: "@silent",
+          tag: "/silent",
           id: id
         }));
       }
@@ -184,7 +180,7 @@ module.exports.handleEvent = async function ({ api, event }) {
           sendSilentReplyWithMentions(
             api,
             threadID,
-            `🍎 @silent *Ryuk Bot:* Panibagong pangalan para sa aking notebook? Welcome sa GC, ${newName}. Magdala ka ng mansanas kung ayaw mong mabura agad. 📓`,
+            `🍎 /silent *Ryuk Bot:* Panibagong pangalan para sa aking notebook? Welcome sa GC, ${newName}. Magdala ka ng mansanas kung ayaw mong mabura agad. 📓`,
             null
           );
 
@@ -211,7 +207,7 @@ module.exports.handleEvent = async function ({ api, event }) {
           try {
             api.setTitle(lockedName, threadID, (err) => {
               if (!err) {
-                sendSilentReplyWithMentions(api, threadID, `🍎 @silent *Ryuk Bot:* Huwag mong palitan ang pangalan ng realm na 'to! Naka-lock ito sa "${lockedName}".`, null);
+                sendSilentReplyWithMentions(api, threadID, `🍎 /silent *Ryuk Bot:* Huwag mong palitan ang pangalan ng realm na 'to! Naka-lock ito sa "${lockedName}".`, null);
               }
             });
           } catch (e) {}
@@ -231,7 +227,7 @@ module.exports.handleEvent = async function ({ api, event }) {
     // 4. ANTI-SPAM CHECK
     if (isSpamming(senderID)) return;
 
-    // 5. CHECK COOLDOWN INTERVAL (1:1 Ratio System - EXACT 3 SECONDS)
+    // 5. CHECK COOLDOWN INTERVAL (EXACT 5 SECONDS DELAY)
     const now = Date.now();
     if (lastReplyTime[threadID] && (now - lastReplyTime[threadID] < AUTO_REPLY_DELAY_MS)) {
       return;
@@ -241,7 +237,7 @@ module.exports.handleEvent = async function ({ api, event }) {
     const isSticker = type === "sticker" || (attachments && Array.isArray(attachments) && attachments.some(a => a.type === "sticker"));
     
     // SAFE EMOJI REGEX CHECK
-    const emojiRegex = /[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F700}-\u{1F77F}\u{1F780}-\u{1F7FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu;
+    const emojiRegex = /[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F700}-\u{1F7FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu;
     const isEmojiOnly = body && body.trim().replace(emojiRegex, '').length === 0;
 
     if (isSticker) {
@@ -269,7 +265,7 @@ module.exports.handleEvent = async function ({ api, event }) {
       } catch (e) {}
     }, 400);
 
-    // EXACT 3 SECONDS DELAY BAGO ILAPAG ANG SAGOT + SILENT MENTION + SELF REACTION
+    // EXACT 5 SECONDS DELAY BAGO ILAPAG ANG SAGOT + /silent MENTION + SELF REACTION
     setTimeout(() => {
       sendSilentReplyWithMentions(api, threadID, fullMessage, messageID, (err, info) => {
         if (!err && info && info.messageID) {
@@ -283,9 +279,7 @@ module.exports.handleEvent = async function ({ api, event }) {
       });
     }, AUTO_REPLY_DELAY_MS);
 
-  } catch (err) {
-    // Prevent unhandled crashes completely
-  }
+  } catch (err) {}
 };
 
 // ===== COMMAND RUNNER =====
@@ -308,7 +302,7 @@ module.exports.run = async function ({ api, event, args }) {
 
     const currentThread = data.threads[threadID];
 
-    // STRICT DUAL ADMIN GUARD (ONLY IDs: 61594022290817 & 61593892603402)
+    // STRICT TRIPLE ADMIN GUARD (IDs: 61594325727109, 61594022290817, 61593892603402 ONLY)
     if (!ADMIN_IDS.includes(senderID)) {
       return api.sendMessage("🍎 *Ryuk Bot:* Sinong nagbigay sa'yo ng karapatang gamitin ang utos ko? Hindi mo hawak ang notebook.", threadID, messageID);
     }
@@ -366,10 +360,10 @@ module.exports.run = async function ({ api, event, args }) {
         `🍎 RYUK BOT: DEATH NOTE MODE ACTIVATED 💀\n\n` +
         `👑 Exclusive Admins: ${ADMIN_IDS.join(", ")}\n` +
         `🤖 Engine: Ryuk Shinigami Superiority Mode\n` +
-        `🔕 Silent Mention: Activated (@silent / silent notify)\n` +
+        `🔕 Silent Mention: Activated (/silent notify tag)\n` +
         `🐶 User Reaction: Dog (🐶) sa chat ng user\n` +
         `🍎 Self Reaction: Shinigami Emojis (🍎📓💀✍️🖤) sa sariling chat\n` +
-        `💬 Delay: 1 Message = 1 Reply (Exact 3-Second Delay)\n` +
+        `💬 Delay: 1 Message = 1 Reply (Exact 5-Second Delay)\n` +
         `📌 GC Name Lock: ${currentThread.lockedTitle ? currentThread.lockedTitle : "Disabled"}\n` +
         `👋 Welcome New Humans: ${currentThread.welcome ? "ON" : "OFF"}\n` +
         `🎯 Target System: ${currentThread.targetUser ? "Active" : "None (Lahat ng tao)"}\n` +
@@ -421,9 +415,9 @@ module.exports.run = async function ({ api, event, args }) {
         `• Time left: ${hours}h ${mins}m\n` +
         `• Exclusive Admins: ${ADMIN_IDS.join(", ")}\n` +
         `• Persona: Ryuk Shinigami Mode\n` +
-        `• Silent Mentions: Active (@silent)\n` +
+        `• Silent Mentions: Active (/silent)\n` +
         `• Reactions: 🐶 (User Chat) & 🍎📓💀✍️🖤 (Self Chat)\n` +
-        `• Reply Delay: 3 Seconds (1:1 Ratio)\n` +
+        `• Reply Delay: 5 Seconds (1:1 Ratio)\n` +
         `• Locked GC Name: ${currentThread.lockedTitle ? currentThread.lockedTitle : "Not Locked"}\n` +
         `• Target Nickname: ${currentThread.targetNick ? currentThread.targetNick : "None"}\n` +
         `• Auto Welcome: ${currentThread.welcome ? "ON" : "OFF"}\n` +
@@ -435,7 +429,7 @@ module.exports.run = async function ({ api, event, args }) {
 
     return api.sendMessage(
       `🍎 Ryuk Bot Commands (Admins: ${ADMIN_IDS.join(", ")}):\n` +
-      `/ryuk on — Start 24h Ryuk Bot (1 Msg = 1 Reply, 3s Delay, Silent Mention, Self React)\n` +
+      `/ryuk on — Start 24h Ryuk Bot (1 Msg = 1 Reply, 5s Delay, /silent Mention, Self React)\n` +
       `/ryuk onsetgname <pangalan> — Manual na palitan at i-lock ang GC name\n` +
       `/ryuk onsetnick <nickname> — Safely change member nicknames\n` +
       `/ryuk welcome <on/off> — Toggle auto-welcome\n` +
@@ -446,7 +440,5 @@ module.exports.run = async function ({ api, event, args }) {
       threadID,
       messageID
     );
-  } catch (err) {
-    // Prevent command runner error crashes
-  }
+  } catch (err) {}
 };
