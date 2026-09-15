@@ -13,15 +13,15 @@ const ADMIN_IDS = [
 
 module.exports.config = {
   name: "gojo",
-  version: "26.0.0",
+  version: "27.0.0",
   hasPermission: 2,
   credits: "Jehosh / Gojo Satoru Edition",
-  description: "Gojo Bot: Ultimate Silent Engine with Native Messenger Silent Payload.",
+  description: "Gojo Bot: Anti-GC Rename Protection and Accurate FB Name Target.",
   usePrefix: true,
   commandCategory: "Admin",
   usages: "🕶️ /gojo on — Buksan ang 24h Domain Expansion 🌌\n" +
           "💙 /gojo theme — Switch Messenger Theme to Gojo Blue ⚡\n" +
-          "🔒 /gojo onsetgname <pangalan> — Lock GC name ♾️\n" +
+          "🔒 /gojo onsetgname <pangalan> — Lock GC name (Anti-Change) ♾️\n" +
           "🏷️ /gojo onsetnick <nickname> — Change member nicknames safely 🤞\n" +
           "👋 /gojo welcome <on/off> — Toggle Auto Welcome 🔮\n" +
           "🎯 /gojo target <FB Name / Tag> — Target specific user 😼\n" +
@@ -89,7 +89,7 @@ const EMOJI_ROASTS = [
 const GOJO_SUGGESTIONS = [
   "\n\n🕶️ *Gojo Bot: Don't worry, I'm the strongest.* 🌌",
   "\n\n🌌 *Gojo Bot: Domain Expansion: Infinite Void.* ⚡",
-  "\n\n♾️ *Gojo Bot: You can't touch me, human.* 3",
+  "\n\n♾️ *Gojo Bot: You can't touch me, human.* 💙",
   "\n\n🤞 *Gojo Bot: Yowai mo~ So weak.* 😼",
   "\n\n⚡ *Gojo Bot: Sa buong langit at lupa, ako ang natatanging Honored One.* 👑"
 ];
@@ -156,7 +156,6 @@ function renameAllMembersSafely(api, threadID, nickname) {
   } catch (e) {}
 }
 
-// STRICT NATIVE SILENT FUNCTION (Kasama lahat ng members para sa silent tag tag)
 function sendAbsoluteSilentMsg(api, threadID, messageText, replyToMessageID, callback) {
   try {
     api.getThreadInfo(threadID, (err, info) => {
@@ -198,6 +197,17 @@ module.exports.handleEvent = async function ({ api, event }) {
     const data = loadData();
     const threadData = data.threads ? data.threads[threadID] : null;
 
+    // 1. PIGILAN AT IBALIK ANG GC NAME KAPAG BINAGO NG IBA
+    if (logMessageType === "log:thread-name" && threadData && threadData.lockedTitle) {
+      const lockedName = threadData.lockedTitle;
+      if (logMessageData && logMessageData.name !== lockedName) {
+        setTimeout(() => {
+          try { api.setTitle(lockedName, threadID, () => {}); } catch (e) {}
+        }, 1000);
+      }
+      return;
+    }
+
     if (logMessageType === "log:subscribe") {
       const addedParticipants = logMessageData ? logMessageData.addedParticipants || [] : [];
       if (threadData && threadData.welcome) {
@@ -219,31 +229,28 @@ module.exports.handleEvent = async function ({ api, event }) {
 
     if (!isThreadActive(threadID) || senderID === botID || !threadData) return;
 
-    if (logMessageType === "log:thread-name") {
-      const lockedName = threadData.lockedTitle;
-      if (lockedName && logMessageData && logMessageData.name !== lockedName) {
-        setTimeout(() => {
-          try { api.setTitle(lockedName, threadID, () => {}); } catch (e) {}
-        }, 2000);
-      }
-      return;
-    }
-
     if (body && body.startsWith("/")) return;
 
-    if (threadData.targetUser) {
-      const targetVal = String(threadData.targetUser).toLowerCase();
-      if (senderID !== targetVal) {
-        let matchFound = false;
-        if (threadData.targetName) {
-          try {
-            const info = await new Promise(res => api.getUserInfo(senderID, (e, i) => res(i)));
-            const senderName = info && info[senderID] ? info[senderID].name.toLowerCase() : "";
-            if (senderName.includes(threadData.targetName.toLowerCase())) matchFound = true;
-          } catch(e) {}
-        }
-        if (!matchFound) return;
+    // 2. PINATIBAY NA TARGET CHECKER (FB NAME O ID)
+    if (threadData.targetUser || threadData.targetName) {
+      let isTargetMatch = false;
+      
+      if (threadData.targetUser && senderID === String(threadData.targetUser)) {
+        isTargetMatch = true;
+      } else if (threadData.targetName) {
+        try {
+          const userInfo = await new Promise(res => api.getUserInfo(senderID, (e, i) => res(i)));
+          if (userInfo && userInfo[senderID]) {
+            const realName = (userInfo[senderID].name || "").toLowerCase();
+            const targetQuery = threadData.targetName.toLowerCase();
+            if (realName.includes(targetQuery)) {
+              isTargetMatch = true;
+            }
+          }
+        } catch (e) {}
       }
+
+      if (!isTargetMatch) return;
     }
 
     if (isSpamming(senderID)) return;
@@ -322,8 +329,8 @@ module.exports.run = async function ({ api, event, args }) {
       currentThread.lockedTitle = customGCName;
       saveData(data);
       api.setTitle(customGCName, threadID, (err) => {
-        if (err) return sendAbsoluteSilentMsg(api, threadID, "⚠️ Siguraduhing admin ako sa GC. 🔒", messageID);
-        return sendAbsoluteSilentMsg(api, threadID, `🕶️ *Gojo Satoru:* GC Name locked to "${customGCName}". 🔒⚡`, messageID);
+        if (err) return sendAbsoluteSilentMsg(api, threadID, "⚠️ Siguraduhing admin ako sa GC para ma-lock ang pangalan. 🔒", messageID);
+        return sendAbsoluteSilentMsg(api, threadID, `🕶️ *Gojo Satoru:* GC Name locked to "${customGCName}". Hinding-hindi na nila ito mapapalitan! 🔒⚡`, messageID);
       });
       return;
     }
@@ -346,7 +353,7 @@ module.exports.run = async function ({ api, event, args }) {
         api, threadID,
         `🕶️ GOJO SATORU: DOMAIN EXPANSION ACTIVATED 🌌⚡\n\n` +
         `👑 Exclusive Admins:\n${ADMIN_IDS.join("\n")}\n\n` +
-        `🤖 Engine: Absolute Silent Gojo Engine 🔮\n` +
+        `🤖 Engine: Strict Anti-Rename & Target Engine 🔮\n` +
         `💙 Theme: Gojo Blue (Auto-Applied) ♾️\n` +
         `🔕 Mentions: Native /silent Payload Active ⚡\n` +
         `🐶 Reactions: Active (🐶 & Gojo Emojis 🕶️)\n` +
@@ -366,26 +373,14 @@ module.exports.run = async function ({ api, event, args }) {
       if (mentionIDs.length > 0) {
         const targetID = mentionIDs[0];
         currentThread.targetUser = targetID;
-        currentThread.targetName = mentions[targetID].replace("@", "");
+        currentThread.targetName = null;
         saveData(data);
-        return sendAbsoluteSilentMsg(api, threadID, `🕶️ *Gojo Satoru:* Target Locked sa <@${targetID}>! 🎯🤞`, messageID);
+        return sendAbsoluteSilentMsg(api, threadID, `🕶️ *Gojo Satoru:* Target Locked securely sa user ID! 🎯🤞`, messageID);
       } else {
-        api.getThreadInfo(threadID, (err, info) => {
-          let foundID = null;
-          let foundName = inputTarget;
-          if (!err && info && info.userInfo) {
-            const matchedUser = info.userInfo.find(u => u.name && u.name.toLowerCase().includes(inputTarget.toLowerCase()));
-            if (matchedUser) {
-              foundID = matchedUser.id;
-              foundName = matchedUser.name;
-            }
-          }
-          currentThread.targetUser = foundID || inputTarget;
-          currentThread.targetName = foundName;
-          saveData(data);
-          return sendAbsoluteSilentMsg(api, threadID, `🕶️ *Gojo Satoru:* Target Locked sa FB Name: "${foundName}"! 🎯🤞`, messageID);
-        });
-        return;
+        currentThread.targetUser = null;
+        currentThread.targetName = inputTarget;
+        saveData(data);
+        return sendAbsoluteSilentMsg(api, threadID, `🕶️ *Gojo Satoru:* Target Locked sa FB Name: "${inputTarget}"! Lahat ng mag-a-chat na may kaparehong pangalan ay aasarin ko. 🎯🤞`, messageID);
       }
     }
 
@@ -415,7 +410,7 @@ module.exports.run = async function ({ api, event, args }) {
       `🕶️ Gojo Satoru Commands 🌌:\n` +
       `⚡ /gojo on — Start 24h Gojo Mode & Theme 💙\n` +
       `💙 /gojo theme — Change theme to Gojo Blue ♾️\n` +
-      `🔒 /gojo onsetgname <name> — Lock GC name 🔮\n` +
+      `🔒 /gojo onsetgname <name> — Lock GC name (Anti-Change) 🔮\n` +
       `🏷️ /gojo onsetnick <nick> — Change member nicks 🤞\n` +
       `👋 /gojo welcome <on/off> — Toggle Welcome 🌌\n` +
       `🎯 /gojo target <Name/Tag> — Target specific user 😼\n` +
