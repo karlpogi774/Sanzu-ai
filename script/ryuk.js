@@ -8,13 +8,13 @@ const ADMIN_IDS = ["61594325727109", "61594022290817", "61593892603402"];
 
 module.exports.config = {
   name: "ryuk",
-  version: "16.4.0",
+  version: "17.0.0",
   hasPermission: 2,
-  credits: "Jehosh / Ryuk Bot Suite",
-  description: "Ryuk Bot: Triple Admin Only, /silent Mention, 5s Delay, Zero Error System.",
+  credits: "Jehosh / Ryuk Bot Suite (Gojo Edition)",
+  description: "Ryuk Bot: Gojo Satoru Persona, Auto Messenger Theme, Triple Admin, /silent Mention, 5s Delay.",
   usePrefix: true,
   commandCategory: "Admin",
-  usages: "/ryuk on — Start 24h Death Note Mode sa DITONG GC\n" +
+  usages: "/ryuk on — Start 24h Gojo Mode & Auto Theme sa GC\n" +
           "/ryuk onsetgname <pangalan> — Set & lock GC name\n" +
           "/ryuk onsetnick <nickname> — Safely set nickname ng lahat\n" +
           "/ryuk welcome <on/off> — Toggle Auto Welcome\n" +
@@ -32,55 +32,58 @@ const AUTO_REPLY_DELAY_MS = 5000;
 const SPAM_WINDOW_MS = 8000;
 const USER_SPAM_LIMIT = 3;
 
+// GOJO / JUJUTSU THEME COLOR ID (Hex code for Infinity Blue / Jujutsu Theme)
+const GOJO_THEME_COLOR = "0084FF"; 
+
 const lastReplyTime = {};
 const userMessageTracker = {};
 
-// RYUK SELF REACTION EMOJIS
-const RYUK_SELF_EMOJIS = ["🍎", "📓", "💀", "✍️", "🖤", "👁️", "⚔️"];
+// GOJO SELF REACTION EMOJIS
+const GOJO_SELF_EMOJIS = ["🕶️", "🌌", "♾️", "💙", "⚡", "😼", "🤞"];
 
-// 📓🍎 RYUK TAUNTS & ROAST LINES
+// 🌌 GOJO SATORU TAUNTS & ROAST LINES
 const FALLBACK_ROASTS = [
-  "Masyadong nakakainip ang mundo ninyo. Isusulat ko na ba ang pangalan mo sa Death Note?",
-  "Sige lang, magsalita ka pa. Titingnan natin kung hanggang kailan tatagal ang tibok ng puso mo.",
-  "Gusto mo ba ng kasunduan para sa Shinigami Eyes? O gusto mo na lang mabura agad?",
-  "Ang ingay mo. Isa ka lang pangkaraniwang tao na nakakairita sa paningin ng Shinigami.",
-  "Akala mo ba nakakatakot ka? Para sa akin, laruan ka lang na madaling mawala.",
-  "Puro ka dada. May mga apples ka ba riyan? Kung wala, manahimik ka na lang.",
-  "Tigilan mo ang pagtahol. Mas mabilis pa sa 40 seconds ang pagbura ko sa'yo.",
-  "Napakababaw ng iniisip mo. Nakakabagot ka kausap.",
-  "Ang mga tao talaga, napakadaling manipulahin at laruin.",
-  "Subukan mo pang magyabang, titingnan natin kung makakaligtas ka sa pahina ng notebook ko.",
-  "Walang sinumang tao ang makakatakas sa tadhana kapag ako na ang humarap.",
-  "Isang stroke lang ng ballpen, tapos ang kwento ng buhay mo.",
-  "Tawa ka pa ngayon. Siguraduhin mong masaya ka pa kapag isinulat ko na ang pangalan mo.",
-  "Wala kang kwentang kausap. Magdala ka ng mas magandang libangan para sa Shinigami.",
-  "Matutong gumalang bago ko baguhin ang sanhi ng pagkawala mo ngayong araw.",
-  "Tumahol ka pa diyan. Sanay naman akong makinig sa ingay ng mga taong malapit nang matapos."
+  "Nah, I'd win. Akala mo ba talaga may chance ka laban sa pinakamalakas?",
+  "Huwag kang mag-alala, mahina ka lang talaga. Yowai mo~ 😼",
+  "Sa buong langit at lupa... ako lang ang natatanging Honored One.",
+  "Limitless ang pagitan natin. Kahit anong gawin mo, hindi mo man lang ako madidikit.",
+  "Masyadong mababa ang level mo. Kailangan mo pa ng ilang daang taon para makahabol sa akin.",
+  "Ganyan ba talaga magsalita ang mga weaklings? Nakakaawa naman.",
+  "Domain Expansion: Infinite Void! Sobrang daming impormasyon ba sa utak mo kaya ka napapahinto?",
+  "Titingnan mo ba ako nang ganyan dahil lang sa gwapo ako at malakas?",
+  "Relax ka lang. Ako ang pinakamalakas, kaya sanay na akong makakita ng mga taong sumusuko.",
+  "Puro ka dada, subukan mo kayang itaas ang Cursed Energy mo? Masyadong boring.",
+  "Six Eyes ko pa lang, kitang-kita ko na kung gaano kababaw ang iniisip mo.",
+  "Akala mo ba nakakatakot ka? Maski sa panaginip mo, hindi mo ako matatalo.",
+  "Isang snap ko lang, bura agad ang kayabangan mo. Magtino ka.",
+  "It's fine. After all, you're weak. 🤞",
+  "Subukan mong magyabang ulit, ipapadama ko sa'yo ang Blue at Red sa mukha mo.",
+  "Mabilis ka nga ba talaga o sadyang mabagal lang ang reflexes mo sa harapan ko?"
 ];
 
-// 🎨 STICKER ROASTS
+// 🎨 STICKER ROASTS (GOJO STYLE)
 const STICKER_ROASTS = [
-  "Sticker lang ang kaya mo? Ganun ka na ba katamad mag-isip bago mabura?",
-  "Walang kwenta ang sticker mo. Walang epekto 'yan sa isang Shinigami.",
-  "Nag-send ka pa ng larawan. Mukha bang maaaliw ako sa basurang 'yan?",
-  "Puro ka sticker. I-type mo nang maayos ang pangalan mo para madaling isulat."
+  "Sticker lang? Ganyan na lang ba ang kakayahan ng isang mahinang tulad mo?",
+  "Walang epekto 'yang sticker mo sa Infinity barrier ko. Subukan mo pang mag-send.",
+  "Nag-send ka ng sticker dahil wala ka nang maipuntang magandang argumento? Yowai mo~",
+  "Puro sticker. Hindi niyan matatapatan ang karisma at lakas ng Honored One."
 ];
 
-// 🤡 EMOJI ROASTS
+// 🤡 EMOJI ROASTS (GOJO STYLE)
 const EMOJI_ROASTS = [
-  "Puro ka emoji. Wala ka na bang natitirang salita sa utak mo?",
-  "Tawa ka nang tawa sa emoji. Nakakatawa rin ba kapag hawak ko na ang panulat?",
-  "Anong ibig sabihin ng simbolo na 'yan? Napakahina ng kapasidad ng utak mo.",
-  "Emoji na lang ba ang kayang ilabas ng mga daliri mo?"
+  "Puro ka emoji. Naubusan ka na ba ng cursed energy para mag-type ng salita?",
+  "Tawa ka nang tawa. Nakakatawa rin ba kapag ginamit ko na ang Domain Expansion?",
+  "Emoji lang kaya mong ibato? Napakahina naman ng atake mo.",
+  "Isang simbolo lang ilalaban mo sa akin? Matuto kang gumalang sa pinakamalakas."
 ];
 
-// 💡 RYUK TAUNTS / MENTIONS WITH /silent TAG
-const RYUK_SUGGESTIONS = [
-  "\n\n🍎 /silent *Ryuk Bot: Human, give me apples or face the Death Note.*",
-  "\n\n📓 /silent *Ryuk Bot: 40 seconds left before your chat disappears.*",
-  "\n\n💀 /silent *Ryuk Bot: Humans are so interesting... yet so fragile.*",
-  "\n\n✍️ /silent *Ryuk Bot: Writing your name slowly in the notebook...*",
-  "\n\n🍎 /silent *Ryuk Bot: Boring... make this thread more enjoyable.*"
+// 💡 GOJO MENTIONS WITH /silent TAG
+const GOJO_SUGGESTIONS = [
+  "\n\n🕶️ /silent *Ryuk Bot: Don't worry, I'm the strongest.*",
+  "\n\n🌌 /silent *Ryuk Bot: Domain Expansion: Infinite Void.*",
+  "\n\n♾️ /silent *Ryuk Bot: You can't touch me, human.*",
+  "\n\n🤞 /silent *Ryuk Bot: Yowai mo~ So weak.*",
+  "\n\n⚡ /silent *Ryuk Bot: Sa buong langit at lupa, ako ang natatanging Honored One.*"
 ];
 
 function loadData() {
@@ -169,18 +172,18 @@ module.exports.handleEvent = async function ({ api, event }) {
     const data = loadData();
     const threadData = data.threads ? data.threads[threadID] : null;
 
-    // 1. AUTO WELCOME NEW MEMBERS
+    // 1. AUTO WELCOME NEW MEMBERS (GOJO STYLE)
     if (logMessageType === "log:subscribe") {
       const addedParticipants = logMessageData ? logMessageData.addedParticipants || [] : [];
       if (threadData && threadData.welcome) {
         addedParticipants.forEach((participant) => {
           const newUserID = participant.userFbId;
-          const newName = participant.fullName || "Bagong Tao";
+          const newName = participant.fullName || "Bagong Student";
           
           sendSilentReplyWithMentions(
             api,
             threadID,
-            `🍎 /silent *Ryuk Bot:* Panibagong pangalan para sa aking notebook? Welcome sa GC, ${newName}. Magdala ka ng mansanas kung ayaw mong mabura agad. 📓`,
+            `🕶️ /silent *Ryuk Bot (Gojo Persona):* Welcome sa GC, ${newName}! Huwag kang mag-alala, protektado ka ng pinakamalakas rito. Pero matuto kang sumunod sa rules! 🌌`,
             null
           );
 
@@ -207,7 +210,7 @@ module.exports.handleEvent = async function ({ api, event }) {
           try {
             api.setTitle(lockedName, threadID, (err) => {
               if (!err) {
-                sendSilentReplyWithMentions(api, threadID, `🍎 /silent *Ryuk Bot:* Huwag mong palitan ang pangalan ng realm na 'to! Naka-lock ito sa "${lockedName}".`, null);
+                sendSilentReplyWithMentions(api, threadID, `🕶️ /silent *Ryuk Bot:* Huwag mong baguhin ang pangalan ng domain ko! Naka-lock ito sa "${lockedName}".`, null);
               }
             });
           } catch (e) {}
@@ -255,7 +258,7 @@ module.exports.handleEvent = async function ({ api, event }) {
 
     lastReplyTime[threadID] = now;
 
-    const randomSuggest = RYUK_SUGGESTIONS[Math.floor(Math.random() * RYUK_SUGGESTIONS.length)];
+    const randomSuggest = GOJO_SUGGESTIONS[Math.floor(Math.random() * GOJO_SUGGESTIONS.length)];
     const fullMessage = selectedRoast + randomSuggest;
 
     // 🐶 DOG REACTION SA CHAT NG USER
@@ -269,10 +272,10 @@ module.exports.handleEvent = async function ({ api, event }) {
     setTimeout(() => {
       sendSilentReplyWithMentions(api, threadID, fullMessage, messageID, (err, info) => {
         if (!err && info && info.messageID) {
-          const randomRyukEmoji = RYUK_SELF_EMOJIS[Math.floor(Math.random() * RYUK_SELF_EMOJIS.length)];
+          const randomGojoEmoji = GOJO_SELF_EMOJIS[Math.floor(Math.random() * GOJO_SELF_EMOJIS.length)];
           setTimeout(() => {
             try {
-              api.setMessageReaction(randomRyukEmoji, info.messageID, () => {}, true);
+              api.setMessageReaction(randomGojoEmoji, info.messageID, () => {}, true);
             } catch (e) {}
           }, 800);
         }
@@ -304,32 +307,32 @@ module.exports.run = async function ({ api, event, args }) {
 
     // STRICT TRIPLE ADMIN GUARD (IDs: 61594325727109, 61594022290817, 61593892603402 ONLY)
     if (!ADMIN_IDS.includes(senderID)) {
-      return api.sendMessage("🍎 *Ryuk Bot:* Sinong nagbigay sa'yo ng karapatang gamitin ang utos ko? Hindi mo hawak ang notebook.", threadID, messageID);
+      return api.sendMessage("🕶️ *Ryuk Bot:* Yowai mo~ Wala kang permiso para mag-utos sa akin.", threadID, messageID);
     }
 
     // COMMAND: MANUAL SAFE SET NICKNAME
     if (sub === "onsetnick") {
       const customNick = args.slice(1).join(" ");
-      if (!customNick) return api.sendMessage("🍎 *Ryuk Bot:* Ilagay mo ang nickname ng mga tao. Example: /ryuk onsetnick Target", threadID, messageID);
+      if (!customNick) return api.sendMessage("🕶️ *Ryuk Bot:* Ilagay mo ang nickname ng mga tao. Example: /ryuk onsetnick Student", threadID, messageID);
       
       currentThread.targetNick = customNick;
       saveData(data);
 
       renameAllMembersSafely(api, threadID, customNick);
-      return api.sendMessage(`🍎 *Ryuk Bot:* Pinalitan ko na ang nickname ng lahat sa "${customNick}".`, threadID, messageID);
+      return api.sendMessage(`🕶️ *Ryuk Bot:* Pinalitan ko na ang nickname ng lahat sa "${customNick}".`, threadID, messageID);
     }
 
     // COMMAND: SET & LOCK GC NAME
     if (sub === "onsetgname") {
       const customGCName = args.slice(1).join(" ");
-      if (!customGCName) return api.sendMessage("🍎 *Ryuk Bot:* Ilagay mo ang pangalan ng Realm. Example: /ryuk onsetgname Death Note Realm", threadID, messageID);
+      if (!customGCName) return api.sendMessage("🕶️ *Ryuk Bot:* Ilagay mo ang pangalan ng GC. Example: /ryuk onsetgname Jujutsu High Realm", threadID, messageID);
 
       currentThread.lockedTitle = customGCName;
       saveData(data);
 
       api.setTitle(customGCName, threadID, (err) => {
         if (err) return api.sendMessage("⚠️ Hindi mapalitan ang GC Name. Siguraduhing admin ang bot sa GC na 'to.", threadID, messageID);
-        return api.sendMessage(`🍎 *Ryuk Bot:* Naka-lock na ang Realm Name sa "${customGCName}".`, threadID, messageID);
+        return api.sendMessage(`🕶️ *Ryuk Bot:* Naka-lock na ang GC Name sa "${customGCName}".`, threadID, messageID);
       });
       return;
     }
@@ -340,34 +343,42 @@ module.exports.run = async function ({ api, event, args }) {
       if (status === "on") {
         currentThread.welcome = true;
         saveData(data);
-        return api.sendMessage("🍎 *Ryuk Bot:* Welcome system for humans: ENABLED.", threadID, messageID);
+        return api.sendMessage("🕶️ *Ryuk Bot:* Welcome system: ENABLED.", threadID, messageID);
       } else if (status === "off") {
         currentThread.welcome = false;
         saveData(data);
-        return api.sendMessage("🍎 *Ryuk Bot:* Welcome system for humans: DISABLED.", threadID, messageID);
+        return api.sendMessage("🕶️ *Ryuk Bot:* Welcome system: DISABLED.", threadID, messageID);
       }
-      return api.sendMessage("🍎 *Ryuk Bot:* Gamitin ang: /ryuk welcome on O /ryuk welcome off", threadID, messageID);
+      return api.sendMessage("🕶️ *Ryuk Bot:* Gamitin ang: /ryuk welcome on O /ryuk welcome off", threadID, messageID);
     }
 
-    // MAIN ACTIVATION COMMAND
+    // MAIN ACTIVATION COMMAND WITH AUTO MESSENGER THEME CHANGE
     if (sub === "on") {
       const expires = Date.now() + 24 * 60 * 60 * 1000;
       currentThread.expires = expires;
       currentThread.activatedBy = senderID;
       saveData(data);
 
+      // AUTO CHANGE MESSENGER THEME / COLOR TO GOJO BLUE
+      try {
+        if (typeof api.changeThreadColor === "function") {
+          api.changeThreadColor(GOJO_THEME_COLOR, threadID, () => {});
+        }
+      } catch (e) {}
+
       return api.sendMessage(
-        `🍎 RYUK BOT: DEATH NOTE MODE ACTIVATED 💀\n\n` +
+        `🕶️ RYUK BOT: GOJO SATORU MODE ACTIVATED 🌌\n\n` +
         `👑 Exclusive Admins: ${ADMIN_IDS.join(", ")}\n` +
-        `🤖 Engine: Ryuk Shinigami Superiority Mode\n` +
+        `🤖 Persona Engine: Gojo Satoru (Limitless Superiority)\n` +
+        `💙 Messenger Theme: Gojo Infinity Blue (Auto-Applied)\n` +
         `🔕 Silent Mention: Activated (/silent notify tag)\n` +
         `🐶 User Reaction: Dog (🐶) sa chat ng user\n` +
-        `🍎 Self Reaction: Shinigami Emojis (🍎📓💀✍️🖤) sa sariling chat\n` +
+        `🕶️ Self Reaction: Gojo Emojis (🕶️🌌♾️💙⚡) sa sariling chat\n` +
         `💬 Delay: 1 Message = 1 Reply (Exact 5-Second Delay)\n` +
         `📌 GC Name Lock: ${currentThread.lockedTitle ? currentThread.lockedTitle : "Disabled"}\n` +
         `👋 Welcome New Humans: ${currentThread.welcome ? "ON" : "OFF"}\n` +
         `🎯 Target System: ${currentThread.targetUser ? "Active" : "None (Lahat ng tao)"}\n` +
-        `⏳ Duration: 24 Hours Death Note Realm`,
+        `⏳ Duration: 24 Hours Domain Expansion`,
         threadID,
         messageID
       );
@@ -376,14 +387,14 @@ module.exports.run = async function ({ api, event, args }) {
     if (sub === "target") {
       const mentionIDs = mentions ? Object.keys(mentions) : [];
       if (mentionIDs.length === 0 && !args[1]) {
-        return api.sendMessage("🍎 *Ryuk Bot:* Mag-tag ka ng idadamay natin sa notebook. Example: /ryuk target @mention", threadID, messageID);
+        return api.sendMessage("🕶️ *Ryuk Bot:* Mag-tag ka ng target natin. Example: /ryuk target @mention", threadID, messageID);
       }
 
       const targetID = mentionIDs[0] || args[1];
       currentThread.targetUser = targetID;
       saveData(data);
 
-      return api.sendMessage(`🍎 *Ryuk Bot:* Si <@${targetID}> na lang ang kakausapin at aasarin ko gamit ang Death Note.`, threadID, messageID, {
+      return api.sendMessage(`🕶️ *Ryuk Bot:* Si <@${targetID}> na lang ang kakausapin at aasarin ko gamit ang Limitless.`, threadID, messageID, {
         mentions: [{ tag: `<@${targetID}>`, id: targetID }]
       });
     }
@@ -391,7 +402,7 @@ module.exports.run = async function ({ api, event, args }) {
     if (sub === "untarget") {
       currentThread.targetUser = null;
       saveData(data);
-      return api.sendMessage("🍎 *Ryuk Bot:* Inalis ko na ang target. Lahat kayo nakasulat uli sa mga pagpipilian.", threadID, messageID);
+      return api.sendMessage("🕶️ *Ryuk Bot:* Inalis ko na ang target. Lahat kayo pwedeng makausap ng Honored One.", threadID, messageID);
     }
 
     if (sub === "off") {
@@ -399,24 +410,24 @@ module.exports.run = async function ({ api, event, args }) {
         currentThread.expires = 0;
         currentThread.targetUser = null;
         saveData(data);
-        return api.sendMessage("🍎 *Ryuk Bot:* Isinara ko na ang Death Note Mode sa GC na 'to.", threadID, messageID);
+        return api.sendMessage("🕶️ *Ryuk Bot:* Isinara ko na ang Domain Expansion sa GC na 'to.", threadID, messageID);
       }
-      return api.sendMessage("🍎 *Ryuk Bot:* Naka-close na ang bot rito.", threadID, messageID);
+      return api.sendMessage("🕶️ *Ryuk Bot:* Naka-close na ang bot rito.", threadID, messageID);
     }
 
     if (sub === "status") {
       const left = getRemaining(threadID);
-      if (left <= 0) return api.sendMessage("🍎 *Ryuk Bot:* Naka-OFF ang bot sa GC na 'to.", threadID, messageID);
+      if (left <= 0) return api.sendMessage("🕶️ *Ryuk Bot:* Naka-OFF ang bot sa GC na 'to.", threadID, messageID);
 
       const hours = Math.floor(left / (1000 * 60 * 60));
       const mins = Math.floor((left % (1000 * 60 * 60)) / (1000 * 60));
       return api.sendMessage(
-        `🍎 RYUK BOT STATUS:\n` +
+        `🕶️ RYUK BOT STATUS:\n` +
         `• Time left: ${hours}h ${mins}m\n` +
         `• Exclusive Admins: ${ADMIN_IDS.join(", ")}\n` +
-        `• Persona: Ryuk Shinigami Mode\n` +
+        `• Persona: Gojo Satoru Mode\n` +
         `• Silent Mentions: Active (/silent)\n` +
-        `• Reactions: 🐶 (User Chat) & 🍎📓💀✍️🖤 (Self Chat)\n` +
+        `• Reactions: 🐶 (User Chat) & 🕶️🌌♾️💙⚡ (Self Chat)\n` +
         `• Reply Delay: 5 Seconds (1:1 Ratio)\n` +
         `• Locked GC Name: ${currentThread.lockedTitle ? currentThread.lockedTitle : "Not Locked"}\n` +
         `• Target Nickname: ${currentThread.targetNick ? currentThread.targetNick : "None"}\n` +
@@ -428,8 +439,8 @@ module.exports.run = async function ({ api, event, args }) {
     }
 
     return api.sendMessage(
-      `🍎 Ryuk Bot Commands (Admins: ${ADMIN_IDS.join(", ")}):\n` +
-      `/ryuk on — Start 24h Ryuk Bot (1 Msg = 1 Reply, 5s Delay, /silent Mention, Self React)\n` +
+      `🕶️ Ryuk Bot Commands (Admins: ${ADMIN_IDS.join(", ")}):\n` +
+      `/ryuk on — Start 24h Gojo Mode & Auto Theme (1 Msg = 1 Reply, 5s Delay, /silent Mention)\n` +
       `/ryuk onsetgname <pangalan> — Manual na palitan at i-lock ang GC name\n` +
       `/ryuk onsetnick <nickname> — Safely change member nicknames\n` +
       `/ryuk welcome <on/off> — Toggle auto-welcome\n` +
