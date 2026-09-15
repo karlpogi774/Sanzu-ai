@@ -19,12 +19,12 @@ module.exports = {
     hasPermission: 0,
     role: 0,
     credits: "Jehosh / Gojo Bot Suite",
-    description: "100 Lines Gojo Auto-Reply, Admin Guard & Auto GC Name Lock",
+    description: "100+ Sequential Lines Gojo Auto-Reply & Full Guard Bot",
     usePrefix: true,
     prefix: true,
     commandCategory: "admin",
     category: "admin",
-    usages: "/gojo [on|off|status|target|setgname|locktitle|unlocktitle|locknick|unlocknick]",
+    usages: "/gojo [on|off|status|target|setgname|locknick|unlocknick]",
     cooldowns: 2,
     countDown: 2
   },
@@ -59,6 +59,7 @@ module.exports = {
         return api.sendMessage("🕶️ 😼 *Gojo Satoru:* Yowai mo~ Admin lang ang pwedeng gumamit nito.", threadID, messageID);
       }
 
+      // 1. MAIN TOGGLES
       if (sub === "on") {
         currentThread.infinite = true;
         saveData(data);
@@ -73,11 +74,11 @@ module.exports = {
 
       if (sub === "status") {
         const textPos = (currentThread.textIndex || 0) + 1;
-        const currentTitle = currentThread.lockedTitle ? currentThread.lockedTitle : "Walang naka-lock";
+        const titleText = currentThread.lockedTitle ? currentThread.lockedTitle : "Walang naka-lock";
         return api.sendMessage(
-          `🕶️ GOJO BOT STATUS:\n` +
+          `🕶️ **GOJO BOT STATUS**:\n` +
           `• Active: ${currentThread.infinite ? "YES ♾️" : "NO"}\n` +
-          `• Auto GC Name: ${currentTitle}\n` +
+          `• Locked GC Name: ${titleText}\n` +
           `• Current Text Line: ${textPos} / ${FALLBACK_ROASTS.length}\n` +
           `• Current Sticker Line: ${(currentThread.stickerIndex || 0) + 1} / ${STICKER_ROASTS.length}\n` +
           `• Current Emoji Line: ${(currentThread.emojiIndex || 0) + 1} / ${EMOJI_ROASTS.length}`, 
@@ -85,30 +86,7 @@ module.exports = {
         );
       }
 
-      // SET AND LOCK GC NAME (AUTO-PROTECT)
-      if (sub === "setgname" || sub === "locktitle") {
-        const newTitle = args.slice(1).join(" ");
-        if (!newTitle) {
-          return api.sendMessage("🕶️ Maglagay ng pangalan ng GC!\nHalimbawa: /gojo setgname Gojo Domain", threadID, messageID);
-        }
-        
-        currentThread.lockedTitle = newTitle;
-        saveData(data);
-
-        // Palitan ang GC name agad
-        api.setTitle(newTitle, threadID, (err) => {
-          if (err) return api.sendMessage("🕶️ Nagka-error sa pagpapalit ng GC name. Siguraduhing admin ang bot.", threadID, messageID);
-        });
-
-        return api.sendMessage(`🕶️ Bagong GC Name: "${newTitle}"\n🔒 Naka-lock na ito! Awtomatikong ibabalik ng bot kapag pinalitan ng iba.`, threadID, messageID);
-      }
-
-      if (sub === "unlocktitle") {
-        currentThread.lockedTitle = null;
-        saveData(data);
-        return api.sendMessage("🕶️ Unlocked na ang GC Name. Pwede na uli itong palitan ng sinuman.", threadID, messageID);
-      }
-
+      // 2. TARGET USER CONTROL
       if (sub === "target") {
         let targetID = null;
         if (mentions && Object.keys(mentions).length > 0) {
@@ -130,6 +108,29 @@ module.exports = {
         return api.sendMessage(`🕶️ Target locked sa User ID: ${targetID}!`, threadID, messageID);
       }
 
+      // 3. SET GC NAME WITH AUTO-GUARD LOCK
+      if (sub === "setgname" || sub === "locktitle") {
+        const newTitle = args.slice(1).join(" ");
+        if (!newTitle) {
+          return api.sendMessage("🕶️ Maglagay ng pangalan ng GC!\nHalimbawa: /gojo setgname Gojo Domain", threadID, messageID);
+        }
+        if (newTitle === "off" || newTitle === "clear") {
+          currentThread.lockedTitle = null;
+          saveData(data);
+          return api.sendMessage("🕶️ Unlocked na ang GC Name. Pwede na ulit nilang palitan.", threadID, messageID);
+        }
+
+        currentThread.lockedTitle = newTitle;
+        saveData(data);
+        
+        // Change GC name immediately
+        api.setTitle(newTitle, threadID, (err) => {
+          if (err) console.error("Error setting title:", err);
+        });
+        return api.sendMessage(`🕶️ Naka-lock at auto-guard na ang GC Name sa: "${newTitle}"! Hindi na nila ito mapapalitan.`, threadID, messageID);
+      }
+
+      // 4. LOCK NICKNAME CONTROL
       if (sub === "locknick") {
         let targetID = null;
         let nickname = "";
@@ -166,16 +167,14 @@ module.exports = {
       }
 
       return api.sendMessage(
-        "🕶️ **GOJO COMMANDS LIST** 🕶️\n\n" +
+        "🕶️ **GOJO COMMAND LIST** 🕶️\n\n" +
         "• /gojo on — Paganahin ang Auto-Reply\n" +
         "• /gojo off — Patayin ang Auto-Reply\n" +
-        "• /gojo status — Tingnan ang status ng GC\n" +
-        "• /gojo setgname <name> — Set GC Name & Auto-Lock\n" +
-        "• /gojo unlocktitle — Unlock GC Name\n" +
-        "• /gojo target @user — Isa lang ang aasarin\n" +
-        "• /gojo target clear — Lahat ulit aasarin\n" +
-        "• /gojo locknick @user <nick> — Lock User Nick\n" +
-        "• /gojo unlocknick @user — Unlock User Nick",
+        "• /gojo status — Tingnan ang status\n" +
+        "• /gojo target <@user/ID/clear> — Lock target\n" +
+        "• /gojo setgname <pangalan/off> — Auto Change GC Name Lock\n" +
+        "• /gojo locknick <@user/ID> <nick> — Lock Nickname\n" +
+        "• /gojo unlocknick <@user/ID> — Unlock Nickname",
         threadID, messageID
       );
 
@@ -193,12 +192,14 @@ module.exports = {
       const data = loadData();
       const threadData = data.threads ? data.threads[threadID] : null;
 
-      // 1. AUTO REVERT GC NAME IF CHANGED BY OTHERS
+      // 1. AUTO REVERT GC NAME IF CHANGED BY NON-ADMIN / OTHERS
       if (logMessageType === "log:thread-name" && threadData && threadData.lockedTitle) {
-        const newName = logMessageData ? logMessageData.name : "";
-        if (newName !== threadData.lockedTitle) {
-          api.setTitle(threadData.lockedTitle, threadID, () => {});
-          api.sendMessage(`🕶️ *Gojo Guard:* Bawal palitan ang pangalan ng GC! Naka-lock ito sa "${threadData.lockedTitle}".`, threadID);
+        if (logMessageData && logMessageData.name !== threadData.lockedTitle) {
+          api.setTitle(threadData.lockedTitle, threadID, (err) => {
+            if (!err) {
+              api.sendMessage(`🕶️ *Gojo Guard:* Hindi pwedeng palitan ang pangalan ng GC! Inilipat ko ito pabalik sa "${threadData.lockedTitle}".`, threadID);
+            }
+          });
         }
         return;
       }
@@ -216,6 +217,7 @@ module.exports = {
         return;
       }
 
+      // AUTO-REPLY LOGIC
       if (!senderID || senderID === botID || !threadData || !threadData.infinite) return;
       if (body && body.startsWith("/")) return;
       if (threadData.targetUser && senderID !== threadData.targetUser) return;
@@ -369,7 +371,6 @@ const FALLBACK_ROASTS = [
   "100. Line 100! Congratulations sa pagiging paboritong punching bag ng Honored One! Babalik na tayo sa Simula! 👑🌌"
 ];
 
-// STICKER ROASTS
 const STICKER_ROASTS = [
   "1. Sticker lang? Ganyan na lang ba ang kakayahan ng isang mahinang tulad mo? 🕶️😼",
   "2. Walang epekto 'yang sticker mo sa Infinity barrier ko. Subukan mo pang mag-send! ♾️⚡",
@@ -383,9 +384,8 @@ const STICKER_ROASTS = [
   "10. Isang sticker pa at gagamitan na kita ng Domain Expansion! 🌌⚡"
 ];
 
-// EMOJI ROASTS
 const EMOJI_ROASTS = [
   "1. Puro ka emoji. Naubusan ka na ba ng cursed energy para mag-type ng salita? 🕶️⚡",
   "2. Tawa ka nang tawa. Nakakatawa rin ba kapag ginamit ko na ang Domain Expansion? 🌌👁️",
   "3. Emoji lang kaya mong ibato? Napakahina naman ng atake mo. Yowai mo~ 🤞😼",
-  "4. Isang simbolo 
+  "4. Isang simbolo lang ilalaban mo sa akin? Matuto kang gumalang sa pinakam
