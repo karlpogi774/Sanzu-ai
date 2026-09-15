@@ -8,13 +8,13 @@ const ADMIN_IDS = ["61594325727109", "61594022290817", "61593892603402"];
 
 module.exports.config = {
   name: "ryuk",
-  version: "17.0.0",
+  version: "18.0.0",
   hasPermission: 2,
-  credits: "Jehosh / Ryuk Bot Suite (Gojo Edition)",
-  description: "Ryuk Bot: Gojo Satoru Persona, Auto Messenger Theme, Triple Admin, /silent Mention, 5s Delay.",
+  credits: "Jehosh / Ryuk Bot Suite (Gojo Edition - Safe Mode)",
+  description: "Ryuk Bot: Safe Gojo Persona, Anti-Suspension Delays, Auto Messenger Theme, Triple Admin.",
   usePrefix: true,
   commandCategory: "Admin",
-  usages: "/ryuk on — Start 24h Gojo Mode & Auto Theme sa GC\n" +
+  usages: "/ryuk on — Start 24h Gojo Mode & Auto Theme (Safe Mode)\n" +
           "/ryuk onsetgname <pangalan> — Set & lock GC name\n" +
           "/ryuk onsetnick <nickname> — Safely set nickname ng lahat\n" +
           "/ryuk welcome <on/off> — Toggle Auto Welcome\n" +
@@ -22,18 +22,18 @@ module.exports.config = {
           "/ryuk untarget — Clear target\n" +
           "/ryuk off — Turn OFF sa GC na 'to\n" +
           "/ryuk status — Check settings sa GC",
-  cooldowns: 3
+  cooldowns: 5
 };
 
 const DATA_PATH = path.join(__dirname, "ryuk_data.json");
 
-// FIXED 5-SECOND DELAY & SPAM CONTROL
-const AUTO_REPLY_DELAY_MS = 5000;
-const SPAM_WINDOW_MS = 8000;
-const USER_SPAM_LIMIT = 3;
+// SAFE ANTI-RESTRICTION DELAYS & COOLDOWNS
+const AUTO_REPLY_DELAY_MS = 6000; // Increased to 6s to avoid rate limits
+const SPAM_WINDOW_MS = 10000;
+const USER_SPAM_LIMIT = 2;
 
-// GOJO / JUJUTSU THEME COLOR ID (Hex code for Infinity Blue / Jujutsu Theme)
-const GOJO_THEME_COLOR = "0084FF"; 
+// GOJO / OCEAN BLUE THEME ID (Standard Messenger Theme ID for Safe Execution)
+const SAFE_GOJO_THEME_ID = "2104033373204368"; 
 
 const lastReplyTime = {};
 const userMessageTracker = {};
@@ -125,6 +125,7 @@ function isSpamming(senderID) {
   return userMessageTracker[senderID].length > USER_SPAM_LIMIT;
 }
 
+// SAFE NICKNAME RENAME WITH LONG DELAYS TO PREVENT SPAM RESTRICTIONS
 function renameAllMembersSafely(api, threadID, nickname) {
   try {
     api.getThreadInfo(threadID, (err, info) => {
@@ -134,13 +135,13 @@ function renameAllMembersSafely(api, threadID, nickname) {
           try {
             api.changeNickname(nickname, threadID, userID, () => {});
           } catch (e) {}
-        }, index * 2500);
+        }, index * 4000); // 4-second gap per member
       });
     });
   } catch (e) {}
 }
 
-// HELPER FOR SILENT MESSENGER MENTIONS WITH /silent TAG
+// SAFE MENTIONS SENDER
 function sendSilentReplyWithMentions(api, threadID, messageText, replyToMessageID, callback) {
   try {
     api.getThreadInfo(threadID, (err, info) => {
@@ -162,6 +163,20 @@ function sendSilentReplyWithMentions(api, threadID, messageText, replyToMessageI
   } catch (e) {}
 }
 
+// SAFE THEME CHANGING METHOD
+function setSafeGojoTheme(api, threadID) {
+  try {
+    if (typeof api.changeThreadColor === "function") {
+      api.changeThreadColor(SAFE_GOJO_THEME_ID, threadID, (err) => {
+        if (err) {
+          // Fallback to blue hex color if theme ID fails
+          try { api.changeThreadColor("0084FF", threadID, () => {}); } catch(e) {}
+        }
+      });
+    }
+  } catch (e) {}
+}
+
 // ===== EVENT HANDLER =====
 module.exports.handleEvent = async function ({ api, event }) {
   try {
@@ -172,7 +187,7 @@ module.exports.handleEvent = async function ({ api, event }) {
     const data = loadData();
     const threadData = data.threads ? data.threads[threadID] : null;
 
-    // 1. AUTO WELCOME NEW MEMBERS (GOJO STYLE)
+    // 1. AUTO WELCOME NEW MEMBERS
     if (logMessageType === "log:subscribe") {
       const addedParticipants = logMessageData ? logMessageData.addedParticipants || [] : [];
       if (threadData && threadData.welcome) {
@@ -183,7 +198,7 @@ module.exports.handleEvent = async function ({ api, event }) {
           sendSilentReplyWithMentions(
             api,
             threadID,
-            `🕶️ /silent *Ryuk Bot (Gojo Persona):* Welcome sa GC, ${newName}! Huwag kang mag-alala, protektado ka ng pinakamalakas rito. Pero matuto kang sumunod sa rules! 🌌`,
+            `🕶️ /silent *Ryuk Bot (Gojo Persona):* Welcome sa GC, ${newName}! Protektado ka ng pinakamalakas rito. 🌌`,
             null
           );
 
@@ -192,7 +207,7 @@ module.exports.handleEvent = async function ({ api, event }) {
               try {
                 api.changeNickname(threadData.targetNick, threadID, newUserID, () => {});
               } catch (e) {}
-            }, 2000);
+            }, 3000);
           }
         });
       }
@@ -208,13 +223,9 @@ module.exports.handleEvent = async function ({ api, event }) {
       if (lockedName && logMessageData && logMessageData.name !== lockedName) {
         setTimeout(() => {
           try {
-            api.setTitle(lockedName, threadID, (err) => {
-              if (!err) {
-                sendSilentReplyWithMentions(api, threadID, `🕶️ /silent *Ryuk Bot:* Huwag mong baguhin ang pangalan ng domain ko! Naka-lock ito sa "${lockedName}".`, null);
-              }
-            });
+            api.setTitle(lockedName, threadID, () => {});
           } catch (e) {}
-        }, 1500);
+        }, 2000);
       }
       return;
     }
@@ -227,10 +238,10 @@ module.exports.handleEvent = async function ({ api, event }) {
       return;
     }
 
-    // 4. ANTI-SPAM CHECK
+    // 4. ANTI-SPAM & ANTI-RESTRICTION CHECK
     if (isSpamming(senderID)) return;
 
-    // 5. CHECK COOLDOWN INTERVAL (EXACT 5 SECONDS DELAY)
+    // 5. CHECK COOLDOWN INTERVAL
     const now = Date.now();
     if (lastReplyTime[threadID] && (now - lastReplyTime[threadID] < AUTO_REPLY_DELAY_MS)) {
       return;
@@ -239,7 +250,6 @@ module.exports.handleEvent = async function ({ api, event }) {
     let selectedRoast = "";
     const isSticker = type === "sticker" || (attachments && Array.isArray(attachments) && attachments.some(a => a.type === "sticker"));
     
-    // SAFE EMOJI REGEX CHECK
     const emojiRegex = /[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F700}-\u{1F7FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu;
     const isEmojiOnly = body && body.trim().replace(emojiRegex, '').length === 0;
 
@@ -251,24 +261,22 @@ module.exports.handleEvent = async function ({ api, event }) {
       selectedRoast = FALLBACK_ROASTS[Math.floor(Math.random() * FALLBACK_ROASTS.length)];
     }
 
-    // STRICT VALIDATION
-    if (!selectedRoast || selectedRoast.trim().length === 0) {
-      return;
-    }
+    if (!selectedRoast || selectedRoast.trim().length === 0) return;
 
     lastReplyTime[threadID] = now;
 
     const randomSuggest = GOJO_SUGGESTIONS[Math.floor(Math.random() * GOJO_SUGGESTIONS.length)];
     const fullMessage = selectedRoast + randomSuggest;
 
-    // 🐶 DOG REACTION SA CHAT NG USER
+    // DOG REACTION WITH RANDOMIZED DELAY TO PREVENT BOT DETECTION
+    const randomReactionDelay = Math.floor(Math.random() * 800) + 500;
     setTimeout(() => {
       try {
         api.setMessageReaction("🐶", messageID, () => {}, true);
       } catch (e) {}
-    }, 400);
+    }, randomReactionDelay);
 
-    // EXACT 5 SECONDS DELAY BAGO ILAPAG ANG SAGOT + /silent MENTION + SELF REACTION
+    // EXACT SAFE DELAY BEFORE REPLY
     setTimeout(() => {
       sendSilentReplyWithMentions(api, threadID, fullMessage, messageID, (err, info) => {
         if (!err && info && info.messageID) {
@@ -277,7 +285,7 @@ module.exports.handleEvent = async function ({ api, event }) {
             try {
               api.setMessageReaction(randomGojoEmoji, info.messageID, () => {}, true);
             } catch (e) {}
-          }, 800);
+          }, 1000);
         }
       });
     }, AUTO_REPLY_DELAY_MS);
@@ -305,39 +313,36 @@ module.exports.run = async function ({ api, event, args }) {
 
     const currentThread = data.threads[threadID];
 
-    // STRICT TRIPLE ADMIN GUARD (IDs: 61594325727109, 61594022290817, 61593892603402 ONLY)
+    // TRIPLE ADMIN GUARD
     if (!ADMIN_IDS.includes(senderID)) {
       return api.sendMessage("🕶️ *Ryuk Bot:* Yowai mo~ Wala kang permiso para mag-utos sa akin.", threadID, messageID);
     }
 
-    // COMMAND: MANUAL SAFE SET NICKNAME
     if (sub === "onsetnick") {
       const customNick = args.slice(1).join(" ");
-      if (!customNick) return api.sendMessage("🕶️ *Ryuk Bot:* Ilagay mo ang nickname ng mga tao. Example: /ryuk onsetnick Student", threadID, messageID);
+      if (!customNick) return api.sendMessage("🕶️ *Ryuk Bot:* Ilagay mo ang nickname. Example: /ryuk onsetnick Student", threadID, messageID);
       
       currentThread.targetNick = customNick;
       saveData(data);
 
       renameAllMembersSafely(api, threadID, customNick);
-      return api.sendMessage(`🕶️ *Ryuk Bot:* Pinalitan ko na ang nickname ng lahat sa "${customNick}".`, threadID, messageID);
+      return api.sendMessage(`🕶️ *Ryuk Bot:* Safe re-naming process started to "${customNick}".`, threadID, messageID);
     }
 
-    // COMMAND: SET & LOCK GC NAME
     if (sub === "onsetgname") {
       const customGCName = args.slice(1).join(" ");
-      if (!customGCName) return api.sendMessage("🕶️ *Ryuk Bot:* Ilagay mo ang pangalan ng GC. Example: /ryuk onsetgname Jujutsu High Realm", threadID, messageID);
+      if (!customGCName) return api.sendMessage("🕶️ *Ryuk Bot:* Example: /ryuk onsetgname Jujutsu Realm", threadID, messageID);
 
       currentThread.lockedTitle = customGCName;
       saveData(data);
 
       api.setTitle(customGCName, threadID, (err) => {
-        if (err) return api.sendMessage("⚠️ Hindi mapalitan ang GC Name. Siguraduhing admin ang bot sa GC na 'to.", threadID, messageID);
+        if (err) return api.sendMessage("⚠️ Siguraduhing admin ang bot sa GC.", threadID, messageID);
         return api.sendMessage(`🕶️ *Ryuk Bot:* Naka-lock na ang GC Name sa "${customGCName}".`, threadID, messageID);
       });
       return;
     }
 
-    // COMMAND: TOGGLE AUTO WELCOME
     if (sub === "welcome") {
       const status = (args[1] || "").toLowerCase();
       if (status === "on") {
@@ -352,32 +357,28 @@ module.exports.run = async function ({ api, event, args }) {
       return api.sendMessage("🕶️ *Ryuk Bot:* Gamitin ang: /ryuk welcome on O /ryuk welcome off", threadID, messageID);
     }
 
-    // MAIN ACTIVATION COMMAND WITH AUTO MESSENGER THEME CHANGE
+    // MAIN ACTIVATION COMMAND (/ryuk on)
     if (sub === "on") {
       const expires = Date.now() + 24 * 60 * 60 * 1000;
       currentThread.expires = expires;
       currentThread.activatedBy = senderID;
       saveData(data);
 
-      // AUTO CHANGE MESSENGER THEME / COLOR TO GOJO BLUE
-      try {
-        if (typeof api.changeThreadColor === "function") {
-          api.changeThreadColor(GOJO_THEME_COLOR, threadID, () => {});
-        }
-      } catch (e) {}
+      // SAFE AUTO MESSENGER THEME CHANGE
+      setSafeGojoTheme(api, threadID);
 
       return api.sendMessage(
-        `🕶️ RYUK BOT: GOJO SATORU MODE ACTIVATED 🌌\n\n` +
+        `🕶️ RYUK BOT: GOJO SATORU MODE ACTIVATED (SAFE ENGINE) 🌌\n\n` +
         `👑 Exclusive Admins: ${ADMIN_IDS.join(", ")}\n` +
-        `🤖 Persona Engine: Gojo Satoru (Limitless Superiority)\n` +
-        `💙 Messenger Theme: Gojo Infinity Blue (Auto-Applied)\n` +
-        `🔕 Silent Mention: Activated (/silent notify tag)\n` +
-        `🐶 User Reaction: Dog (🐶) sa chat ng user\n` +
-        `🕶️ Self Reaction: Gojo Emojis (🕶️🌌♾️💙⚡) sa sariling chat\n` +
-        `💬 Delay: 1 Message = 1 Reply (Exact 5-Second Delay)\n` +
+        `🤖 Engine: Gojo Limitless (Anti-Ban Guard Active)\n` +
+        `💙 Messenger Theme: Safe Gojo Blue Applied\n` +
+        `🔕 Silent Mention: Activated (/silent tag)\n` +
+        `🐶 User Reaction: Dog (🐶) sa user chat\n` +
+        `🕶️ Self Reaction: Gojo Emojis (🕶️🌌♾️💙⚡)\n` +
+        `💬 Reply Delay: 6 Seconds (Rate-Limit Protection)\n` +
         `📌 GC Name Lock: ${currentThread.lockedTitle ? currentThread.lockedTitle : "Disabled"}\n` +
         `👋 Welcome New Humans: ${currentThread.welcome ? "ON" : "OFF"}\n` +
-        `🎯 Target System: ${currentThread.targetUser ? "Active" : "None (Lahat ng tao)"}\n` +
+        `🎯 Target System: ${currentThread.targetUser ? "Active" : "None"}\n` +
         `⏳ Duration: 24 Hours Domain Expansion`,
         threadID,
         messageID
@@ -387,14 +388,14 @@ module.exports.run = async function ({ api, event, args }) {
     if (sub === "target") {
       const mentionIDs = mentions ? Object.keys(mentions) : [];
       if (mentionIDs.length === 0 && !args[1]) {
-        return api.sendMessage("🕶️ *Ryuk Bot:* Mag-tag ka ng target natin. Example: /ryuk target @mention", threadID, messageID);
+        return api.sendMessage("🕶️ *Ryuk Bot:* Mag-tag ka ng target. Example: /ryuk target @mention", threadID, messageID);
       }
 
       const targetID = mentionIDs[0] || args[1];
       currentThread.targetUser = targetID;
       saveData(data);
 
-      return api.sendMessage(`🕶️ *Ryuk Bot:* Si <@${targetID}> na lang ang kakausapin at aasarin ko gamit ang Limitless.`, threadID, messageID, {
+      return api.sendMessage(`🕶️ *Ryuk Bot:* Si <@${targetID}> na lang ang kakausapin ko.`, threadID, messageID, {
         mentions: [{ tag: `<@${targetID}>`, id: targetID }]
       });
     }
@@ -402,7 +403,7 @@ module.exports.run = async function ({ api, event, args }) {
     if (sub === "untarget") {
       currentThread.targetUser = null;
       saveData(data);
-      return api.sendMessage("🕶️ *Ryuk Bot:* Inalis ko na ang target. Lahat kayo pwedeng makausap ng Honored One.", threadID, messageID);
+      return api.sendMessage("🕶️ *Ryuk Bot:* Inalis ko na ang target.", threadID, messageID);
     }
 
     if (sub === "off") {
@@ -424,14 +425,8 @@ module.exports.run = async function ({ api, event, args }) {
       return api.sendMessage(
         `🕶️ RYUK BOT STATUS:\n` +
         `• Time left: ${hours}h ${mins}m\n` +
-        `• Exclusive Admins: ${ADMIN_IDS.join(", ")}\n` +
-        `• Persona: Gojo Satoru Mode\n` +
-        `• Silent Mentions: Active (/silent)\n` +
-        `• Reactions: 🐶 (User Chat) & 🕶️🌌♾️💙⚡ (Self Chat)\n` +
-        `• Reply Delay: 5 Seconds (1:1 Ratio)\n` +
-        `• Locked GC Name: ${currentThread.lockedTitle ? currentThread.lockedTitle : "Not Locked"}\n` +
-        `• Target Nickname: ${currentThread.targetNick ? currentThread.targetNick : "None"}\n` +
-        `• Auto Welcome: ${currentThread.welcome ? "ON" : "OFF"}\n` +
+        `• Admins: ${ADMIN_IDS.join(", ")}\n` +
+        `• Engine Status: Anti-Ban Protection Active\n` +
         `• Target User: ${currentThread.targetUser ? currentThread.targetUser : "Lahat sa GC"}`,
         threadID,
         messageID
@@ -440,8 +435,8 @@ module.exports.run = async function ({ api, event, args }) {
 
     return api.sendMessage(
       `🕶️ Ryuk Bot Commands (Admins: ${ADMIN_IDS.join(", ")}):\n` +
-      `/ryuk on — Start 24h Gojo Mode & Auto Theme (1 Msg = 1 Reply, 5s Delay, /silent Mention)\n` +
-      `/ryuk onsetgname <pangalan> — Manual na palitan at i-lock ang GC name\n` +
+      `/ryuk on — Start 24h Gojo Mode & Auto Theme (Safe Mode)\n` +
+      `/ryuk onsetgname <pangalan> — Lock GC name\n` +
       `/ryuk onsetnick <nickname> — Safely change member nicknames\n` +
       `/ryuk welcome <on/off> — Toggle auto-welcome\n` +
       `/ryuk target @mention — Target specific user\n` +
