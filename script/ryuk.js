@@ -13,10 +13,10 @@ const ADMIN_IDS = [
 
 module.exports.config = {
   name: "ryuk",
-  version: "20.0.0",
+  version: "21.0.0",
   hasPermission: 2,
-  credits: "Jehosh / Ryuk Bot Suite (Gojo Safe Edition)",
-  description: "Ryuk Bot: Extended Gojo Lines, Quad Admin Guard, Anti-Suspension Delays.",
+  credits: "Jehosh / Ryuk Bot Suite (Persistent Edition)",
+  description: "Ryuk Bot: Persistent Auto-Repair Engine + Extended Gojo Lines",
   usePrefix: true,
   commandCategory: "Admin",
   usages: "/ryuk on — Start 24h Gojo Mode & Auto Theme\n" +
@@ -51,7 +51,7 @@ const userMessageTracker = {};
 // GOJO REACTION EMOJIS
 const GOJO_SELF_EMOJIS = ["🕶️", "🌌", "♾️", "💙", "⚡", "😼", "🤞", "👑", "🔮"];
 
-// 🌌 EXPANDED GOJO SATORU TAUNTS (SAFE & FUN LINES)
+// 🌌 GOJO SATORU TAUNTS
 const FALLBACK_ROASTS = [
   "Nah, I'd win. Akala mo ba talaga may chance ka laban sa pinakamalakas?",
   "Huwag kang mag-alala, mahina ka lang talaga. Yowai mo~ 😼",
@@ -80,7 +80,7 @@ const FALLBACK_ROASTS = [
   "Ganyan ba talaga ang ginagawa mo kapag alam mong wala ka nang maipapanalo?"
 ];
 
-// 🎨 STICKER ROASTS (EXPANDED)
+// 🎨 STICKER ROASTS
 const STICKER_ROASTS = [
   "Sticker lang? Ganyan na lang ba ang kakayahan ng isang mahinang tulad mo?",
   "Walang epekto 'yang sticker mo sa Infinity barrier ko. Subukan mo pang mag-send.",
@@ -90,7 +90,7 @@ const STICKER_ROASTS = [
   "Isang sticker para itago ang takot mo? Bawi ka na lang sa susunod!"
 ];
 
-// 🤡 EMOJI ROASTS (EXPANDED)
+// 🤡 EMOJI ROASTS
 const EMOJI_ROASTS = [
   "Puro ka emoji. Naubusan ka na ba ng cursed energy para mag-type ng salita?",
   "Tawa ka nang tawa. Nakakatawa rin ba kapag ginamit ko na ang Domain Expansion?",
@@ -111,11 +111,16 @@ const GOJO_SUGGESTIONS = [
   "\n\n💙 /silent *Ryuk Bot: Infinity is everywhere around us.*"
 ];
 
+// SAFE JSON LOADER & REPAIR SYSTEM
 function loadData() {
   try {
     if (fs.existsSync(DATA_PATH)) {
       const fileData = fs.readFileSync(DATA_PATH, "utf8");
-      return JSON.parse(fileData);
+      const parsed = JSON.parse(fileData);
+      if (parsed && typeof parsed === "object") {
+        if (!parsed.threads) parsed.threads = {};
+        return parsed;
+      }
     }
   } catch (err) {}
   return { threads: {} };
@@ -123,6 +128,8 @@ function loadData() {
 
 function saveData(data) {
   try {
+    if (!data || typeof data !== "object") data = { threads: {} };
+    if (!data.threads) data.threads = {};
     fs.writeFileSync(DATA_PATH, JSON.stringify(data, null, 2), "utf8");
   } catch (err) {}
 }
@@ -319,8 +326,9 @@ module.exports.run = async function ({ api, event, args }) {
   try {
     const { threadID, messageID, senderID, mentions } = event;
     const sub = (args[0] || "").toLowerCase();
-    const data = loadData();
 
+    // ALWAYS RELOAD DATA AND INIT IF MISSING
+    let data = loadData();
     if (!data.threads) data.threads = {};
     if (!data.threads[threadID]) {
       data.threads[threadID] = { 
@@ -387,8 +395,8 @@ module.exports.run = async function ({ api, event, args }) {
 
     // MAIN ACTIVATION COMMAND (/ryuk on)
     if (sub === "on") {
-      const expires = Date.now() + 24 * 60 * 60 * 1000;
-      currentThread.expires = expires;
+      // RESET AND FORCE ENABLE ALWAYS
+      currentThread.expires = Date.now() + 24 * 60 * 60 * 1000;
       currentThread.activatedBy = senderID;
       saveData(data);
 
@@ -397,7 +405,7 @@ module.exports.run = async function ({ api, event, args }) {
       return api.sendMessage(
         `🕶️ RYUK BOT: GOJO SATORU MODE ACTIVATED 🌌\n\n` +
         `👑 Exclusive Admins:\n${ADMIN_IDS.join("\n")}\n\n` +
-        `🤖 Engine: Gojo Extended Lines + Anti-Ban Protection\n` +
+        `🤖 Engine: Self-Healing Persistent Engine + Extended Gojo Lines\n` +
         `💙 Messenger Theme: Gojo Blue Theme (Auto-Applied)\n` +
         `🔕 Silent Mention: Activated (/silent tag)\n` +
         `🐶 User Reaction: Dog (🐶) sa user chat\n` +
@@ -434,13 +442,10 @@ module.exports.run = async function ({ api, event, args }) {
     }
 
     if (sub === "off") {
-      if (isThreadActive(threadID)) {
-        currentThread.expires = 0;
-        currentThread.targetUser = null;
-        saveData(data);
-        return api.sendMessage("🕶️ *Ryuk Bot:* Isinara ko na ang Domain Expansion sa GC na 'to.", threadID, messageID);
-      }
-      return api.sendMessage("🕶️ *Ryuk Bot:* Naka-close na ang bot rito.", threadID, messageID);
+      currentThread.expires = 0;
+      currentThread.targetUser = null;
+      saveData(data);
+      return api.sendMessage("🕶️ *Ryuk Bot:* Isinara ko na ang Domain Expansion sa GC na 'to.", threadID, messageID);
     }
 
     if (sub === "status") {
