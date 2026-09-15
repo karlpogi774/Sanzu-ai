@@ -12,26 +12,26 @@ const ADMIN_IDS = [
 // ==========================================
 
 module.exports.config = {
-  name: "ryuk",
-  version: "21.0.0",
+  name: "gojo",
+  version: "22.0.0",
   hasPermission: 2,
-  credits: "Jehosh / Ryuk Bot Suite (Persistent Edition)",
-  description: "Ryuk Bot: Persistent Auto-Repair Engine + Extended Gojo Lines",
+  credits: "Jehosh / Gojo Satoru Edition",
+  description: "Gojo Bot: Domain Expansion Engine, Name-based Targeting, Extended Gojo Lines.",
   usePrefix: true,
   commandCategory: "Admin",
-  usages: "/ryuk on — Start 24h Gojo Mode & Auto Theme\n" +
-          "/ryuk theme — Change Messenger Theme to Gojo Blue anytime\n" +
-          "/ryuk onsetgname <pangalan> — Set & lock GC name\n" +
-          "/ryuk onsetnick <nickname> — Safely set nickname ng lahat\n" +
-          "/ryuk welcome <on/off> — Toggle Auto Welcome\n" +
-          "/ryuk target @mention — Target specific user\n" +
-          "/ryuk untarget — Clear target\n" +
-          "/ryuk off — Turn OFF sa GC na 'to\n" +
-          "/ryuk status — Check settings sa GC",
+  usages: "/gojo on — Buksan ang 24h Domain Expansion & Auto Gojo Theme\n" +
+          "/gojo theme — Palitan ang Messenger Theme sa Gojo Infinity Blue\n" +
+          "/gojo onsetgname <pangalan> — I-lock ang pangalan ng GC\n" +
+          "/gojo onsetnick <nickname> — Palitan ang nickname ng lahat sa GC\n" +
+          "/gojo welcome <on/off> — Toggle Auto Welcome sa mga bagong papasok\n" +
+          "/gojo target <FB Name / Mention> — Targetin ang specific na tao\n" +
+          "/gojo untarget — Alisin ang target\n" +
+          "/gojo off — Isara ang Domain Expansion sa GC\n" +
+          "/gojo status — Tingnan ang status ng GC",
   cooldowns: 5
 };
 
-const DATA_PATH = path.join(__dirname, "ryuk_data.json");
+const DATA_PATH = path.join(__dirname, "gojo_data.json");
 
 // SAFE ANTI-RESTRICTION TIMINGS
 const AUTO_REPLY_MIN_DELAY_MS = 5500;
@@ -102,16 +102,23 @@ const EMOJI_ROASTS = [
 
 // 💡 GOJO MENTIONS WITH /silent TAG
 const GOJO_SUGGESTIONS = [
-  "\n\n🕶️ /silent *Ryuk Bot: Don't worry, I'm the strongest.*",
-  "\n\n🌌 /silent *Ryuk Bot: Domain Expansion: Infinite Void.*",
-  "\n\n♾️ /silent *Ryuk Bot: You can't touch me, human.*",
-  "\n\n🤞 /silent *Ryuk Bot: Yowai mo~ So weak.*",
-  "\n\n⚡ /silent *Ryuk Bot: Sa buong langit at lupa, ako ang natatanging Honored One.*",
-  "\n\n🔮 /silent *Ryuk Bot: Hollow Technique: Purple!*",
-  "\n\n💙 /silent *Ryuk Bot: Infinity is everywhere around us.*"
+  "\n\n🕶️ /silent *Gojo Bot: Don't worry, I'm the strongest.*",
+  "\n\n🌌 /silent *Gojo Bot: Domain Expansion: Infinite Void.*",
+  "\n\n♾️ /silent *Gojo Bot: You can't touch me, human.*",
+  "\n\n🤞 /silent *Gojo Bot: Yowai mo~ So weak.*",
+  "\n\n⚡ /silent *Gojo Bot: Sa buong langit at lupa, ako ang natatanging Honored One.*",
+  "\n\n🔮 /silent *Gojo Bot: Hollow Technique: Purple!*",
+  "\n\n💙 /silent *Gojo Bot: Infinity is everywhere around us.*"
 ];
 
-// SAFE JSON LOADER & REPAIR SYSTEM
+// 🌌 GOJO WELCOME LINES
+const GOJO_WELCOME_MESSAGES = [
+  "🕶️ /silent *Gojo Satoru:* Swerte mo, pumasok ka sa territory ng pinakamalakas! Welcome sa Jujutsu Realm, {NAME}! 🌌",
+  "🕶️ /silent *Gojo Satoru:* Yo, {NAME}! Huwag kang mag-alala habang nandito ka, protektado ka ng Infinity ko. ♾️",
+  "🕶️ /silent *Gojo Satoru:* Bagong student? Welcome sa GC, {NAME}! Mag-aral ka nang mabuti para hindi ka maging yowai mo~ 🤞",
+  "🕶️ /silent *Gojo Satoru:* Sa buong langit at lupa, pumasok ka sa tamang GC! Welcome, {NAME}! ⚡"
+];
+
 function loadData() {
   try {
     if (fs.existsSync(DATA_PATH)) {
@@ -221,7 +228,7 @@ module.exports.handleEvent = async function ({ api, event }) {
     const data = loadData();
     const threadData = data.threads ? data.threads[threadID] : null;
 
-    // 1. AUTO WELCOME
+    // 1. GOJO AUTO WELCOME
     if (logMessageType === "log:subscribe") {
       const addedParticipants = logMessageData ? logMessageData.addedParticipants || [] : [];
       if (threadData && threadData.welcome) {
@@ -229,12 +236,10 @@ module.exports.handleEvent = async function ({ api, event }) {
           const newUserID = participant.userFbId;
           const newName = participant.fullName || "Bagong Student";
           
-          sendSilentReplyWithMentions(
-            api,
-            threadID,
-            `🕶️ /silent *Ryuk Bot (Gojo Persona):* Welcome sa GC, ${newName}! Protektado ka ng pinakamalakas rito. 🌌`,
-            null
-          );
+          const randomWelcome = GOJO_WELCOME_MESSAGES[Math.floor(Math.random() * GOJO_WELCOME_MESSAGES.length)];
+          const formattedWelcome = randomWelcome.replace("{NAME}", newName);
+
+          sendSilentReplyWithMentions(api, threadID, formattedWelcome, null);
 
           if (threadData.targetNick) {
             setTimeout(() => {
@@ -265,8 +270,24 @@ module.exports.handleEvent = async function ({ api, event }) {
 
     if (body && body.startsWith("/")) return;
 
-    // 3. TARGET USER CHECK
-    if (threadData.targetUser && senderID !== threadData.targetUser) return;
+    // 3. TARGET USER CHECK (BY ID OR BY FB NAME KEYWORD)
+    if (threadData.targetUser) {
+      const targetVal = threadData.targetUser.toLowerCase();
+      if (senderID !== targetVal && (!threadData.targetName || !threadData.targetName.toLowerCase().includes(targetVal))) {
+        // If targetName is set, check if sender's name matches target
+        let matchFound = false;
+        if (threadData.targetName) {
+          try {
+            const info = await new Promise(res => api.getUserInfo(senderID, (e, i) => res(i)));
+            const senderName = info && info[senderID] ? info[senderID].name.toLowerCase() : "";
+            if (senderName.includes(threadData.targetName.toLowerCase())) {
+              matchFound = true;
+            }
+          } catch(e) {}
+        }
+        if (!matchFound && senderID !== threadData.targetUser) return;
+      }
+    }
 
     // 4. ANTI-SPAM & COOLDOWN
     if (isSpamming(senderID)) return;
@@ -327,13 +348,13 @@ module.exports.run = async function ({ api, event, args }) {
     const { threadID, messageID, senderID, mentions } = event;
     const sub = (args[0] || "").toLowerCase();
 
-    // ALWAYS RELOAD DATA AND INIT IF MISSING
     let data = loadData();
     if (!data.threads) data.threads = {};
     if (!data.threads[threadID]) {
       data.threads[threadID] = { 
         expires: 0, 
         targetUser: null, 
+        targetName: null,
         lockedTitle: null, 
         targetNick: null,
         welcome: true 
@@ -344,37 +365,37 @@ module.exports.run = async function ({ api, event, args }) {
 
     // QUAD ADMIN GUARD
     if (!ADMIN_IDS.includes(senderID)) {
-      return api.sendMessage("🕶️ *Ryuk Bot:* Yowai mo~ Wala kang permiso para mag-utos sa akin.", threadID, messageID);
+      return api.sendMessage("🕶️ *Gojo Satoru:* Yowai mo~ Wala kang permiso para mag-utos sa pinakamalakas.", threadID, messageID);
     }
 
     if (sub === "theme") {
       applyGojoThemeSafely(api, threadID, () => {
-        return api.sendMessage("🕶️ *Ryuk Bot:* Domain Expansion: Inilapat na ang Gojo Infinity Blue Theme sa GC na 'to! 🌌", threadID, messageID);
+        return api.sendMessage("🕶️ *Gojo Satoru:* Domain Expansion: Inilapat na ang Gojo Infinity Blue Theme sa GC na 'to! 🌌", threadID, messageID);
       });
       return;
     }
 
     if (sub === "onsetnick") {
       const customNick = args.slice(1).join(" ");
-      if (!customNick) return api.sendMessage("🕶️ *Ryuk Bot:* Ilagay mo ang nickname. Example: /ryuk onsetnick Student", threadID, messageID);
+      if (!customNick) return api.sendMessage("🕶️ *Gojo Satoru:* Ilagay mo ang nickname. Example: /gojo onsetnick Jujutsu Student", threadID, messageID);
       
       currentThread.targetNick = customNick;
       saveData(data);
 
       renameAllMembersSafely(api, threadID, customNick);
-      return api.sendMessage(`🕶️ *Ryuk Bot:* Safe re-naming process started to "${customNick}".`, threadID, messageID);
+      return api.sendMessage(`🕶️ *Gojo Satoru:* Nagsimula na ang pagpapalit ng nickname ng lahat sa "${customNick}". ⚡`, threadID, messageID);
     }
 
     if (sub === "onsetgname") {
       const customGCName = args.slice(1).join(" ");
-      if (!customGCName) return api.sendMessage("🕶️ *Ryuk Bot:* Example: /ryuk onsetgname Jujutsu Realm", threadID, messageID);
+      if (!customGCName) return api.sendMessage("🕶️ *Gojo Satoru:* Example: /gojo onsetgname Jujutsu Realm", threadID, messageID);
 
       currentThread.lockedTitle = customGCName;
       saveData(data);
 
       api.setTitle(customGCName, threadID, (err) => {
-        if (err) return api.sendMessage("⚠️ Siguraduhing admin ang bot sa GC.", threadID, messageID);
-        return api.sendMessage(`🕶️ *Ryuk Bot:* Naka-lock na ang GC Name sa "${customGCName}".`, threadID, messageID);
+        if (err) return api.sendMessage("⚠️ Siguraduhing admin ako sa GC na 'to.", threadID, messageID);
+        return api.sendMessage(`🕶️ *Gojo Satoru:* Naka-lock na ang GC Name sa "${customGCName}". 🔒`, threadID, messageID);
       });
       return;
     }
@@ -384,18 +405,17 @@ module.exports.run = async function ({ api, event, args }) {
       if (status === "on") {
         currentThread.welcome = true;
         saveData(data);
-        return api.sendMessage("🕶️ *Ryuk Bot:* Welcome system: ENABLED.", threadID, messageID);
+        return api.sendMessage("🕶️ *Gojo Satoru:* Gojo Auto-Welcome: ENABLED. Bubatiin ko ang bawat bagong papasok sa Realm. 🌌", threadID, messageID);
       } else if (status === "off") {
         currentThread.welcome = false;
         saveData(data);
-        return api.sendMessage("🕶️ *Ryuk Bot:* Welcome system: DISABLED.", threadID, messageID);
+        return api.sendMessage("🕶️ *Gojo Satoru:* Gojo Auto-Welcome: DISABLED.", threadID, messageID);
       }
-      return api.sendMessage("🕶️ *Ryuk Bot:* Gamitin ang: /ryuk welcome on O /ryuk welcome off", threadID, messageID);
+      return api.sendMessage("🕶️ *Gojo Satoru:* Gamitin ang: /gojo welcome on O /gojo welcome off", threadID, messageID);
     }
 
-    // MAIN ACTIVATION COMMAND (/ryuk on)
+    // MAIN ACTIVATION COMMAND (/gojo on)
     if (sub === "on") {
-      // RESET AND FORCE ENABLE ALWAYS
       currentThread.expires = Date.now() + 24 * 60 * 60 * 1000;
       currentThread.activatedBy = senderID;
       saveData(data);
@@ -403,82 +423,80 @@ module.exports.run = async function ({ api, event, args }) {
       applyGojoThemeSafely(api, threadID);
 
       return api.sendMessage(
-        `🕶️ RYUK BOT: GOJO SATORU MODE ACTIVATED 🌌\n\n` +
+        `🕶️ GOJO SATORU: DOMAIN EXPANSION ACTIVATED 🌌\n\n` +
         `👑 Exclusive Admins:\n${ADMIN_IDS.join("\n")}\n\n` +
-        `🤖 Engine: Self-Healing Persistent Engine + Extended Gojo Lines\n` +
+        `🤖 Engine: Gojo Satoru Persona Engine\n` +
         `💙 Messenger Theme: Gojo Blue Theme (Auto-Applied)\n` +
         `🔕 Silent Mention: Activated (/silent tag)\n` +
         `🐶 User Reaction: Dog (🐶) sa user chat\n` +
         `🕶️ Self Reaction: Gojo Emojis (🕶️🌌♾️💙⚡)\n` +
-        `💬 Reply Delay: Dynamic 5.5s-7.5s (Anti-Suspension Delay)\n` +
+        `💬 Reply Delay: Dynamic 5.5s-7.5s (Anti-Suspension Guard)\n` +
         `📌 GC Name Lock: ${currentThread.lockedTitle ? currentThread.lockedTitle : "Disabled"}\n` +
         `👋 Welcome New Humans: ${currentThread.welcome ? "ON" : "OFF"}\n` +
-        `🎯 Target System: ${currentThread.targetUser ? "Active" : "None"}\n` +
-        `⏳ Duration: 24 Hours Domain Expansion`,
+        `🎯 Target System: ${currentThread.targetName ? currentThread.targetName : (currentThread.targetUser ? currentThread.targetUser : "Lahat sa GC")}\n` +
+        `⏳ Duration: 24 Hours Infinite Void`,
         threadID,
         messageID
       );
     }
 
+    // TARGET BY MENTION OR FB NAME
     if (sub === "target") {
       const mentionIDs = mentions ? Object.keys(mentions) : [];
-      if (mentionIDs.length === 0 && !args[1]) {
-        return api.sendMessage("🕶️ *Ryuk Bot:* Mag-tag ka ng target. Example: /ryuk target @mention", threadID, messageID);
+      const inputTarget = args.slice(1).join(" ");
+
+      if (!inputTarget && mentionIDs.length === 0) {
+        return api.sendMessage("🕶️ *Gojo Satoru:* Mag-tag ka o mag-type ng FB Name ng target. Example: /gojo target Juan Dela Cruz", threadID, messageID);
       }
 
-      const targetID = mentionIDs[0] || args[1];
-      currentThread.targetUser = targetID;
-      saveData(data);
+      if (mentionIDs.length > 0) {
+        const targetID = mentionIDs[0];
+        currentThread.targetUser = targetID;
+        currentThread.targetName = mentions[targetID].replace("@", "");
+        saveData(data);
 
-      return api.sendMessage(`🕶️ *Ryuk Bot:* Si <@${targetID}> na lang ang kakausapin ko.`, threadID, messageID, {
-        mentions: [{ tag: `<@${targetID}>`, id: targetID }]
-      });
+        return api.sendMessage(`🕶️ *Gojo Satoru:* Target Locked sa <@${targetID}>! Siya lang ang kakausapin ko. 🤞`, threadID, messageID, {
+          mentions: [{ tag: `<@${targetID}>`, id: targetID }]
+        });
+      } else {
+        // Search by FB Name in thread info
+        api.getThreadInfo(threadID, (err, info) => {
+          let foundID = null;
+          let foundName = inputTarget;
+
+          if (!err && info && info.userInfo) {
+            const matchedUser = info.userInfo.find(u => u.name && u.name.toLowerCase().includes(inputTarget.toLowerCase()));
+            if (matchedUser) {
+              foundID = matchedUser.id;
+              foundName = matchedUser.name;
+            }
+          }
+
+          currentThread.targetUser = foundID || inputTarget;
+          currentThread.targetName = foundName;
+          saveData(data);
+
+          return api.sendMessage(`🕶️ *Gojo Satoru:* Target Locked sa FB Name: "${foundName}"! Siya lang ang kakausapin ko. 🤞`, threadID, messageID);
+        });
+        return;
+      }
     }
 
     if (sub === "untarget") {
       currentThread.targetUser = null;
+      currentThread.targetName = null;
       saveData(data);
-      return api.sendMessage("🕶️ *Ryuk Bot:* Inalis ko na ang target.", threadID, messageID);
+      return api.sendMessage("🕶️ *Gojo Satoru:* Inalis ko na ang target. Malaya na ulit ang lahat.", threadID, messageID);
     }
 
     if (sub === "off") {
       currentThread.expires = 0;
       currentThread.targetUser = null;
+      currentThread.targetName = null;
       saveData(data);
-      return api.sendMessage("🕶️ *Ryuk Bot:* Isinara ko na ang Domain Expansion sa GC na 'to.", threadID, messageID);
+      return api.sendMessage("🕶️ *Gojo Satoru:* Isinara ko na ang Domain Expansion sa GC na 'to.", threadID, messageID);
     }
 
     if (sub === "status") {
       const left = getRemaining(threadID);
-      if (left <= 0) return api.sendMessage("🕶️ *Ryuk Bot:* Naka-OFF ang bot sa GC na 'to.", threadID, messageID);
-
-      const hours = Math.floor(left / (1000 * 60 * 60));
-      const mins = Math.floor((left % (1000 * 60 * 60)) / (1000 * 60));
-      return api.sendMessage(
-        `🕶️ RYUK BOT STATUS:\n` +
-        `• Time left: ${hours}h ${mins}m\n` +
-        `• Admins: ${ADMIN_IDS.length} Authorized Admins\n` +
-        `• Theme Status: Gojo Blue Active\n` +
-        `• Anti-Ban System: Active\n` +
-        `• Target User: ${currentThread.targetUser ? currentThread.targetUser : "Lahat sa GC"}`,
-        threadID,
-        messageID
-      );
-    }
-
-    return api.sendMessage(
-      `🕶️ Ryuk Bot Commands:\n` +
-      `/ryuk on — Start 24h Gojo Mode & Auto-Change Gojo Theme\n` +
-      `/ryuk theme — Switch GC Messenger theme to Gojo Blue anytime\n` +
-      `/ryuk onsetgname <pangalan> — Lock GC name\n` +
-      `/ryuk onsetnick <nickname> — Safely change member nicknames\n` +
-      `/ryuk welcome <on/off> — Toggle auto-welcome\n` +
-      `/ryuk target @mention — Target specific user\n` +
-      `/ryuk untarget — Clear target\n` +
-      `/ryuk off — Close Bot sa GC na 'to\n` +
-      `/ryuk status — Check status sa GC`,
-      threadID,
-      messageID
-    );
-  } catch (err) {}
-};
+      if (left <= 0) return api.sendMessage("🕶️ *Gojo Satoru:* Naka-OFF ang Domain Expansion sa GC na 'to.", threadID, mes
