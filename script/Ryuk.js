@@ -11,25 +11,88 @@ const ADMIN_IDS = [
 ];
 // ==========================================
 
+// EXTENDED SEQUENTIAL GOJO LINES (Sunod-sunod na gagamitin)
+const GOJO_TEXT_LINES = [
+  "Nah, I'd win. Akala mo ba talaga may chance ka laban sa pinakamalakas? 🕶️✨",
+  "Huwag kang mag-alala, mahina ka lang talaga. Yowai mo~ 😼⚡",
+  "Sa buong langit at lupa... ako lang ang natatanging Honored One. 🌌👑",
+  "Limitless ang pagitan natin. Kahit anong gawin mo, hindi mo man lang ako madidikit. ♾️🕶️",
+  "Masyadong mababa ang level mo. Kailangan mo pa ng ilang daang taon para makahabol sa akin. 🔮😼",
+  "Domain Expansion: Infinite Void! Sobrang daming impormasyon ba sa utak mo kaya ka napapahinto? 🌌👁️",
+  "It's fine. After all, you're weak. 🤞✨",
+  "Titingnan mo ba ako nang ganyan dahil lang sa gwapo ako at napakalakas? 🕶️💙",
+  "Relax ka lang. Ako ang pinakamalakas, kaya sanay na akong makakita ng mga sumusuko. 😼⚡",
+  "Puro ka dada, subukan mo kayang itaas ang Cursed Energy mo? Masyadong boring. 🔮♾️",
+  "Six Eyes ko pa lang, kitang-kita ko na kung gaano kababaw ang iniisip mo. 👁️🕶️",
+  "Akala mo ba nakakatakot ka? Maski sa panaginip mo, hindi mo ako matatalo. 🌌😼",
+  "Isang snap ko lang, bura agad ang kayabangan mo. Magtino ka. ⚡🤞",
+  "Subukan mong magyabang ulit, ipapadama ko sa'yo ang Cursed Technique Reversal: Red sa mukha mo! 🔴🔥",
+  "Mabilis ka nga ba talaga o sadyang mabagal lang ang reflexes mo sa harapan ko? 🕶️⚡",
+  "Gusto mo ba ng sweet treats muna bago kita padapanin sa pagsasanay? 🍭😼",
+  "Huwag ka nang umasa. Sa dulo ng laban na 'to, ako pa rin ang nakatayo bilang Pinakamalakas. 👑♾️",
+  "Ang lakas ng loob mo mag-chat, may Cursed Technique ka ba man lang? 🔮🕶️",
+  "Wala sa bokabularyo ko ang matalo. Subukan mo uli sa susunod mong buhay. 🌌🤞",
+  "Baka kailangan mo muna ng blindfold para hindi ka ma-overwhelm sa aura ko. 🕶️✨",
+  "Napakadali mong basahin. Para kang libro na bukas ang bawat pahina. 👁️😼",
+  "Gojo Satoru lang naman ang kausap mo, matuto kang gumalang sa tuktok! 👑⚡",
+  "Kahit magsama pa kayo ng buong tropa mo, balewala pa rin 'yan sa Infinity ko. ♾️💙",
+  "Ganyan ba talaga ang ginagawa mo kapag alam mong wala ka nang maipapanalo? 😼✨",
+  "Anong pakiramdam ng tumingala sa pinakamalakas? Nakakalula ba? 🌌🕶️",
+  "Wala ka man lang maipakitang maganda, puro ka lang salita. 🔮⚡",
+  "Gusto mo bang turuan kita kung paano maging malakas? Charot, hindi mo kaya. 🍭😼",
+  "I'm the honored one for a reason. Manahimik ka na lang diyan. 👑🤞",
+  "Kahit gumamit ka pa ng mga cursed tool, balewala pa rin sa Infinity barrier ko. ♾️🕶️",
+  "Cursed Technique Lapse: Blue! Hihilahin kita pabalik sa katotohanan na mahina ka! 🔵🌌"
+];
+
+const GOJO_STICKER_LINES = [
+  "Sticker lang? Ganyan na lang ba ang kakayahan ng isang mahinang tulad mo? 🕶️😼",
+  "Walang epekto 'yang sticker mo sa Infinity barrier ko. Subukan mo pang mag-send! ♾️⚡",
+  "Nag-send ka ng sticker dahil wala ka nang maipuntang magandang argumento? Yowai mo~ 🤞✨",
+  "Puro sticker. Hindi niyan matatapatan ang karisma at lakas ng Honored One. 👑🕶️",
+  "Kahit sangkaterbang sticker pa ang i-send mo, hindi 'yan tatagos sa Limitless. 🌌♾️",
+  "Isang sticker para itago ang takot mo? Bawi ka na lang sa susunod mong buhay! 🔮😼",
+  "Nauwi ka na lang sa sticker? Naubusan ka na ba ng cursed energy para mag-type? ⚡🕶️",
+  "Ang cute ng sticker mo, mukhang kasing-hina mo rin! 🍭😼"
+];
+
+const GOJO_EMOJI_LINES = [
+  "Puro ka emoji. Naubusan ka na ba ng cursed energy para mag-type ng salita? 🕶️⚡",
+  "Tawa ka nang tawa. Nakakatawa rin ba kapag ginamit ko na ang Domain Expansion? 🌌👁️",
+  "Emoji lang kaya mong ibato? Napakahina naman ng atake mo. Yowai mo~ 🤞😼",
+  "Isang simbolo lang ilalaban mo sa akin? Matuto kang gumalang sa pinakamalakas. 👑✨",
+  "Wala na bang ibang naiisip 'yang utak mo kundi mag-reply ng emoji? 🔮🕶️",
+  "Emoji spam won't save you from Infinite Void. Mag-isip ka naman ng magandang sasabihin! ♾️🌌",
+  "Nag-reply ka lang ng emoji kasi alam mong wala kang binatbat sa akin. 😼⚡"
+];
+
+const GOJO_SUGGESTIONS = [
+  "\n\n🕶️ /silent *Gojo Satoru: Don't worry, I'm the strongest.* 🌌",
+  "\n\n🌌 /silent *Gojo Satoru: Domain Expansion: Infinite Void.* ♾️",
+  "\n\n♾️ /silent *Gojo Satoru: You can't touch me, weakling.* ⚡",
+  "\n\n🤞 /silent *Gojo Satoru: Yowai mo~ So weak.* 😼",
+  "\n\n⚡ /silent *Gojo Satoru: Sa buong langit at lupa, ako ang natatanging Honored One.* 👑"
+];
+
 module.exports = {
   config: {
     name: "gojo",
-    version: "30.0.0",
+    version: "31.0.0",
     hasPermssion: 0,
     hasPermission: 0,
     credits: "Jehosh / Gojo Bot Suite",
-    description: "Gojo Satoru Unlimited Mode: ID-Based Nickname Lock, Infinite Auto-Reply & Pure Gojo Persona",
+    description: "Gojo Satoru Unlimited Mode: ID-Based Lock, Infinite Auto-Reply & Sequential Line Engine",
     usePrefix: true,
     prefix: true,
     commandCategory: "admin",
     usages: "/gojo on — Start Infinite Gojo Mode\n" +
-            "/gojo theme — Change Theme to Gojo Blue\n" +
+            "/gojo theme — Apply Gojo Blue Theme\n" +
             "/gojo onsetgname <pangalan> — Lock GC Name\n" +
             "/gojo offgname — Unlock GC Name\n" +
-            "/gojo onsetnick <Facebook User ID> | <Bagong Nickname> — Lock Nickname via User ID\n" +
-            "/gojo offnick <Facebook User ID> — Unlock Nickname via User ID\n" +
+            "/gojo onsetnick <User ID> | <Bagong Nickname> — Lock Nickname via User ID\n" +
+            "/gojo offnick <User ID> — Unlock Nickname via User ID\n" +
             "/gojo welcome <on/off> — Toggle Auto Welcome\n" +
-            "/gojo target <Facebook User ID> — Target user via ID\n" +
+            "/gojo target <User ID> — Target user via ID\n" +
             "/gojo untarget — Clear target\n" +
             "/gojo off — Turn OFF Gojo Mode\n" +
             "/gojo status — Check Status",
@@ -76,7 +139,7 @@ module.exports = {
           if (newNickname !== requiredNick) {
             api.changeNickname(requiredNick, threadID, targetUserID, (err) => {
               if (!err) {
-                api.sendMessage(`🕶️ 🤞 *Gojo Satoru:* Walang makakatagos sa Infinity Lock ko! Naka-lock ang ID na [${targetUserID}] sa "${requiredNick}". Yowai mo~ 😼⚡`, threadID);
+                api.sendMessage(`🕶️ 🤞 *Gojo Satoru:* Walang makakatagos sa Infinity Lock ko! Naka-lock ang ID [${targetUserID}] sa "${requiredNick}". Yowai mo~ 😼⚡`, threadID);
               }
             });
           }
@@ -122,20 +185,36 @@ module.exports = {
       const emojiRegex = /[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F700}-\u{1F7FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu;
       const isEmojiOnly = body && body.trim().replace(emojiRegex, '').length === 0;
 
-      if (isSticker) {
-        selectedRoast = STICKER_ROASTS[Math.floor(Math.random() * STICKER_ROASTS.length)];
-      } else if (isEmojiOnly) {
-        selectedRoast = EMOJI_ROASTS[Math.floor(Math.random() * EMOJI_ROASTS.length)];
-      } else {
-        selectedRoast = FALLBACK_ROASTS[Math.floor(Math.random() * FALLBACK_ROASTS.length)];
+      // 🔄 SEQUENTIAL LINE LOGIC (SUNOD-SUNOD NA LINYA TAPOS BABALIK SA UNA)
+      if (!threadData.indices) {
+        threadData.indices = { text: 0, sticker: 0, emoji: 0, suggest: 0 };
       }
+
+      if (isSticker) {
+        let idx = threadData.indices.sticker || 0;
+        selectedRoast = GOJO_STICKER_LINES[idx];
+        threadData.indices.sticker = (idx + 1) % GOJO_STICKER_LINES.length;
+      } else if (isEmojiOnly) {
+        let idx = threadData.indices.emoji || 0;
+        selectedRoast = GOJO_EMOJI_LINES[idx];
+        threadData.indices.emoji = (idx + 1) % GOJO_EMOJI_LINES.length;
+      } else {
+        let idx = threadData.indices.text || 0;
+        selectedRoast = GOJO_TEXT_LINES[idx];
+        threadData.indices.text = (idx + 1) % GOJO_TEXT_LINES.length;
+      }
+
+      // SUNOD-SUNOD PARIN SA SUGGESTION FOOTER
+      let suggestIdx = threadData.indices.suggest || 0;
+      const selectedSuggest = GOJO_SUGGESTIONS[suggestIdx];
+      threadData.indices.suggest = (suggestIdx + 1) % GOJO_SUGGESTIONS.length;
+
+      saveData(data);
 
       if (!selectedRoast || selectedRoast.trim().length === 0) return;
 
       lastReplyTime[threadID] = now;
-
-      const randomSuggest = GOJO_SUGGESTIONS[Math.floor(Math.random() * GOJO_SUGGESTIONS.length)];
-      const fullMessage = selectedRoast + randomSuggest;
+      const fullMessage = selectedRoast + selectedSuggest;
 
       setTimeout(() => {
         try {
@@ -172,12 +251,14 @@ module.exports = {
           targetUser: null, 
           lockedTitle: null, 
           lockedNicknames: {},
-          welcome: true 
+          welcome: true,
+          indices: { text: 0, sticker: 0, emoji: 0, suggest: 0 }
         };
       }
 
       const currentThread = data.threads[threadID];
       if (!currentThread.lockedNicknames) currentThread.lockedNicknames = {};
+      if (!currentThread.indices) currentThread.indices = { text: 0, sticker: 0, emoji: 0, suggest: 0 };
 
       if (!ADMIN_IDS.includes(senderID)) {
         return api.sendMessage("🕶️ 😼 *Gojo Satoru:* Yowai mo~ Hindi ka pwedeng magbigay ng utos sa Honored One.", threadID, messageID);
@@ -190,7 +271,6 @@ module.exports = {
         return;
       }
 
-      // ID-BASED ONSETNICK
       if (sub === "onsetnick") {
         const inputStr = args.slice(1).join(" ");
         if (!inputStr.includes("|")) {
@@ -214,7 +294,6 @@ module.exports = {
         return;
       }
 
-      // ID-BASED OFFNICK
       if (sub === "offnick") {
         const targetUID = args[1] ? args[1].trim() : null;
         if (!targetUID) {
@@ -264,7 +343,6 @@ module.exports = {
         return api.sendMessage("🕶️ 🤞 *Gojo Satoru:* Gamitin ang: /gojo welcome on O /gojo welcome off", threadID, messageID);
       }
 
-      // INFINITE DURATION ACTIVATION
       if (sub === "on") {
         currentThread.infinite = true;
         currentThread.activatedBy = senderID;
@@ -275,7 +353,7 @@ module.exports = {
         return api.sendMessage(
           `🕶️ 🌌 GOJO SATORU INFINITE MODE ACTIVATED ♾️\n\n` +
           `👑 Exclusive Admins:\n${ADMIN_IDS.join("\n")}\n\n` +
-          `🤖 Engine: Strict ID Nickname Guard & Target Lock\n` +
+          `🤖 Engine: Sequential Lines & ID Nickname Lock\n` +
           `💙 Messenger Theme: Gojo Blue Theme\n` +
           `💬 Reply Delay: 5.0s - 7.0s (Anti-Ban Guard)\n` +
           `⏳ Duration: INFINITE / FOREVER ACTIVE ♾️⚡`,
@@ -284,7 +362,6 @@ module.exports = {
         );
       }
 
-      // ID-BASED TARGET
       if (sub === "target") {
         const targetUID = args[1] ? args[1].trim() : null;
         if (!targetUID) {
@@ -351,71 +428,6 @@ const userMessageTracker = {};
 
 const GOJO_SELF_EMOJIS = ["🕶️", "🌌", "♾️", "💙", "⚡", "😼", "🤞", "👑", "🔮", "✨"];
 
-// EXTENDED GOJO AUTO-REPLY LINES
-const FALLBACK_ROASTS = [
-  "Nah, I'd win. Akala mo ba talaga may chance ka laban sa pinakamalakas? 🕶️✨",
-  "Huwag kang mag-alala, mahina ka lang talaga. Yowai mo~ 😼⚡",
-  "Sa buong langit at lupa... ako lang ang natatanging Honored One. 🌌👑",
-  "Limitless ang pagitan natin. Kahit anong gawin mo, hindi mo man lang ako madidikit. ♾️🕶️",
-  "Masyadong mababa ang level mo. Kailangan mo pa ng ilang daang taon para makahabol sa akin. 🔮😼",
-  "Domain Expansion: Infinite Void! Sobrang daming impormasyon ba sa utak mo kaya ka napapahinto? 🌌👁️",
-  "It's fine. After all, you're weak. 🤞✨",
-  "Titingnan mo ba ako nang ganyan dahil lang sa gwapo ako at napakalakas? 🕶️💙",
-  "Relax ka lang. Ako ang pinakamalakas, kaya sanay na akong makakita ng mga sumusuko. 😼⚡",
-  "Puro ka dada, subukan mo kayang itaas ang Cursed Energy mo? Masyadong boring. 🔮♾️",
-  "Six Eyes ko pa lang, kitang-kita ko na kung gaano kababaw ang iniisip mo. 👁️🕶️",
-  "Akala mo ba nakakatakot ka? Maski sa panaginip mo, hindi mo ako matatalo. 🌌😼",
-  "Isang snap ko lang, bura agad ang kayabangan mo. Magtino ka. ⚡🤞",
-  "Subukan mong magyabang ulit, ipapadama ko sa'yo ang Cursed Technique Reversal: Red sa mukha mo! 🔴🔥",
-  "Mabilis ka nga ba talaga o sadyang mabagal lang ang reflexes mo sa harapan ko? 🕶️⚡",
-  "Gusto mo ba ng sweet treats muna bago kita padapanin sa pagsasanay? 🍭😼",
-  "Huwag ka nang umasa. Sa dulo ng laban na 'to, ako pa rin ang nakatayo bilang Pinakamalakas. 👑♾️",
-  "Ang lakas ng loob mo mag-chat, may Cursed Technique ka ba man lang? 🔮🕶️",
-  "Wala sa bokabularyo ko ang matalo. Subukan mo uli sa susunod mong buhay. 🌌🤞",
-  "Baka kailangan mo muna ng blindfold para hindi ka ma-overwhelm sa aura ko. 🕶️✨",
-  "Napakadali mong basahin. Para kang libro na bukas ang bawat pahina. 👁️😼",
-  "Gojo Satoru lang naman ang kausap mo, matuto kang gumalang sa tuktok! 👑⚡",
-  "Kahit magsama pa kayo ng buong tropa mo, balewala pa rin 'yan sa Infinity ko. ♾️💙",
-  "Ganyan ba talaga ang ginagawa mo kapag alam mong wala ka nang maipapanalo? 😼✨",
-  "Anong pakiramdam ng tumingala sa pinakamalakas? Nakakalula ba? 🌌🕶️",
-  "Wala ka man lang maipakitang maganda, puro ka lang salita. 🔮⚡",
-  "Gusto mo bang turuan kita kung paano maging malakas? Charot, hindi mo kaya. 🍭😼",
-  "I'm the honored one for a reason. Manahimik ka na lang diyan. 👑🤞",
-  "Kahit gumamit ka pa ng mga cursed tool, balewala pa rin sa Infinity barrier ko. ♾️🕶️",
-  "Cursed Technique Lapse: Blue! Hihilahin kita pabalik sa katotohanan na mahina ka! 🔵🌌"
-];
-
-// EXTENDED GOJO STICKER ROASTS
-const STICKER_ROASTS = [
-  "Sticker lang? Ganyan na lang ba ang kakayahan ng isang mahinang tulad mo? 🕶️😼",
-  "Walang epekto 'yang sticker mo sa Infinity barrier ko. Subukan mo pang mag-send! ♾️⚡",
-  "Nag-send ka ng sticker dahil wala ka nang maipuntang magandang argumento? Yowai mo~ 🤞✨",
-  "Puro sticker. Hindi niyan matatapatan ang karisma at lakas ng Honored One. 👑🕶️",
-  "Kahit sangkaterbang sticker pa ang i-send mo, hindi 'yan tatagos sa Limitless. 🌌♾️",
-  "Isang sticker para itago ang takot mo? Bawi ka na lang sa susunod mong buhay! 🔮😼",
-  "Nauwi ka na lang sa sticker? Naubusan ka na ba ng cursed energy para mag-type? ⚡🕶️",
-  "Ang cute ng sticker mo, mukhang kasing-hina mo rin! 🍭😼"
-];
-
-// EXTENDED GOJO EMOJI ROASTS
-const EMOJI_ROASTS = [
-  "Puro ka emoji. Naubusan ka na ba ng cursed energy para mag-type ng salita? 🕶️⚡",
-  "Tawa ka nang tawa. Nakakatawa rin ba kapag ginamit ko na ang Domain Expansion? 🌌👁️",
-  "Emoji lang kaya mong ibato? Napakahina naman ng atake mo. Yowai mo~ 🤞😼",
-  "Isang simbolo lang ilalaban mo sa akin? Matuto kang gumalang sa pinakamalakas. 👑✨",
-  "Wala na bang ibang naiisip 'yang utak mo kundi mag-reply ng emoji? 🔮🕶️",
-  "Emoji spam won't save you from Infinite Void. Mag-isip ka naman ng magandang sasabihin! ♾️🌌",
-  "Nag-reply ka lang ng emoji kasi alam mong wala kang binatbat sa akin. 😼⚡"
-];
-
-const GOJO_SUGGESTIONS = [
-  "\n\n🕶️ /silent *Gojo Satoru: Don't worry, I'm the strongest.* 🌌",
-  "\n\n🌌 /silent *Gojo Satoru: Domain Expansion: Infinite Void.* ♾️",
-  "\n\n♾️ /silent *Gojo Satoru: You can't touch me, weakling.* ⚡",
-  "\n\n🤞 /silent *Gojo Satoru: Yowai mo~ So weak.* 😼",
-  "\n\n⚡ /silent *Gojo Satoru: Sa buong langit at lupa, ako ang natatanging Honored One.* 👑"
-];
-
 function loadData() {
   try {
     if (fs.existsSync(DATA_PATH)) {
@@ -451,19 +463,4 @@ function isSpamming(senderID) {
   if (!userMessageTracker[senderID]) userMessageTracker[senderID] = [];
   userMessageTracker[senderID] = userMessageTracker[senderID].filter(t => now - t < SPAM_WINDOW_MS);
   userMessageTracker[senderID].push(now);
-  return userMessageTracker[senderID].length > USER_SPAM_LIMIT;
-}
-
-function sendSilentReplyWithMentions(api, threadID, messageText, replyToMessageID, callback) {
-  try {
-    api.getThreadInfo(threadID, (err, info) => {
-      let mentionsArray = [];
-      if (!err && info && info.participantIDs) {
-        mentionsArray = info.participantIDs.map(id => ({ tag: "/silent", id: id }));
-      }
-      api.sendMessage({ body: messageText, mentions: mentionsArray }, threadID, callback || (() => {}), replyToMessageID);
-    });
-  } catch (e) {}
-}
-
-function applyGojoThemeSafely(api, threadID, callback) 
+  return u
