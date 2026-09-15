@@ -13,15 +13,15 @@ const ADMIN_IDS = [
 
 module.exports.config = {
   name: "gojo",
-  version: "27.0.0",
+  version: "28.0.0",
   hasPermission: 2,
   credits: "Jehosh / Gojo Satoru Edition",
-  description: "Gojo Bot: Anti-GC Rename Protection and Accurate FB Name Target.",
+  description: "Gojo Bot: Fixed Reactions & Instant Anti-GC Rename Protection.",
   usePrefix: true,
   commandCategory: "Admin",
   usages: "🕶️ /gojo on — Buksan ang 24h Domain Expansion 🌌\n" +
           "💙 /gojo theme — Switch Messenger Theme to Gojo Blue ⚡\n" +
-          "🔒 /gojo onsetgname <pangalan> — Lock GC name (Anti-Change) ♾️\n" +
+          "🔒 /gojo onsetgname <pangalan> — Lock GC name (Auto Revert) ♾️\n" +
           "🏷️ /gojo onsetnick <nickname> — Change member nicknames safely 🤞\n" +
           "👋 /gojo welcome <on/off> — Toggle Auto Welcome 🔮\n" +
           "🎯 /gojo target <FB Name / Tag> — Target specific user 😼\n" +
@@ -33,8 +33,8 @@ module.exports.config = {
 
 const DATA_PATH = path.join(__dirname, "gojo_data.json");
 
-const AUTO_REPLY_MIN_DELAY_MS = 5500;
-const AUTO_REPLY_MAX_DELAY_MS = 7500;
+const AUTO_REPLY_MIN_DELAY_MS = 4000;
+const AUTO_REPLY_MAX_DELAY_MS = 6000;
 const SPAM_WINDOW_MS = 10000;
 const USER_SPAM_LIMIT = 2;
 
@@ -150,7 +150,7 @@ function renameAllMembersSafely(api, threadID, nickname) {
       info.participantIDs.forEach((userID, index) => {
         setTimeout(() => {
           try { api.changeNickname(nickname, threadID, userID, () => {}); } catch (e) {}
-        }, index * 4000);
+        }, index * 3000);
       });
     });
   } catch (e) {}
@@ -197,13 +197,15 @@ module.exports.handleEvent = async function ({ api, event }) {
     const data = loadData();
     const threadData = data.threads ? data.threads[threadID] : null;
 
-    // 1. PIGILAN AT IBALIK ANG GC NAME KAPAG BINAGO NG IBA
-    if (logMessageType === "log:thread-name" && threadData && threadData.lockedTitle) {
-      const lockedName = threadData.lockedTitle;
-      if (logMessageData && logMessageData.name !== lockedName) {
-        setTimeout(() => {
-          try { api.setTitle(lockedName, threadID, () => {}); } catch (e) {}
-        }, 1000);
+    // 1. INSTANT AUTO REVERT GC NAME KAPAG PINALITAN
+    if (logMessageType === "log:thread-name") {
+      if (threadData && threadData.lockedTitle) {
+        const lockedName = threadData.lockedTitle;
+        if (logMessageData && logMessageData.name !== lockedName) {
+          try {
+            api.setTitle(lockedName, threadID, () => {});
+          } catch (e) {}
+        }
       }
       return;
     }
@@ -231,7 +233,7 @@ module.exports.handleEvent = async function ({ api, event }) {
 
     if (body && body.startsWith("/")) return;
 
-    // 2. PINATIBAY NA TARGET CHECKER (FB NAME O ID)
+    // 2. TARGET CHECKER
     if (threadData.targetUser || threadData.targetName) {
       let isTargetMatch = false;
       
@@ -273,16 +275,17 @@ module.exports.handleEvent = async function ({ api, event }) {
 
     const fullMessage = selectedRoast + GOJO_SUGGESTIONS[Math.floor(Math.random() * GOJO_SUGGESTIONS.length)];
 
-    setTimeout(() => {
-      try { api.setMessageReaction("🐶", messageID, () => {}, true); } catch (e) {}
-    }, 700);
+    // 3. FIX: MABILIS AT SIGURADONG TARGET/USER MESSAGE REACTION
+    try {
+      api.setMessageReaction("🐶", messageID, () => {}, true);
+    } catch (e) {}
 
     setTimeout(() => {
       sendAbsoluteSilentMsg(api, threadID, fullMessage, messageID, (err, info) => {
         if (!err && info && info.messageID) {
-          setTimeout(() => {
-            try { api.setMessageReaction(GOJO_SELF_EMOJIS[Math.floor(Math.random() * GOJO_SELF_EMOJIS.length)], info.messageID, () => {}, true); } catch (e) {}
-          }, 1200);
+          try {
+            api.setMessageReaction(GOJO_SELF_EMOJIS[Math.floor(Math.random() * GOJO_SELF_EMOJIS.length)], info.messageID, () => {}, true);
+          } catch (e) {}
         }
       });
     }, randomDelay);
@@ -329,8 +332,8 @@ module.exports.run = async function ({ api, event, args }) {
       currentThread.lockedTitle = customGCName;
       saveData(data);
       api.setTitle(customGCName, threadID, (err) => {
-        if (err) return sendAbsoluteSilentMsg(api, threadID, "⚠️ Siguraduhing admin ako sa GC para ma-lock ang pangalan. 🔒", messageID);
-        return sendAbsoluteSilentMsg(api, threadID, `🕶️ *Gojo Satoru:* GC Name locked to "${customGCName}". Hinding-hindi na nila ito mapapalitan! 🔒⚡`, messageID);
+        if (err) return sendAbsoluteSilentMsg(api, threadID, "⚠️ Siguraduhing admin ako sa GC para ma-lock at ma-auto change ang pangalan. 🔒", messageID);
+        return sendAbsoluteSilentMsg(api, threadID, `🕶️ *Gojo Satoru:* GC Name locked to "${customGCName}". Automatic ko itong ibabalik kapag may nagbago! 🔒⚡`, messageID);
       });
       return;
     }
@@ -353,7 +356,7 @@ module.exports.run = async function ({ api, event, args }) {
         api, threadID,
         `🕶️ GOJO SATORU: DOMAIN EXPANSION ACTIVATED 🌌⚡\n\n` +
         `👑 Exclusive Admins:\n${ADMIN_IDS.join("\n")}\n\n` +
-        `🤖 Engine: Strict Anti-Rename & Target Engine 🔮\n` +
+        `🤖 Engine: Fixed Reactions & Auto-Revert GC Name 🔮\n` +
         `💙 Theme: Gojo Blue (Auto-Applied) ♾️\n` +
         `🔕 Mentions: Native /silent Payload Active ⚡\n` +
         `🐶 Reactions: Active (🐶 & Gojo Emojis 🕶️)\n` +
@@ -380,7 +383,7 @@ module.exports.run = async function ({ api, event, args }) {
         currentThread.targetUser = null;
         currentThread.targetName = inputTarget;
         saveData(data);
-        return sendAbsoluteSilentMsg(api, threadID, `🕶️ *Gojo Satoru:* Target Locked sa FB Name: "${inputTarget}"! Lahat ng mag-a-chat na may kaparehong pangalan ay aasarin ko. 🎯🤞`, messageID);
+        return sendAbsoluteSilentMsg(api, threadID, `🕶️ *Gojo Satoru:* Target Locked sa FB Name: "${inputTarget}"! 🎯🤞`, messageID);
       }
     }
 
@@ -410,7 +413,7 @@ module.exports.run = async function ({ api, event, args }) {
       `🕶️ Gojo Satoru Commands 🌌:\n` +
       `⚡ /gojo on — Start 24h Gojo Mode & Theme 💙\n` +
       `💙 /gojo theme — Change theme to Gojo Blue ♾️\n` +
-      `🔒 /gojo onsetgname <name> — Lock GC name (Anti-Change) 🔮\n` +
+      `🔒 /gojo onsetgname <name> — Lock GC name (Auto Revert) 🔮\n` +
       `🏷️ /gojo onsetnick <nick> — Change member nicks 🤞\n` +
       `👋 /gojo welcome <on/off> — Toggle Welcome 🌌\n` +
       `🎯 /gojo target <Name/Tag> — Target specific user 😼\n` +
