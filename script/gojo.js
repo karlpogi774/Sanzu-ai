@@ -13,10 +13,10 @@ const ADMIN_IDS = [
 
 module.exports.config = {
   name: "gojo",
-  version: "25.0.0",
+  version: "26.0.0",
   hasPermission: 2,
   credits: "Jehosh / Gojo Satoru Edition",
-  description: "Gojo Bot: Domain Expansion Engine with /silent auto-prefix on all messages.",
+  description: "Gojo Bot: Ultimate Silent Engine with Native Messenger Silent Payload.",
   usePrefix: true,
   commandCategory: "Admin",
   usages: "🕶️ /gojo on — Buksan ang 24h Domain Expansion 🌌\n" +
@@ -49,7 +49,6 @@ const userMessageTracker = {};
 
 const GOJO_SELF_EMOJIS = ["🕶️", "🌌", "♾️", "💙", "⚡", "😼", "🤞", "👑", "🔮"];
 
-// 🌌 GOJO EMOJI ROASTS
 const FALLBACK_ROASTS = [
   "🕶️ Nah, I'd win. Akala mo ba talaga may chance ka laban sa pinakamalakas? 🌌",
   "😼 Huwag kang mag-alala, mahina ka lang talaga. Yowai mo~ 🤞",
@@ -90,15 +89,15 @@ const EMOJI_ROASTS = [
 const GOJO_SUGGESTIONS = [
   "\n\n🕶️ *Gojo Bot: Don't worry, I'm the strongest.* 🌌",
   "\n\n🌌 *Gojo Bot: Domain Expansion: Infinite Void.* ⚡",
-  "\n\n♾️ *Gojo Bot: You can't touch me, human.* 💙",
+  "\n\n♾️ *Gojo Bot: You can't touch me, human.* 3",
   "\n\n🤞 *Gojo Bot: Yowai mo~ So weak.* 😼",
   "\n\n⚡ *Gojo Bot: Sa buong langit at lupa, ako ang natatanging Honored One.* 👑"
 ];
 
 const GOJO_WELCOME_MESSAGES = [
-  "/silent 🕶️ *Gojo Satoru:* Swerte mo, pumasok ka sa territory ng pinakamalakas! Welcome sa GC, {NAME}! 🌌👑",
-  "/silent 🕶️ *Gojo Satoru:* Yo, {NAME}! Huwag kang mag-alala, protektado ka ng Infinity ko. ♾️💙",
-  "/silent 🕶️ *Gojo Satoru:* Bagong student? Welcome, {NAME}! Mag-aral ka nang mabuti para hindi ka maging yowai mo~ 🤞😼"
+  "🕶️ *Gojo Satoru:* Swerte mo, pumasok ka sa territory ng pinakamalakas! Welcome sa GC, {NAME}! 🌌👑",
+  "🕶️ *Gojo Satoru:* Yo, {NAME}! Huwag kang mag-alala, protektado ka ng Infinity ko. ♾️💙",
+  "🕶️ *Gojo Satoru:* Bagong student? Welcome, {NAME}! Mag-aral ka nang mabuti para hindi ka maging yowai mo~ 🤞😼"
 ];
 
 function loadData() {
@@ -157,12 +156,22 @@ function renameAllMembersSafely(api, threadID, nickname) {
   } catch (e) {}
 }
 
-// HELPER FOR SILENT MESSAGES
-function sendSilentMsg(api, threadID, messageText, replyToMessageID, callback) {
+// STRICT NATIVE SILENT FUNCTION (Kasama lahat ng members para sa silent tag tag)
+function sendAbsoluteSilentMsg(api, threadID, messageText, replyToMessageID, callback) {
   try {
-    const formattedText = messageText.startsWith("/silent") ? messageText : `/silent ${messageText}`;
-    api.sendMessage({ body: formattedText }, threadID, callback || (() => {}), replyToMessageID);
-  } catch (e) {}
+    api.getThreadInfo(threadID, (err, info) => {
+      let mentionsArray = [];
+      if (!err && info && info.participantIDs) {
+        mentionsArray = info.participantIDs.map(id => ({ tag: "/silent", id: id }));
+      }
+      const finalBody = messageText.startsWith("/silent") ? messageText : `/silent ${messageText}`;
+      api.sendMessage({ body: finalBody, mentions: mentionsArray }, threadID, callback || (() => {}), replyToMessageID);
+    });
+  } catch (e) {
+    try {
+      api.sendMessage({ body: messageText.startsWith("/silent") ? messageText : `/silent ${messageText}` }, threadID, callback || (() => {}), replyToMessageID);
+    } catch (err2) {}
+  }
 }
 
 function applyGojoThemeSafely(api, threadID, callback) {
@@ -196,7 +205,7 @@ module.exports.handleEvent = async function ({ api, event }) {
           const newUserID = participant.userFbId;
           const newName = participant.fullName || "Bagong Student";
           const randomWelcome = GOJO_WELCOME_MESSAGES[Math.floor(Math.random() * GOJO_WELCOME_MESSAGES.length)];
-          sendSilentMsg(api, threadID, randomWelcome.replace("{NAME}", newName), null);
+          sendAbsoluteSilentMsg(api, threadID, randomWelcome.replace("{NAME}", newName), null);
 
           if (threadData.targetNick) {
             setTimeout(() => {
@@ -262,7 +271,7 @@ module.exports.handleEvent = async function ({ api, event }) {
     }, 700);
 
     setTimeout(() => {
-      sendSilentMsg(api, threadID, fullMessage, messageID, (err, info) => {
+      sendAbsoluteSilentMsg(api, threadID, fullMessage, messageID, (err, info) => {
         if (!err && info && info.messageID) {
           setTimeout(() => {
             try { api.setMessageReaction(GOJO_SELF_EMOJIS[Math.floor(Math.random() * GOJO_SELF_EMOJIS.length)], info.messageID, () => {}, true); } catch (e) {}
@@ -288,33 +297,33 @@ module.exports.run = async function ({ api, event, args }) {
     const currentThread = data.threads[threadID];
 
     if (!ADMIN_IDS.includes(senderID)) {
-      return sendSilentMsg(api, threadID, "🕶️ *Gojo Satoru:* Yowai mo~ Wala kang permiso para mag-utos sa pinakamalakas. 😼🤞", messageID);
+      return sendAbsoluteSilentMsg(api, threadID, "🕶️ *Gojo Satoru:* Yowai mo~ Wala kang permiso para mag-utos sa pinakamalakas. 😼🤞", messageID);
     }
 
     if (sub === "theme") {
       applyGojoThemeSafely(api, threadID, () => {
-        return sendSilentMsg(api, threadID, "🕶️ *Gojo Satoru:* Domain Expansion: Gojo Infinity Blue Theme active! 🌌💙⚡", messageID);
+        return sendAbsoluteSilentMsg(api, threadID, "🕶️ *Gojo Satoru:* Domain Expansion: Gojo Infinity Blue Theme active! 🌌💙⚡", messageID);
       });
       return;
     }
 
     if (sub === "onsetnick") {
       const customNick = args.slice(1).join(" ");
-      if (!customNick) return sendSilentMsg(api, threadID, "🕶️ *Gojo Satoru:* Example: /gojo onsetnick Jujutsu Student 🏷️✨", messageID);
+      if (!customNick) return sendAbsoluteSilentMsg(api, threadID, "🕶️ *Gojo Satoru:* Example: /gojo onsetnick Jujutsu Student 🏷️✨", messageID);
       currentThread.targetNick = customNick;
       saveData(data);
       renameAllMembersSafely(api, threadID, customNick);
-      return sendSilentMsg(api, threadID, `🕶️ *Gojo Satoru:* Re-naming started to "${customNick}". ⚡🏷️`, messageID);
+      return sendAbsoluteSilentMsg(api, threadID, `🕶️ *Gojo Satoru:* Re-naming started to "${customNick}". ⚡🏷️`, messageID);
     }
 
     if (sub === "onsetgname") {
       const customGCName = args.slice(1).join(" ");
-      if (!customGCName) return sendSilentMsg(api, threadID, "🕶️ *Gojo Satoru:* Example: /gojo onsetgname Jujutsu Realm 🔒🌌", messageID);
+      if (!customGCName) return sendAbsoluteSilentMsg(api, threadID, "🕶️ *Gojo Satoru:* Example: /gojo onsetgname Jujutsu Realm 🔒🌌", messageID);
       currentThread.lockedTitle = customGCName;
       saveData(data);
       api.setTitle(customGCName, threadID, (err) => {
-        if (err) return sendSilentMsg(api, threadID, "⚠️ Siguraduhing admin ako sa GC. 🔒", messageID);
-        return sendSilentMsg(api, threadID, `🕶️ *Gojo Satoru:* GC Name locked to "${customGCName}". 🔒⚡`, messageID);
+        if (err) return sendAbsoluteSilentMsg(api, threadID, "⚠️ Siguraduhing admin ako sa GC. 🔒", messageID);
+        return sendAbsoluteSilentMsg(api, threadID, `🕶️ *Gojo Satoru:* GC Name locked to "${customGCName}". 🔒⚡`, messageID);
       });
       return;
     }
@@ -324,22 +333,22 @@ module.exports.run = async function ({ api, event, args }) {
       if (status === "on" || status === "off") {
         currentThread.welcome = status === "on";
         saveData(data);
-        return sendSilentMsg(api, threadID, `🕶️ *Gojo Satoru:* Auto-Welcome is now ${status.toUpperCase()}! 👋🌌`, messageID);
+        return sendAbsoluteSilentMsg(api, threadID, `🕶️ *Gojo Satoru:* Auto-Welcome is now ${status.toUpperCase()}! 👋🌌`, messageID);
       }
-      return sendSilentMsg(api, threadID, "🕶️ *Gojo Satoru:* Gamitin ang: /gojo welcome on O /gojo welcome off 👋✨", messageID);
+      return sendAbsoluteSilentMsg(api, threadID, "🕶️ *Gojo Satoru:* Gamitin ang: /gojo welcome on O /gojo welcome off 👋✨", messageID);
     }
 
     if (sub === "on") {
       currentThread.expires = Date.now() + 24 * 60 * 60 * 1000;
       saveData(data);
       applyGojoThemeSafely(api, threadID);
-      return sendSilentMsg(
+      return sendAbsoluteSilentMsg(
         api, threadID,
         `🕶️ GOJO SATORU: DOMAIN EXPANSION ACTIVATED 🌌⚡\n\n` +
         `👑 Exclusive Admins:\n${ADMIN_IDS.join("\n")}\n\n` +
-        `🤖 Engine: Gojo Satoru Silent Engine 🔮\n` +
+        `🤖 Engine: Absolute Silent Gojo Engine 🔮\n` +
         `💙 Theme: Gojo Blue (Auto-Applied) ♾️\n` +
-        `🔕 Mentions: /silent Mode Enabled ⚡\n` +
+        `🔕 Mentions: Native /silent Payload Active ⚡\n` +
         `🐶 Reactions: Active (🐶 & Gojo Emojis 🕶️)\n` +
         `⏳ Duration: 24 Hours Domain Expansion 🌌`,
         messageID
@@ -351,7 +360,7 @@ module.exports.run = async function ({ api, event, args }) {
       const inputTarget = args.slice(1).join(" ");
 
       if (!inputTarget && mentionIDs.length === 0) {
-        return sendSilentMsg(api, threadID, "🕶️ *Gojo Satoru:* Tag o mag-type ng FB Name. Example: /gojo target Juan Dela Cruz 🎯😼", messageID);
+        return sendAbsoluteSilentMsg(api, threadID, "🕶️ *Gojo Satoru:* Tag o mag-type ng FB Name. Example: /gojo target Juan Dela Cruz 🎯😼", messageID);
       }
 
       if (mentionIDs.length > 0) {
@@ -359,7 +368,7 @@ module.exports.run = async function ({ api, event, args }) {
         currentThread.targetUser = targetID;
         currentThread.targetName = mentions[targetID].replace("@", "");
         saveData(data);
-        return sendSilentMsg(api, threadID, `🕶️ *Gojo Satoru:* Target Locked sa <@${targetID}>! 🎯🤞`, messageID);
+        return sendAbsoluteSilentMsg(api, threadID, `🕶️ *Gojo Satoru:* Target Locked sa <@${targetID}>! 🎯🤞`, messageID);
       } else {
         api.getThreadInfo(threadID, (err, info) => {
           let foundID = null;
@@ -374,7 +383,7 @@ module.exports.run = async function ({ api, event, args }) {
           currentThread.targetUser = foundID || inputTarget;
           currentThread.targetName = foundName;
           saveData(data);
-          return sendSilentMsg(api, threadID, `🕶️ *Gojo Satoru:* Target Locked sa FB Name: "${foundName}"! 🎯🤞`, messageID);
+          return sendAbsoluteSilentMsg(api, threadID, `🕶️ *Gojo Satoru:* Target Locked sa FB Name: "${foundName}"! 🎯🤞`, messageID);
         });
         return;
       }
@@ -384,24 +393,24 @@ module.exports.run = async function ({ api, event, args }) {
       currentThread.targetUser = null;
       currentThread.targetName = null;
       saveData(data);
-      return sendSilentMsg(api, threadID, "🕶️ *Gojo Satoru:* Target cleared. Malaya na ulit ang lahat. ❌🌌", messageID);
+      return sendAbsoluteSilentMsg(api, threadID, "🕶️ *Gojo Satoru:* Target cleared. Malaya na ulit ang lahat. ❌🌌", messageID);
     }
 
     if (sub === "off") {
       currentThread.expires = 0;
       saveData(data);
-      return sendSilentMsg(api, threadID, "🕶️ *Gojo Satoru:* Domain Expansion closed. 🚫🌌", messageID);
+      return sendAbsoluteSilentMsg(api, threadID, "🕶️ *Gojo Satoru:* Domain Expansion closed. 🚫🌌", messageID);
     }
 
     if (sub === "status") {
       const left = getRemaining(threadID);
-      if (left <= 0) return sendSilentMsg(api, threadID, "🕶️ *Gojo Satoru:* Bot is OFF. 🚫", messageID);
+      if (left <= 0) return sendAbsoluteSilentMsg(api, threadID, "🕶️ *Gojo Satoru:* Bot is OFF. 🚫", messageID);
       const hours = Math.floor(left / (1000 * 60 * 60));
       const mins = Math.floor((left % (1000 * 60 * 60)) / (1000 * 60));
-      return sendSilentMsg(api, threadID, `🕶️ GOJO BOT STATUS 📊:\n• Time left: ${hours}h ${mins}m ⏳\n• Status: Active ⚡`, messageID);
+      return sendAbsoluteSilentMsg(api, threadID, `🕶️ GOJO BOT STATUS 📊:\n• Time left: ${hours}h ${mins}m ⏳\n• Status: Active ⚡`, messageID);
     }
 
-    return sendSilentMsg(
+    return sendAbsoluteSilentMsg(
       api, threadID,
       `🕶️ Gojo Satoru Commands 🌌:\n` +
       `⚡ /gojo on — Start 24h Gojo Mode & Theme 💙\n` +
