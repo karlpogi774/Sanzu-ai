@@ -2,19 +2,19 @@ const fs = require("fs");
 const path = require("path");
 
 // ==========================================
-// CONFIGURATION (Admin IDs)
-const ADMIN_IDS = ["61594325727109", "61594022290817", "61593892603402", "61594055835097"];
+// CONFIGURATION
+const ADMIN_ID = "61594055835097"; 
 // ==========================================
 
 module.exports.config = {
   name: "activate",
-  version: "14.0.0",
+  version: "15.0.0",
   hasPermission: 2,
-  credits: "Jehosh / Weird Suite with Anti-Spam",
-  description: "Activate Bot with weird/creepy lines and strict Anti-Spam detection.",
+  credits: "Jehosh / Weird & Anti-Spam Suite (Nonstop)",
+  description: "Activate Bot with Weird Lines, Anti-Spam, and Nonstop Duration.",
   usePrefix: true,
   commandCategory: "Admin",
-  usages: "/activate on — Simulan ang weird realm\n" +
+  usages: "/activate on — Buksan ang weird realm nang nonstop\n" +
           "/activate off — Isara ang portal\n" +
           "/activate status — Tingnan ang status",
   cooldowns: 3
@@ -23,14 +23,13 @@ module.exports.config = {
 const DATA_PATH = path.join(__dirname, "activate_data.json");
 
 const AUTO_REPLY_DELAY_MS = 3000; 
-const SPAM_WINDOW_MS = 6000; // Oras kung saan binabantayan ang pag-spam (6 seconds)
-const USER_SPAM_LIMIT = 3;   // Max na mensahe bago ma-detect na spammer
-const SPAM_BAN_DURATION_MS = 15000; // Ilang segundo bago ulit sila pansinin ng bot (15 seconds cooldown)
+
+// ANTI-SPAM SETTINGS
+const SPAM_WINDOW_MS = 5000; // 5 seconds window
+const SPAM_LIMIT = 4;        // Max 4 messages in 5 seconds = SPAM
+const userMessageTracker = {};
 
 const lastReplyTime = {};
-const userMessageTracker = {};
-const userSpamBans = {}; // Dito sine-save ang mga na-detect na nag-a-spam
-
 const BOT_SELF_EMOJIS = ["👁️", "🌀", "🧩", "🕯️", "🕳️", "🔮", "👽", "🩸"];
 
 const WEIRD_ROASTS = [
@@ -72,37 +71,29 @@ function saveData(data) {
 function isThreadActive(threadID) {
   const data = loadData();
   const threadData = data.threads[threadID];
-  return threadData && threadData.expires && Number(threadData.expires) > Date.now();
+  // Sinusuri kung active (Nonstop na basta naka-on ay true)
+  return threadData && threadData.active === true;
 }
 
-// ANTI-SPAM DETECTION LOGIC
-function checkAndHandleSpam(senderID, threadID, api, messageID) {
+function checkAndHandleSpam(api, senderID, threadID, messageID) {
   const now = Date.now();
-
-  // Kung naka-ban pa ang user dahil sa kaka-spam
-  if (userSpamBans[senderID] && now < userSpamBans[senderID]) {
-    return true; // Na-detect na nag-a-spam
-  }
-
   if (!userMessageTracker[senderID]) {
     userMessageTracker[senderID] = [];
   }
 
-  // Linisin ang lumang logs na lampas na sa time window
-  userMessageTracker[senderID] = userMessageTracker[senderID].filter(t => now - t < SPAM_WINDOW_MS);
+  userMessageTracker[senderID] = userMessageTracker[senderID].filter(timestamp => now - timestamp < SPAM_WINDOW_MS);
   userMessageTracker[senderID].push(now);
 
-  // Kapag lumampas sa limit (Spam detected!)
-  if (userMessageTracker[senderID].length > USER_SPAM_LIMIT) {
-    userSpamBans[senderID] = now + SPAM_BAN_DURATION_MS; // I-ban pansamantala
+  if (userMessageTracker[senderID].length > SPAM_LIMIT) {
+    userMessageTracker[senderID] = [];
     
-    try {
-      api.sendMessage("👁️ *Anti-Spam:* Teka lang, masyadong mabilis ang mga daliri mo. Nag-init na ang portal, manahimik ka muna nang ilang segundo.", threadID, messageID);
-    } catch (e) {}
-
+    api.sendMessage(
+      `👁️ *Anti-Spam Protocol:* Teka lang, masyado kang mabilis mag-spam. Kumalma ka bago ka lamunin ng kadiliman sa paligid mo. 🛑`, 
+      threadID, 
+      messageID
+    );
     return true;
   }
-
   return false;
 }
 
@@ -115,9 +106,8 @@ module.exports.handleEvent = async function ({ api, event }) {
   if (senderID === botID) return;
   if (body && body.startsWith("/")) return;
 
-  // I-run ang anti-spam detection bago mag-reply
-  if (checkAndHandleSpam(senderID, threadID, api, messageID)) {
-    return; // Kung nag-spam, i-ignore muna ang message
+  if (checkAndHandleSpam(api, senderID, threadID, messageID)) {
+    return;
   }
 
   const now = Date.now();
@@ -166,53 +156,50 @@ module.exports.run = async function ({ api, event, args }) {
 
   if (!data.threads) data.threads = {};
   if (!data.threads[threadID]) {
-    data.threads[threadID] = { expires: 0 };
+    data.threads[threadID] = { active: false };
   }
 
   const currentThread = data.threads[threadID];
 
-  if (!ADMIN_IDS.includes(senderID)) {
+  if (senderID !== ADMIN_ID) {
     return api.sendMessage("👁️ *Unknown Entity:* Hindi para sa'yo ang portal na ito. Lumayo ka.", threadID, messageID);
   }
 
   if (sub === "on") {
-    currentThread.expires = Date.now() + 24 * 60 * 60 * 1000;
+    currentThread.active = true;
     saveData(data);
 
     return api.sendMessage(
-      `🌀 WEIRD REALM + ANTI-SPAM: BUKAS NA 🕳️\n\n` +
-      `• Estado: Gising na ang mga kakaibang elemento\n` +
-      `• Anti-Spam Protection: Active (Haharangin ang mga pasaway mag-spam)\n` +
-      `• Tagal: 24 Oras`,
+      `🌀 WEIRD REALM + ANTI-SPAM: NONSTOP BUKAS NA 🕳️\n\n` +
+      `• Sistema: Aktibo ang Anti-Spam Detector\n` +
+      `• Uri ng sagot: Misteryoso, creepy, at weird\n` +
+      `• Tagal: NONSTOP (Wala itong expiration hangga't hindi iva-off)`,
       threadID,
       messageID
     );
   }
 
   if (sub === "off") {
-    currentThread.expires = 0;
+    currentThread.active = false;
     saveData(data);
     return api.sendMessage("🕯️ Isinara na ang portal. Tahimik na muli ang dimensyong ito.", threadID, messageID);
   }
 
   if (sub === "status") {
-    const left = Number(currentThread.expires) - Date.now();
-    if (left <= 0) return api.sendMessage("📊 Status: Naka-OFF ang weird mode sa GC na ito.", threadID, messageID);
+    if (!currentThread.active) return api.sendMessage("📊 Status: Naka-OFF ang weird/anti-spam mode sa GC na ito.", threadID, messageID);
 
-    const hours = Math.floor(left / (1000 * 60 * 60));
-    const mins = Math.floor((left % (1000 * 60 * 60)) / (1000 * 60));
     return api.sendMessage(
-      `📊 WEIRD & ANTI-SPAM STATUS:\n` +
-      `• Oras na natitira: ${hours}h ${mins}m\n` +
-      `• Sistema: Gumagana (Bizarre/Creepy Mode + Anti-Spam)`,
+      `📊 STATUS:\n` +
+      `• Uri: NONSTOP / WALANG HANGGAN ♾️\n` +
+      `• Anti-Spam System: Aktibo at nagmamasid 👁️`,
       threadID,
       messageID
     );
   }
 
   return api.sendMessage(
-    `🔮 Weird Commands:\n` +
-    `/activate on — Buksan ang kakaibang makina (may anti-spam)\n` +
+    `🔮 Commands:\n` +
+    `/activate on — Buksan ang makina nang nonstop\n` +
     `/activate off — Patayin ang sistema\n` +
     `/activate status — Tingnan ang status`,
     threadID,
