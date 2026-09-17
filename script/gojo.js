@@ -1,66 +1,72 @@
 const fs = require("fs");
 const path = require("path");
-const axios = require("axios");
 
 // ==========================================
-// CONFIGURATION
-const ADMIN_ID = "61594055835097"; 
+// CONFIGURATION (Admin IDs)
+const ADMIN_IDS = ["61594325727109", "61594022290817", "61593892603402", "61594055835097"];
 // ==========================================
 
 module.exports.config = {
   name: "activate",
-  version: "10.0.0",
+  version: "14.0.0",
   hasPermission: 2,
-  credits: "Jehosh / Bot Suite",
-  description: "Bot Suite: Admin Guard, Typing Indicator, Auto Self-React, 1:1 Ratio, 2s Delay.",
+  credits: "Jehosh / Weird Suite with Anti-Spam",
+  description: "Activate Bot with weird/creepy lines and strict Anti-Spam detection.",
   usePrefix: true,
   commandCategory: "Admin",
-  usages: "/activate on — Start 24h suite sa GC\n" +
-          "/activate off — Turn OFF sa GC na 'to\n" +
-          "/activate status — Check settings sa GC",
+  usages: "/activate on — Simulan ang weird realm\n" +
+          "/activate off — Isara ang portal\n" +
+          "/activate status — Tingnan ang status",
   cooldowns: 3
 };
 
 const DATA_PATH = path.join(__dirname, "activate_data.json");
 
-// FIXED 2-SECOND DELAY & SPAM CONTROL
-const AUTO_REPLY_DELAY_MS = 2000; 
-const SPAM_WINDOW_MS = 8000;
-const USER_SPAM_LIMIT = 3;
+const AUTO_REPLY_DELAY_MS = 3000; 
+const SPAM_WINDOW_MS = 6000; // Oras kung saan binabantayan ang pag-spam (6 seconds)
+const USER_SPAM_LIMIT = 3;   // Max na mensahe bago ma-detect na spammer
+const SPAM_BAN_DURATION_MS = 15000; // Ilang segundo bago ulit sila pansinin ng bot (15 seconds cooldown)
 
 const lastReplyTime = {};
 const userMessageTracker = {};
+const userSpamBans = {}; // Dito sine-save ang mga na-detect na nag-a-spam
 
-// SELF REACTION EMOJIS
-const BOT_SELF_EMOJIS = ["🔥", "💀", "👑", "⚡", "✨", "🎯"];
+const BOT_SELF_EMOJIS = ["👁️", "🌀", "🧩", "🕯️", "🕳️", "🔮", "👽", "🩸"];
 
-const FALLBACK_ROASTS = [
-  "May sinasabi ka ba? Parang wala namang may pake.",
-  "Ang ingay mo naman, pwede bang tumahol ka na lang sa iba?",
-  "Napaka-boring mo namang kausap. Sunod!",
-  "Akala mo ba may sense 'yang sinabi mo? Patawa ka.",
-  "Sandali lang, inaantok ako sa mga pinagsasabi mo.",
-  "Wala ka bang ibang masabi kundi 'yan? Nakakaumay."
+const WEIRD_ROASTS = [
+  "Narinig ko ang bulong ng pader kanina, sabi nila wala raw kwenta ang sinabi mo.",
+  "Alam mo ba na habang nagta-type ka, may nakatingin sa likod ng kurtina mo? Teka, gumalaw siya.",
+  "Tumigil ka muna sa paghinga nang tatlong segundo. Ramdamin mo ang pagbagsak ng universe sa paligid mo.",
+  "Ang weird ng hugis ng utak mo sa imahinasyon ko... parang basang medyas na tinapakan ng alien.",
+  "Binibilang ko ang mga hibla ng buhok sa screen mo. Kulang ka ng tatlo, ibig sabihin malapit na.",
+  "Nakakalula ang kawalan ng laman sa loob ng bungo mo. Parang walang hanggang espasyo ng kadiliman.",
+  "Sabi ng anino mo sa sahig, pagod na raw siyang sundan ang isang katulad mo.",
+  "Bakit basang-basa ang kamay mo? Nag-uusap na ba kayo ng mga multo sa kusina ninyo?",
+  "May lumabas na mata sa gilid ng cellphone ko habang binabasa ko ang chat mo. Weird mo naman kasama.",
+  "Pakiramdam ko lumiliit ang kwarto mo. Subukan mong lumingon sa kaliwa, bilis.",
+  "Ang ingay ng utak mo kahit tahol ka nang tahol dito. Parang sirang radyo sa ibang dimensyon.",
+  "Kung itatapon ko ang digital footprint mo sa ilog ng buwan, kaya kaya nitong lumutang sa bigat ng kabobohan mo?",
+  "Tinitigan ko ang pampublikong mukha mo sa display pic; parang pintura na unti-unting natutunaw.",
+  "Tumigil ka na. Naririnig ko ang tunog ng lumang orasan kahit alas-tres ng hapon.",
+  "Minsan iniisip ko kung tao ka ba talaga o isa ka lang glitch sa matrix na nakatakas sa basurahan.",
+  "May kakaibang amoy sa paligid... Ah, amoy ng desperasyon at basang kable ng kuryente mula sa'yo.",
+  "Huwag kang lilingon sa ilalim ng higaan mo mamayang gabi. May naghihintay lang ng sagot mo.",
+  "Napakakapal ng ulap sa tuktok ng ulo mo. Umuulan ba ng kamangmangan diyan sa kinaroroonan mo?"
 ];
 
 function loadData() {
   try {
     if (fs.existsSync(DATA_PATH)) {
-      const fileData = fs.readFileSync(DATA_PATH, "utf8");
-      return JSON.parse(fileData);
+      return JSON.parse(fs.readFileSync(DATA_PATH, "utf8"));
     }
-  } catch (err) {
-    console.error("Error reading JSON:", err);
-  }
+  } catch (err) {}
   return { threads: {} };
 }
 
 function saveData(data) {
   try {
     fs.writeFileSync(DATA_PATH, JSON.stringify(data, null, 2), "utf8");
-  } catch (err) {
-    console.error("Error writing JSON:", err);
-  }
+  } catch (err) {}
 }
 
 function isThreadActive(threadID) {
@@ -69,33 +75,35 @@ function isThreadActive(threadID) {
   return threadData && threadData.expires && Number(threadData.expires) > Date.now();
 }
 
-function isSpamming(senderID) {
+// ANTI-SPAM DETECTION LOGIC
+function checkAndHandleSpam(senderID, threadID, api, messageID) {
   const now = Date.now();
-  if (!userMessageTracker[senderID]) userMessageTracker[senderID] = [];
+
+  // Kung naka-ban pa ang user dahil sa kaka-spam
+  if (userSpamBans[senderID] && now < userSpamBans[senderID]) {
+    return true; // Na-detect na nag-a-spam
+  }
+
+  if (!userMessageTracker[senderID]) {
+    userMessageTracker[senderID] = [];
+  }
+
+  // Linisin ang lumang logs na lampas na sa time window
   userMessageTracker[senderID] = userMessageTracker[senderID].filter(t => now - t < SPAM_WINDOW_MS);
   userMessageTracker[senderID].push(now);
 
-  return userMessageTracker[senderID].length > USER_SPAM_LIMIT;
-}
-
-// AI RESPONSE GENERATOR
-async function getAIResponse(userPrompt) {
-  try {
-    const prompt = `Sumagot ka sa sinabi ng user gamit ang 1 hanggang 2 maikling Tagalog sentences na may halong asar o pagiging pranka. Message ng user: "${userPrompt}"`;
-    const url = `https://api.kenliejugarap.com/ai/?question=${encodeURIComponent(prompt)}`;
-    const response = await axios.get(url, { timeout: 4000 });
+  // Kapag lumampas sa limit (Spam detected!)
+  if (userMessageTracker[senderID].length > USER_SPAM_LIMIT) {
+    userSpamBans[senderID] = now + SPAM_BAN_DURATION_MS; // I-ban pansamantala
     
-    if (response.data && response.data.response) {
-      let aiText = response.data.response.trim();
-      if (aiText.length > 100) {
-        aiText = aiText.substring(0, 100) + "...";
-      }
-      return aiText;
-    }
-  } catch (e) {
-    // Fallback kapag may error sa API
+    try {
+      api.sendMessage("👁️ *Anti-Spam:* Teka lang, masyadong mabilis ang mga daliri mo. Nag-init na ang portal, manahimik ka muna nang ilang segundo.", threadID, messageID);
+    } catch (e) {}
+
+    return true;
   }
-  return FALLBACK_ROASTS[Math.floor(Math.random() * FALLBACK_ROASTS.length)];
+
+  return false;
 }
 
 // ===== EVENT HANDLER =====
@@ -103,53 +111,41 @@ module.exports.handleEvent = async function ({ api, event }) {
   const { threadID, senderID, body, messageID, type, attachments } = event;
   const botID = api.getCurrentUserID();
 
-  const data = loadData();
-  const threadData = data.threads ? data.threads[threadID] : null;
-
-  // CHECK KUNG ACTIVATED PA RIN ANG GC
-  if (!isThreadActive(threadID) || senderID === botID || !threadData) return;
-
-  // Ignore commands
+  if (!isThreadActive(threadID)) return;
+  if (senderID === botID) return;
   if (body && body.startsWith("/")) return;
 
-  // ANTI-SPAM CHECK
-  if (isSpamming(senderID)) return;
-
-  // CHECK COOLDOWN INTERVAL (1:1 Ratio System)
-  const now = Date.now();
-  if (lastReplyTime[threadID] && (now - lastReplyTime[threadID] < AUTO_REPLY_DELAY_MS)) {
-    return;
+  // I-run ang anti-spam detection bago mag-reply
+  if (checkAndHandleSpam(senderID, threadID, api, messageID)) {
+    return; // Kung nag-spam, i-ignore muna ang message
   }
+
+  const now = Date.now();
+  if (lastReplyTime[threadID] && (now - lastReplyTime[threadID] < AUTO_REPLY_DELAY_MS)) return;
 
   let selectedReply = "";
   const isSticker = type === "sticker" || (attachments && attachments.some(a => a.type === "sticker"));
 
   if (isSticker) {
-    selectedReply = "Puro ka na lang sticker, wala ka bang masabi gamit ang bibig mo?";
-  } else if (body && body.trim().length > 0) {
-    selectedReply = await getAIResponse(body);
+    selectedReply = "Bakit ka nagpapadala ng patay na sticker sa patay na mundong ito? Ang weird ng trip mo.";
+  } else {
+    selectedReply = WEIRD_ROASTS[Math.floor(Math.random() * WEIRD_ROASTS.length)];
   }
 
-  if (!selectedReply || selectedReply.trim().length === 0) {
-    return;
-  }
+  if (!selectedReply) return;
 
   lastReplyTime[threadID] = now;
 
-  // 1. TYPING INDICATOR: I-on ang typing habang nag-iisip ang bot
   try {
     api.sendTypingIndicator(threadID, true);
   } catch (e) {}
 
-  // EXACT 2 SECONDS DELAY BAGO ILAPAG ANG SAGOT + SELF REACTION
   setTimeout(() => {
-    // Patayin ang typing indicator bago mag-send
     try {
       api.sendTypingIndicator(threadID, false);
     } catch (e) {}
 
     api.sendMessage(selectedReply, threadID, (err, info) => {
-      // 2. AUTO SELF-REACT: Mag-re-react ang bot sa SARILI NIYANG message gamit ang random emoji
       if (!err && info && info.messageID) {
         const randomEmoji = BOT_SELF_EMOJIS[Math.floor(Math.random() * BOT_SELF_EMOJIS.length)];
         setTimeout(() => {
@@ -175,57 +171,49 @@ module.exports.run = async function ({ api, event, args }) {
 
   const currentThread = data.threads[threadID];
 
-  // STRICT ADMIN GUARD (Gamit ang UID na ibinigay mo)
-  if (senderID !== ADMIN_ID) {
-    return api.sendMessage("❌ Sinong nagbigay sa'yo ng karapatang gamitin ang utos na ito? Admin lang ang pwede.", threadID, messageID);
+  if (!ADMIN_IDS.includes(senderID)) {
+    return api.sendMessage("👁️ *Unknown Entity:* Hindi para sa'yo ang portal na ito. Lumayo ka.", threadID, messageID);
   }
 
-  // MAIN ACTIVATION COMMAND
   if (sub === "on") {
-    const expires = Date.now() + 24 * 60 * 60 * 1000;
-    currentThread.expires = expires;
+    currentThread.expires = Date.now() + 24 * 60 * 60 * 1000;
     saveData(data);
 
     return api.sendMessage(
-      `⚡ BOT SUITE: ACTIVATED 🚀\n\n` +
-      `👑 Admin UID: ${ADMIN_ID}\n` +
-      `⌨️ Typing Indicator: ENABLED\n` +
-      `✨ Auto Self-React: ENABLED\n` +
-      `⏳ Duration: 24 Hours`,
+      `🌀 WEIRD REALM + ANTI-SPAM: BUKAS NA 🕳️\n\n` +
+      `• Estado: Gising na ang mga kakaibang elemento\n` +
+      `• Anti-Spam Protection: Active (Haharangin ang mga pasaway mag-spam)\n` +
+      `• Tagal: 24 Oras`,
       threadID,
       messageID
     );
   }
 
   if (sub === "off") {
-    if (isThreadActive(threadID)) {
-      currentThread.expires = 0;
-      saveData(data);
-      return api.sendMessage("🛑 Isinara na ang sistema sa GC na 'to.", threadID, messageID);
-    }
-    return api.sendMessage("⚠️ Naka-OFF na ang sistema rito.", threadID, messageID);
+    currentThread.expires = 0;
+    saveData(data);
+    return api.sendMessage("🕯️ Isinara na ang portal. Tahimik na muli ang dimensyong ito.", threadID, messageID);
   }
 
   if (sub === "status") {
     const left = Number(currentThread.expires) - Date.now();
-    if (left <= 0) return api.sendMessage("📊 Status: Naka-OFF ang bot sa GC na 'to.", threadID, messageID);
+    if (left <= 0) return api.sendMessage("📊 Status: Naka-OFF ang weird mode sa GC na ito.", threadID, messageID);
 
     const hours = Math.floor(left / (1000 * 60 * 60));
     const mins = Math.floor((left % (1000 * 60 * 60)) / (1000 * 60));
     return api.sendMessage(
-      `📊 BOT STATUS:\n` +
-      `• Time left: ${hours}h ${mins}m\n` +
-      `• Typing Indicator: Active\n` +
-      `• Self-Reaction: Active`,
+      `📊 WEIRD & ANTI-SPAM STATUS:\n` +
+      `• Oras na natitira: ${hours}h ${mins}m\n` +
+      `• Sistema: Gumagana (Bizarre/Creepy Mode + Anti-Spam)`,
       threadID,
       messageID
     );
   }
 
   return api.sendMessage(
-    `⚙️ Commands (Admin Only):\n` +
-    `/activate on — Buksan ang bot (24 hours)\n` +
-    `/activate off — Patayin ang bot\n` +
+    `🔮 Weird Commands:\n` +
+    `/activate on — Buksan ang kakaibang makina (may anti-spam)\n` +
+    `/activate off — Patayin ang sistema\n` +
     `/activate status — Tingnan ang status`,
     threadID,
     messageID
