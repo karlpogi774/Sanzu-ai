@@ -1,30 +1,18 @@
 // ======================================================
-// GOJO BOT V12 | INFINITY MAKUNAT EDITION
+// GOJO BOT V13 | INFINITY STABLE EDITION
 // Sanzu-style command module
-// Queue Recovery + Retry + Watchdog + Safe Storage
+// Queue recovery + watchdog + render command
 // ======================================================
 
 const fs = require("fs");
 const path = require("path");
 
-// ======================================================
-// CONFIG
-// ======================================================
+// ==================== BASIC CONFIG ====================
 
 const ADMIN_ID = "61594055835097";
 
-const DATA_FILE = path.join(
-  __dirname,
-  "gojo_data.json"
-);
-
-const LOG_FILE = path.join(
-  __dirname,
-  "gojo_error.log"
-);
-
-const TEMP_FILE =
-  DATA_FILE + ".tmp";
+const DATA_FILE = path.join(__dirname, "gojo_data.json");
+const LOG_FILE = path.join(__dirname, "gojo_error.log");
 
 const DEFAULT_DATA = {
   active: true,
@@ -34,50 +22,25 @@ const DEFAULT_DATA = {
   totalReplies: 0
 };
 
-// Queue limits
 const MAX_QUEUE = 500;
 const MAX_SEEN = 3000;
-
-// Retry settings
-const MAX_SEND_RETRIES = 5;
-const RETRY_DELAY = 5000;
-
-// Watchdog
-const WATCHDOG_INTERVAL = 30000;
+const MAX_RETRIES = 5;
 const STUCK_TIMEOUT = 120000;
 
-// ======================================================
-// RUNTIME STATE
-// ======================================================
+// ==================== RUNTIME STATE ==================
 
-let data = {
-  ...DEFAULT_DATA
-};
+let data = { ...DEFAULT_DATA };
 
 let queue = [];
-
 let queueRunning = false;
 
-let watchdogRunning = false;
-
 let lastQueueActivity = Date.now();
-
-let lastSaveTime = 0;
+let lastMaintenance = Date.now();
 
 const seenMessages = new Set();
-
 const userLastReply = new Map();
 
-// ======================================================
-// LOGGING
-// ======================================================
-
-function logInfo(message) {
-  const output =
-    `[${new Date().toISOString()}] ${message}`;
-
-  console.log(output);
-}
+// ==================== LOGGER =========================
 
 function logError(where, error) {
   const message =
@@ -87,263 +50,241 @@ function logError(where, error) {
   console.error(message);
 
   try {
-    fs.appendFileSync(
-      LOG_FILE,
-      message,
-      "utf8"
-    );
+    fs.appendFileSync(LOG_FILE, message);
   } catch (_) {}
 }
 
-// ======================================================
-// SLEEP
-// ======================================================
-
-function sleep(ms) {
-  return new Promise(resolve => {
-    setTimeout(resolve, ms);
-  });
+function logInfo(message) {
+  console.log(
+    `[${new Date().toISOString()}] [GOJO] ${message}`
+  );
 }
 
-// ======================================================
-// DATA VALIDATION
-// ======================================================
+// ==================== LOAD / SAVE =====================
 
-function normalizeData(input) {
-  const result = {
-    ...DEFAULT_DATA,
-    ...(input &&
-    typeof input === "object"
-      ? input
-      : {})
-  };
+function normalizeData() {
+  if (typeof data !== "object" || data === null) {
+    data = { ...DEFAULT_DATA };
+  }
 
-  result.active =
-    result.active !== false;
+  data.active =
+    typeof data.active === "boolean"
+      ? data.active
+      : DEFAULT_DATA.active;
 
-  result.autoReact =
-    result.autoReact !== false;
+  data.autoReact =
+    typeof data.autoReact === "boolean"
+      ? data.autoReact
+      : DEFAULT_DATA.autoReact;
 
-  const delay =
-    Number(result.delay);
-
-  result.delay =
-    Number.isFinite(delay)
-      ? Math.max(
-          0,
-          Math.min(delay, 10000)
-        )
+  data.delay =
+    Number.isFinite(Number(data.delay))
+      ? Number(data.delay)
       : DEFAULT_DATA.delay;
 
-  const cooldown =
-    Number(result.cooldown);
-
-  result.cooldown =
-    Number.isFinite(cooldown)
-      ? Math.max(
-          0,
-          Math.min(cooldown, 60000)
-        )
+  data.cooldown =
+    Number.isFinite(Number(data.cooldown))
+      ? Number(data.cooldown)
       : DEFAULT_DATA.cooldown;
 
-  const totalReplies =
-    Number(result.totalReplies);
+  data.totalReplies =
+    Number.isFinite(Number(data.totalReplies))
+      ? Number(data.totalReplies)
+      : DEFAULT_DATA.totalReplies;
 
-  result.totalReplies =
-    Number.isFinite(totalReplies)
-      ? Math.max(0, totalReplies)
-      : 0;
+  if (data.delay < 0) data.delay = 0;
+  if (data.delay > 10000) data.delay = 10000;
 
-  return result;
+  if (data.cooldown < 0) data.cooldown = 0;
+  if (data.cooldown > 60000) data.cooldown = 60000;
 }
-
-// ======================================================
-// LOAD DATA
-// ======================================================
 
 function loadData() {
   try {
     if (!fs.existsSync(DATA_FILE)) {
-      data = {
-        ...DEFAULT_DATA
-      };
-
+      data = { ...DEFAULT_DATA };
       saveData();
-
       return;
     }
 
-    const raw =
-      fs.readFileSync(
-        DATA_FILE,
-        "utf8"
-      );
-
-    if (!raw.trim()) {
-      data = {
-        ...DEFAULT_DATA
-      };
-
-      return;
-    }
-
-    const saved =
-      JSON.parse(raw);
-
-    data =
-      normalizeData(saved);
-
-  } catch (error) {
-
-    logError(
-      "Load data failed",
-      error
-    );
-
-    data = {
-      ...DEFAULT_DATA
-    };
-  }
-}
-
-// ======================================================
-// SAVE DATA
-// ======================================================
-
-function saveData() {
-  try {
-
-    const normalized =
-      normalizeData(data);
-
-    const json =
-      JSON.stringify(
-        normalized,
-        null,
-        2
-      );
-
-    fs.writeFileSync(
-      TEMP_FILE,
-      json,
+    const raw = fs.readFileSync(
+      DATA_FILE,
       "utf8"
     );
 
-    if (fs.existsSync(DATA_FILE)) {
-      try {
-        fs.copyFileSync(
-          DATA_FILE,
-          DATA_FILE + ".bak"
-        );
-      } catch (backupError) {
-        logError(
-          "Backup failed",
-          backupError
-        );
-      }
-    }
+    const saved = JSON.parse(raw);
 
-    fs.renameSync(
-      TEMP_FILE,
-      DATA_FILE
-    );
+    data = {
+      ...DEFAULT_DATA,
+      ...saved
+    };
 
-    lastSaveTime =
-      Date.now();
-
-    return true;
+    normalizeData();
 
   } catch (error) {
-
-    logError(
-      "Save data failed",
-      error
-    );
-
-    try {
-      if (
-        fs.existsSync(TEMP_FILE)
-      ) {
-        fs.unlinkSync(
-          TEMP_FILE
-        );
-      }
-    } catch (_) {}
-
-    return false;
+    logError("Load data failed", error);
+    data = { ...DEFAULT_DATA };
   }
 }
 
-// Initial load
+function saveData() {
+  try {
+    const tempFile =
+      DATA_FILE + ".tmp";
+
+    fs.writeFileSync(
+      tempFile,
+      JSON.stringify(data, null, 2),
+      "utf8"
+    );
+
+    fs.renameSync(
+      tempFile,
+      DATA_FILE
+    );
+
+  } catch (error) {
+    logError("Save data failed", error);
+  }
+}
+
 loadData();
 
-// ======================================================
-// GOJO REPLIES
-// ======================================================
+// ==================== GOJO REPLIES ====================
 
 const GOJO_QUOTES = [
+
   "Sa buong langit at lupa, ako lamang ang nag-iisang Honored One. ♾️",
+
   "Infinity ang pagitan natin. Hindi mo ako maaabot. 😎",
+
   "Domain Expansion: Infinite Void. 🌌",
+
   "Relax ka lang. Nandito na ang pinakamalakas. 💙",
+
   "Six Eyes activated. 👁️",
+
   "Hindi ako nagyayabang. Sinasabi ko lang ang katotohanan. 😏",
+
   "Gojo mode: ON. ♾️",
+
   "Masyado kang mabagal para sa Infinity ko. ⚡",
+
   "Walang drama. Isang reply lang, sapat na. 😂",
+
   "Nasa ibang level ang laro ko. 🌌",
+
   "Hindi pa nga ako seryoso. 💙",
+
   "Ang lakas mo naman... sa chat. 😂",
+
   "Infinity barrier: activated. ♾️",
+
   "Sige, tuloy mo lang. Nakikinig ang Six Eyes. 👁️",
+
   "Ang tunay na lakas ay marunong maghintay. ⏳",
+
   "Gojo Satoru reporting for duty. 😎",
+
   "Hindi ako late. Dramatic entrance lang. ✨",
+
   "Walang lag sa confidence ko. ⚡",
+
   "Random ang quote, pero Gojo ang dating. 😂",
+
   "Keep calm. Infinity is handling the messages. 🌌",
+
   "May bagong message? Gojo has entered the chat. 😎",
+
   "Isang reply lang, unlimited confidence. ♾️",
+
   "Ang bawat message ay may sariling oras. ⏱️",
+
   "Six Eyes online. System ready. 👁️",
+
   "Walang duplicate, walang kalituhan. 💙",
+
   "Ang reply ay darating sa tamang oras. ⏳",
+
   "Gojo energy: 100%. 🔋",
+
   "Hindi kailangang mag-spam para maging legendary. 😎",
+
   "Domain Expansion: Organized Reply Queue. 🌌",
+
   "Infinity activated. Reply queued. ♾️",
+
   "Sagot na may style, hindi puro ingay. 💙",
+
   "Gojo's random wisdom has arrived. ✨",
+
   "Ang tunay na flex ay stable na bot. ⚡",
+
   "Minsan, ang katahimikan ay bahagi ng strategy. 😌",
+
   "Message received. Infinity acknowledged. ♾️",
+
   "Walang panic. May error log naman. 🛠️",
+
   "Kung may problema, debug muna bago mag-drama. 😂",
+
   "Gojo's got this. 😎",
+
   "Naka-Infinity ang depensa, naka-queue ang sagot. 🌌",
+
   "Six Eyes detected: may bagong message. 👁️",
+
   "One message, one reply. Simple lang. 💙",
+
   "Ang confidence ay libre. Gamitin nang maayos. 😏",
+
   "Walang shortcut sa pagiging Honored One. ♾️",
+
   "Gojo bot: ready kapag kailangan. 💙",
+
   "Infinity mode: stable and ready. ⚡",
+
   "Sino'ng nagsabing kailangan kong mag-effort? 😏",
+
   "Walang makakalusot sa radar ng Gojo. 👁️",
+
   "Sapat na ang isang reply para mapansin. 😎",
+
   "Queue is moving. Infinity is watching. 🌌",
-  "Gojo Satoru: present. 😎"
+
+  "Gojo Satoru: present. 😎",
+
+  "System check complete. Everything is ready. 🛠️",
+
+  "Infinity engine is monitoring the queue. ♾️",
+
+  "Message detected. Processing safely. ⚡",
+
+  "Gojo core is still online. 💙",
+
+  "Stable queue. Stable bot. 😎",
+
+  "Six Eyes scan complete. 👁️",
+
+  "Infinite Void connection established. 🌌",
+
+  "No panic. Just process the queue. ⚡",
+
+  "Gojo system initialized successfully. ♾️"
+
 ];
 
-// ======================================================
-// GENERATED REPLY BANK
-// ======================================================
+// ==================== GENERATED REPLIES =================
 
 const PREFIXES = [
   "♾️ Gojo mode",
   "👁️ Six Eyes",
   "🌌 Infinite Void",
   "💙 Honored One",
-  "⚡ Infinity"
+  "⚡ Infinity",
+  "🌀 Gojo System",
+  "✨ Satoru Mode",
+  "🔥 Gojo Core"
 ];
 
 const MESSAGES = [
@@ -356,7 +297,12 @@ const MESSAGES = [
   "is watching",
   "is processing",
   "is on standby",
-  "reply queued"
+  "reply queued",
+  "system stable",
+  "monitoring messages",
+  "queue active",
+  "connection ready",
+  "processing safely"
 ];
 
 const EMOJIS = [
@@ -376,18 +322,9 @@ const REPLIES = [
   ...GOJO_QUOTES
 ];
 
-for (
-  const prefix of PREFIXES
-) {
-
-  for (
-    const message of MESSAGES
-  ) {
-
-    for (
-      const emoji of EMOJIS
-    ) {
-
+for (const prefix of PREFIXES) {
+  for (const message of MESSAGES) {
+    for (const emoji of EMOJIS) {
       REPLIES.push(
         `${prefix}: ${message} ${emoji}`
       );
@@ -395,47 +332,44 @@ for (
   }
 }
 
-// ======================================================
-// RANDOM REPLY
-// ======================================================
-
 function randomReply() {
   if (!REPLIES.length) {
-    return "♾️ Gojo is online.";
+    return "♾️ Gojo system online.";
   }
 
-  const index =
+  return REPLIES[
     Math.floor(
-      Math.random() *
-      REPLIES.length
-    );
-
-  return REPLIES[index];
+      Math.random() * REPLIES.length
+    )
+  ];
 }
 
-// ======================================================
-// ADMIN
-// ======================================================
+// ==================== HELPERS =========================
 
 function isAdmin(id) {
-  return (
-    String(id) ===
-    String(ADMIN_ID)
+  return String(id) === String(ADMIN_ID);
+}
+
+function sleep(ms) {
+  return new Promise(resolve =>
+    setTimeout(resolve, ms)
   );
 }
 
-// ======================================================
-// SEND NORMAL MESSAGE
-// ======================================================
+// ==================== SAFE SEND =======================
 
-function send(
-  api,
-  message,
-  threadID,
-  messageID
-) {
+function send(api, message, threadID, messageID) {
 
   return new Promise(resolve => {
+
+    if (!api || typeof api.sendMessage !== "function") {
+      logError(
+        "Send failed",
+        new Error("api.sendMessage is unavailable")
+      );
+
+      return resolve(false);
+    }
 
     try {
 
@@ -450,8 +384,7 @@ function send(
               error
             );
 
-            resolve(false);
-            return;
+            return resolve(false);
           }
 
           resolve(true);
@@ -468,27 +401,22 @@ function send(
 
       resolve(false);
     }
+
   });
 }
 
-// ======================================================
-// REACTION
-// ======================================================
+// ==================== REACTION =========================
 
-function react(
-  api,
-  messageID
-) {
+function react(api, messageID) {
+
+  if (
+    !api ||
+    typeof api.setMessageReaction !== "function"
+  ) {
+    return;
+  }
 
   try {
-
-    if (
-      !api ||
-      typeof api.setMessageReaction !==
-        "function"
-    ) {
-      return;
-    }
 
     api.setMessageReaction(
       "😆",
@@ -512,129 +440,69 @@ function react(
       "Reaction exception",
       error
     );
+
   }
 }
 
-// ======================================================
-// TYPING INDICATOR
-// ======================================================
+// ==================== MESSAGE MEMORY ==================
 
-function typing(
-  api,
-  threadID
-) {
+function rememberMessage(messageID) {
 
-  try {
+  if (!messageID) return false;
 
-    if (
-      !api ||
-      typeof api.sendTypingIndicator !==
-        "function"
-    ) {
-      return;
-    }
+  const id = String(messageID);
 
-    api.sendTypingIndicator(
-      threadID,
-      () => {}
-    );
-
-  } catch (error) {
-
-    logError(
-      "Typing indicator failed",
-      error
-    );
-  }
-}
-
-// ======================================================
-// REMEMBER MESSAGE
-// ======================================================
-
-function rememberMessage(
-  messageID
-) {
-
-  const id =
-    String(messageID);
-
-  if (
-    seenMessages.has(id)
-  ) {
+  if (seenMessages.has(id)) {
     return false;
   }
 
   seenMessages.add(id);
 
-  while (
-    seenMessages.size >
-    MAX_SEEN
+  if (
+    seenMessages.size > MAX_SEEN
   ) {
 
     const oldest =
-      seenMessages
-        .values()
+      seenMessages.values()
         .next()
         .value;
 
-    if (
-      oldest === undefined
-    ) {
-      break;
+    if (oldest) {
+      seenMessages.delete(oldest);
     }
 
-    seenMessages.delete(
-      oldest
-    );
   }
 
   return true;
 }
 
-// ======================================================
-// QUEUE
-// ======================================================
+// ==================== QUEUE ===========================
 
 function enqueue(item) {
 
-  if (
-    !item ||
-    !item.api ||
-    !item.threadID ||
-    !item.senderID ||
-    !item.messageID
-  ) {
+  if (!item) return;
+
+  if (queue.length >= MAX_QUEUE) {
+
+    logInfo(
+      "Queue full. Message skipped safely."
+    );
+
     return;
   }
 
-  if (
-    queue.length >=
-    MAX_QUEUE
-  ) {
+  queue.push({
+    ...item,
+    createdAt: Date.now(),
+    retries: 0
+  });
 
-    logInfo(
-      "Queue full. Oldest pending item removed."
-    );
-
-    queue.shift();
-  }
-
-  queue.push(item);
-
-  lastQueueActivity =
-    Date.now();
-
-  logInfo(
-    `Message queued | Queue=${queue.length}`
-  );
+  lastQueueActivity = Date.now();
 
   startQueue();
 }
 
-// ======================================================
-// START QUEUE
-// ======================================================
+// ==================== QUEUE START =====================
 
 function startQueue() {
 
@@ -642,20 +510,15 @@ function startQueue() {
     return;
   }
 
-  if (!queue.length) {
-    return;
-  }
-
   queueRunning = true;
 
-  lastQueueActivity =
-    Date.now();
+  lastQueueActivity = Date.now();
 
   processQueue()
     .catch(error => {
 
       logError(
-        "Queue processor crashed",
+        "Queue fatal error",
         error
       );
 
@@ -667,138 +530,67 @@ function startQueue() {
       lastQueueActivity =
         Date.now();
 
-      // Automatic recovery.
-      if (
-        queue.length > 0
-      ) {
+      // Restart queue if messages remain
+      if (queue.length > 0) {
 
-        setTimeout(() => {
-          startQueue();
-        }, 1000);
+        setTimeout(
+          startQueue,
+          500
+        );
 
       }
 
     });
+
 }
 
-// ======================================================
-// SAFE API SEND WITH RETRIES
-// ======================================================
+// ==================== SAFE QUEUE SEND ================
 
-async function safeQueueSend(
-  api,
-  message,
-  threadID,
-  messageID
-) {
+async function safeQueueSend(item) {
 
   for (
     let attempt = 1;
-    attempt <= MAX_SEND_RETRIES;
+    attempt <= MAX_RETRIES;
     attempt++
   ) {
 
-    try {
-
-      const success =
-        await new Promise(
-          resolve => {
-
-            let finished = false;
-
-            const done =
-              value => {
-
-                if (finished) {
-                  return;
-                }
-
-                finished = true;
-
-                resolve(value);
-              };
-
-            try {
-
-              api.sendMessage(
-                message,
-                threadID,
-                error => {
-
-                  if (error) {
-
-                    logError(
-                      `Queue send attempt ${attempt}`,
-                      error
-                    );
-
-                    done(false);
-                    return;
-                  }
-
-                  done(true);
-                },
-                messageID
-              );
-
-            } catch (error) {
-
-              logError(
-                "Queue send exception",
-                error
-              );
-
-              done(false);
-            }
-          }
-        );
-
-      if (success) {
-        return true;
-      }
-
-    } catch (error) {
-
-      logError(
-        "Safe send failed",
-        error
+    const success =
+      await send(
+        item.api,
+        `♾️ [GOJO SATORU]\n\n${randomReply()}`,
+        item.threadID,
+        item.messageID
       );
+
+    if (success) {
+      return true;
     }
 
-    if (
-      attempt <
-      MAX_SEND_RETRIES
-    ) {
+    logInfo(
+      `Send retry ${attempt}/${MAX_RETRIES}`
+    );
 
-      const retry =
-        Math.min(
-          RETRY_DELAY *
-            attempt,
-          30000
-        );
-
-      await sleep(retry);
-    }
+    await sleep(
+      Math.min(
+        2000 * attempt,
+        10000
+      )
+    );
   }
 
   return false;
 }
 
-// ======================================================
-// PROCESS QUEUE
-// ======================================================
+// ==================== PROCESS QUEUE ===================
 
 async function processQueue() {
 
-  while (
-    queue.length > 0
-  ) {
+  while (queue.length > 0) {
 
     lastQueueActivity =
       Date.now();
 
-    const item =
-      queue[0];
+    const item = queue[0];
 
     if (!item) {
       queue.shift();
@@ -807,26 +599,11 @@ async function processQueue() {
 
     try {
 
-      // ----------------------------------------------
-      // RELOAD SETTINGS
-      // ----------------------------------------------
-
-      loadData();
-
-      // ----------------------------------------------
-      // BOT OFF
-      // ----------------------------------------------
-
+      // If disabled, don't destroy queue
       if (!data.active) {
-
         await sleep(1000);
-
         continue;
       }
-
-      // ----------------------------------------------
-      // USER COOLDOWN
-      // ----------------------------------------------
 
       const key =
         `${item.threadID}:${item.senderID}`;
@@ -837,127 +614,66 @@ async function processQueue() {
       const elapsed =
         Date.now() - last;
 
-      const cooldown =
-        Number(data.cooldown) || 0;
+      const wait =
+        Number(data.cooldown) - elapsed;
 
-      const remaining =
-        cooldown - elapsed;
-
-      if (
-        remaining > 0
-      ) {
+      if (wait > 0) {
 
         await sleep(
-          Math.min(
-            remaining,
-            5000
-          )
+          Math.min(wait, 1000)
         );
 
         continue;
       }
 
-      // ----------------------------------------------
-      // TYPING
-      // ----------------------------------------------
-
-      typing(
-        item.api,
-        item.threadID
-      );
-
-      // ----------------------------------------------
-      // DELAY
-      // ----------------------------------------------
-
-      const delay =
-        Math.max(
-          0,
-          Math.min(
-            Number(data.delay) || 0,
-            10000
-          )
-        );
-
-      if (
-        delay > 0
-      ) {
-
-        await sleep(delay);
+      // Delay before sending
+      if (data.delay > 0) {
+        await sleep(data.delay);
       }
-
-      // ----------------------------------------------
-      // CHECK AGAIN
-      // ----------------------------------------------
-
-      loadData();
 
       if (!data.active) {
         continue;
       }
 
-      // ----------------------------------------------
-      // BUILD REPLY
-      // ----------------------------------------------
-
-      const reply =
-        `♾️ [GOJO SATORU]\n\n${randomReply()}`;
-
-      // ----------------------------------------------
-      // SEND
-      // ----------------------------------------------
-
       const sent =
-        await safeQueueSend(
-          item.api,
-          reply,
-          item.threadID,
-          item.messageID
-        );
+        await safeQueueSend(item);
 
-      // ----------------------------------------------
-      // SUCCESS
-      // ----------------------------------------------
+      if (!sent) {
 
-      if (sent) {
-
-        userLastReply.set(
-          key,
-          Date.now()
-        );
-
-        data.totalReplies =
-          Number(
-            data.totalReplies || 0
-          ) + 1;
-
-        saveData();
+        item.retries =
+          (item.retries || 0) + 1;
 
         queue.shift();
 
         logInfo(
-          `Reply sent | Remaining=${queue.length} | Total=${data.totalReplies}`
+          "Failed queue item removed after retries."
         );
 
-        lastQueueActivity =
-          Date.now();
+        await sleep(2000);
 
         continue;
       }
 
-      // ----------------------------------------------
-      // FAILED AFTER RETRIES
-      // ----------------------------------------------
-
-      logInfo(
-        "Message could not be sent after retries. Removing failed item."
+      userLastReply.set(
+        key,
+        Date.now()
       );
+
+      data.totalReplies += 1;
 
       queue.shift();
 
-      await sleep(
-        3000
-      );
+      lastQueueActivity =
+        Date.now();
+
+      // Save periodically instead of blocking every time
+      if (
+        data.totalReplies % 5 === 0
+      ) {
+        saveData();
+      }
+
+      await sleep(250);
 
     } catch (error) {
 
@@ -966,174 +682,49 @@ async function processQueue() {
         error
       );
 
-      // Remove only the broken item
-      // so it cannot permanently block
-      // every item behind it.
       queue.shift();
 
-      await sleep(
-        3000
-      );
+      await sleep(1000);
     }
   }
+
+  saveData();
 }
 
-// ======================================================
-// QUEUE WATCHDOG
-// ======================================================
+// ==================== QUEUE WATCHDOG ==================
 
-function startWatchdog() {
-
-  if (
-    watchdogRunning
-  ) {
-    return;
-  }
-
-  watchdogRunning = true;
-
-  setInterval(() => {
-
-    try {
-
-      // Queue exists but processor stopped.
-      if (
-        queue.length > 0 &&
-        !queueRunning
-      ) {
-
-        logInfo(
-          "WATCHDOG: Queue stopped. Restarting processor."
-        );
-
-        startQueue();
-
-        return;
-      }
-
-      // Queue processor has not moved
-      // for a long time.
-      if (
-        queue.length > 0 &&
-        queueRunning &&
-        Date.now() -
-          lastQueueActivity >
-          STUCK_TIMEOUT
-      ) {
-
-        logInfo(
-          "WATCHDOG: Queue appears stuck. Attempting recovery."
-        );
-
-        queueRunning =
-          false;
-
-        setTimeout(
-          () => {
-            startQueue();
-          },
-          1000
-        );
-
-      }
-
-    } catch (error) {
-
-      logError(
-        "Watchdog error",
-        error
-      );
-
-    }
-
-  }, WATCHDOG_INTERVAL);
-
-  logInfo(
-    "♾️ Infinity Watchdog started."
-  );
-}
-
-// ======================================================
-// MEMORY CLEANUP
-// ======================================================
-
-function cleanupMemory() {
+function queueWatchdog() {
 
   try {
-
-    while (
-      seenMessages.size >
-      MAX_SEEN
-    ) {
-
-      const oldest =
-        seenMessages
-          .values()
-          .next()
-          .value;
-
-      if (
-        oldest === undefined
-      ) {
-        break;
-      }
-
-      seenMessages.delete(
-        oldest
-      );
-    }
-
-    // Remove old cooldown entries.
-    const now =
-      Date.now();
-
-    const MAX_COOLDOWN_MEMORY =
-      60 * 60 * 1000;
-
-    for (
-      const [
-        key,
-        timestamp
-      ] of userLastReply.entries()
-    ) {
-
-      if (
-        now - timestamp >
-        MAX_COOLDOWN_MEMORY
-      ) {
-
-        userLastReply.delete(
-          key
-        );
-      }
-    }
-
-  } catch (error) {
-
-    logError(
-      "Memory cleanup failed",
-      error
-    );
-  }
-}
-
-// ======================================================
-// MAINTENANCE LOOP
-// ======================================================
-
-setInterval(() => {
-
-  try {
-
-    cleanupMemory();
-
-    loadData();
 
     if (
       queue.length > 0 &&
-      !queueRunning &&
-      data.active
+      !queueRunning
     ) {
+
+      logInfo(
+        "Watchdog detected stopped queue. Restarting..."
+      );
+
+      startQueue();
+
+      return;
+    }
+
+    if (
+      queueRunning &&
+      queue.length > 0 &&
+      Date.now() - lastQueueActivity >
+        STUCK_TIMEOUT
+    ) {
+
+      logInfo(
+        "Watchdog detected stuck queue. Resetting..."
+      );
+
+      queueRunning = false;
+      lastQueueActivity =
+        Date.now();
 
       startQueue();
     }
@@ -1141,12 +732,226 @@ setInterval(() => {
   } catch (error) {
 
     logError(
-      "Maintenance failed",
+      "Watchdog error",
+      error
+    );
+
+  }
+}
+
+// ==================== MEMORY CLEANUP ==================
+
+function cleanupMemory() {
+
+  try {
+
+    if (
+      seenMessages.size >
+      MAX_SEEN
+    ) {
+
+      const removeCount =
+        Math.floor(
+          seenMessages.size / 3
+        );
+
+      for (
+        let i = 0;
+        i < removeCount;
+        i++
+      ) {
+
+        const oldest =
+          seenMessages.values()
+            .next()
+            .value;
+
+        if (!oldest) break;
+
+        seenMessages.delete(oldest);
+      }
+    }
+
+    // Prevent user cooldown map from growing forever
+    if (
+      userLastReply.size > 5000
+    ) {
+
+      const now = Date.now();
+
+      for (
+        const [
+          key,
+          timestamp
+        ] of userLastReply
+      ) {
+
+        if (
+          now - timestamp >
+          3600000
+        ) {
+
+          userLastReply.delete(key);
+        }
+
+      }
+
+    }
+
+  } catch (error) {
+
+    logError(
+      "Memory cleanup error",
+      error
+    );
+
+  }
+}
+
+// ==================== MAINTENANCE ====================
+
+setInterval(() => {
+
+  try {
+
+    normalizeData();
+
+    queueWatchdog();
+
+    cleanupMemory();
+
+    lastMaintenance =
+      Date.now();
+
+  } catch (error) {
+
+    logError(
+      "Maintenance error",
       error
     );
 
   }
 
+}, 30000);
+
+// ==================== AUTO SAVE ======================
+
+setInterval(() => {
+
+  try {
+    saveData();
+  } catch (error) {
+    logError(
+      "Auto save error",
+      error
+    );
+  }
+
 }, 60000);
 
-// ===========================
+// ==================== PROCESS ERROR RECOVERY =========
+
+process.on(
+  "uncaughtException",
+  error => {
+
+    logError(
+      "UNCAUGHT EXCEPTION",
+      error
+    );
+
+    // Try to keep the queue alive
+    queueRunning = false;
+
+    setTimeout(() => {
+
+      try {
+        startQueue();
+      } catch (restartError) {
+        logError(
+          "Queue restart failed",
+          restartError
+        );
+      }
+
+    }, 2000);
+  }
+);
+
+process.on(
+  "unhandledRejection",
+  reason => {
+
+    logError(
+      "UNHANDLED REJECTION",
+      reason
+    );
+
+    queueRunning = false;
+
+    setTimeout(() => {
+
+      try {
+        startQueue();
+      } catch (error) {
+        logError(
+          "Recovery restart failed",
+          error
+        );
+      }
+
+    }, 2000);
+  }
+);
+
+// ==================== CONFIG ==========================
+
+module.exports.config = {
+
+  name: "gojo",
+
+  version: "13.0.0",
+
+  hasPermission: 0,
+
+  credits:
+    "Gojo Infinity Stable Edition",
+
+  description:
+    "Gojo auto-reply with queue recovery, watchdog and admin controls",
+
+  usePrefix: true,
+
+  commandCategory: "AI",
+
+  usages:
+    "/gojo help",
+
+  cooldowns: 2
+};
+
+// ==================== EVENT HANDLER ===================
+
+module.exports.handleEvent =
+async function ({
+  api,
+  event
+}) {
+
+  try {
+
+    if (!api || !event) {
+      return;
+    }
+
+    const {
+      threadID,
+      senderID,
+      messageID,
+      body
+    } = event;
+
+    if (
+      !threadID ||
+      !senderID ||
+      !message
