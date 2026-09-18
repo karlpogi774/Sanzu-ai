@@ -1,1292 +1,325 @@
-// ============================================================
-// GOJO BOT V13 | INFINITY EXTENDED + PERSON TARGET
-// ============================================================
-
 const fs = require("fs");
 const path = require("path");
 
-// ============================================================
-// 01. BASIC CONFIG
-// ============================================================
-
 const ADMIN_ID = "61594055835097";
+const TARGET_USER_ID = ""; // Ilagay dito ang Facebook UID na ita-target. Empty = lahat.
 
-const BOT_NAME = "GOJO SATORU";
-const BOT_VERSION = "13.1.0";
-
-const DATA_FILE =
-  path.join(__dirname, "gojo_data.json");
-
-const BACKUP_FILE =
-  path.join(__dirname, "gojo_data.backup.json");
-
-const LOG_FILE =
-  path.join(__dirname, "gojo_error.log");
-
-// ============================================================
-// 02. PERSON ACCOUNT TARGET
-// ============================================================
-//
-// Ilagay ang Facebook User ID ng taong gusto mong i-target.
-//
-// Example:
-// const TARGET_USER_ID = "123456789012345";
-//
-// Para lahat ng users:
-// const TARGET_USER_ID = "";
-//
-// ============================================================
-
-const TARGET_USER_ID = "";
-
-function isTargetUser(id) {
-
-  // Blank = lahat ng users
-  if (!TARGET_USER_ID) {
-    return true;
-  }
-
-  return (
-    String(id) ===
-    String(TARGET_USER_ID)
-  );
-
-}
-
-// ============================================================
-// 03. LIMITS
-// ============================================================
-
-const MAX_QUEUE = 500;
-const MAX_SEEN_MESSAGES = 3000;
-const MAX_RETRIES = 3;
-
-const MIN_DELAY = 500;
-const MAX_DELAY = 60000;
-
-const MIN_COOLDOWN = 1000;
-const MAX_COOLDOWN = 120000;
-
-const MAX_COOLDOWN_USERS = 5000;
-
-// ============================================================
-// 04. DEFAULT DATA
-// ============================================================
+const DATA_FILE = path.join(__dirname, "gojo_data.json");
+const LOG_FILE = path.join(__dirname, "gojo_error.log");
 
 const DEFAULT_DATA = {
-
   active: true,
-
   autoReact: true,
-
   delay: 2000,
-
   cooldown: 3000,
-
   totalReplies: 0,
-
-  totalErrors: 0,
-
-  totalRetries: 0,
-
   totalReceived: 0,
-
-  startedAt: Date.now(),
-
-  lastReplyAt: 0,
-
-  lastErrorAt: 0
-
+  totalErrors: 0,
+  startedAt: Date.now()
 };
 
-// ============================================================
-// 05. RUNTIME
-// ============================================================
+let data = loadData();
 
-let data = {
-  ...DEFAULT_DATA
-};
-
-let queue = [];
-
-let queueRunning = false;
-
-let shuttingDown = false;
-
-let healthRunning = false;
-
+const queue = [];
 const seenMessages = new Set();
-
 const userLastReply = new Map();
 
-// ============================================================
-// 06. STATISTICS
-// ============================================================
+let queueRunning = false;
+let healthRunning = false;
 
-const stats = {
-
-  received: 0,
-
-  targetReceived: 0,
-
-  replied: 0,
-
-  failed: 0,
-
-  retries: 0,
-
-  reactions: 0,
-
-  errors: 0,
-
-  recoveredWorkers: 0,
-
-  queuePeak: 0
-
-};
-
-// ============================================================
-// 07. GOJO QUOTES
-// ============================================================
+const MAX_QUEUE = 500;
+const MAX_SEEN = 3000;
+const MAX_RETRIES = 3;
 
 const GOJO_QUOTES = [
-
-  "Sa buong langit at lupa, ako lamang ang nag-iisang Honored One. ♾️",
-
-  "Infinity ang pagitan natin. Hindi mo ako maaabot. 😎",
-
-  "Domain Expansion: Infinite Void. 🌌",
-
-  "Relax ka lang. Nandito na ang pinakamalakas. 💙",
-
-  "Six Eyes activated. 👁️",
-
-  "Gojo mode: ON. ♾️",
-
-  "Infinity is always active. ♾️",
-
-  "Welcome to Infinite Void. 🌌",
-
-  "The strongest has arrived. 💙",
-
-  "Six Eyes never misses. 👁️",
-
-  "Gojo Satoru: present. 😎",
-
-  "Walang makakalampas sa Infinity. ♾️",
-
-  "Chill lang. Ako na bahala. 💙",
-
-  "Infinite Void detected. 🌌",
-
-  "Gojo is watching. 👁️",
-
-  "Infinity protection activated. ♾️",
-
-  "Honored One reporting. 😎",
-
-  "Domain Expansion ready. 🌌",
-
-  "Six Eyes online. 👁️",
-
-  "Gojo system is online. 💙",
-
-  "Infinite Void initialized. 🌌",
-
-  "The strongest is here. 😎",
-
-  "Infinity detected. ♾️",
-
-  "Gojo protocol activated. 😎",
-
-  "Six Eyes scanning. 👁️",
-
-  "Infinity barrier deployed. ♾️",
-
-  "Honored One mode activated. 💙",
-
-  "Gojo Satoru online. 😎",
-
-  "Domain Expansion available. 🌌",
-
-  "Infinity never sleeps. ♾️",
-
-  "Six Eyes operational. 👁️",
-
-  "Gojo mode remains active. 😎",
-
-  "Infinite Void standing by. 🌌",
-
-  "Nobody gets past Infinity. ♾️",
-
-  "The strongest is monitoring. 💙",
-
-  "Six Eyes detected activity. 👁️",
-
-  "Gojo has entered the chat. 😎",
-
-  "Infinity shield active. ♾️",
-
-  "Infinite Void is watching. 🌌",
-
-  "Honored One has arrived. 💙",
-
-  "Gojo Satoru: ready. 😎",
-
-  "Six Eyes status: ONLINE. 👁️",
-
-  "Infinity status: ACTIVE. ♾️",
-
-  "Domain Expansion: READY. 🌌",
-
-  "Gojo Infinity protocol initialized. ♾️",
-
-  "Six Eyes monitoring complete. 👁️",
-
-  "Infinite Void connection stable. 🌌",
-
-  "Infinity barrier operational. ♾️",
-
-  "Gojo system detected activity. 😎",
-
-  "Honored One connection established. 💙",
-
-  "Six Eyes are watching. 👁️",
-
-  "Infinity protocol is ready. ♾️",
-
-  "Gojo monitoring system active. 😎",
-
-  "Infinite Void system ready. 🌌",
-
-  "The strongest remains online. 💙",
-
-  "Gojo protocol remains active. ♾️",
-
-  "Infinity system is stable. 😎",
-
-  "Six Eyes signal received. 👁️",
-
-  "Domain Expansion system ready. 🌌",
-
-  "Gojo system ready for another message. 😎"
-
+  "Nah, I'd win. 😎",
+  "Relax. Gojo is here. 🕶️",
+  "Don't worry, I've got this. 😏",
+  "You're talking to the strongest. 🌀",
+  "Limitless mode activated. ♾️",
+  "Too easy. 😎",
+  "My infinity says no. ♾️",
+  "Interesting... very interesting. 👀",
+  "You really chose this fight? 😂",
+  "Domain Expansion. 🌀",
+  "Calm down, I'm still here. 😎",
+  "The strongest doesn't need to rush. 🕶️",
+  "Infinity remains undefeated. ♾️",
+  "You can't touch this. 😏",
+  "Gojo detected. 😎"
 ];
-
-// ============================================================
-// 08. RESPONSE COMPONENTS
-// ============================================================
-
-const PREFIXES = [
-
-  "♾️ Gojo mode",
-
-  "👁️ Six Eyes",
-
-  "🌌 Infinite Void",
-
-  "💙 Honored One",
-
-  "⚡ Infinity",
-
-  "😎 Gojo Satoru",
-
-  "🌀 Domain Expansion",
-
-  "✨ Gojo System"
-
-];
-
-const MESSAGES = [
-
-  "activated",
-
-  "online",
-
-  "detected",
-
-  "ready",
-
-  "checking the chat",
-
-  "monitoring activity",
-
-  "processing",
-
-  "on standby",
-
-  "watching",
-
-  "reply system ready",
-
-  "connection stable",
-
-  "system active",
-
-  "message detected",
-
-  "status confirmed",
-
-  "monitoring enabled"
-
-];
-
-const EMOJIS = [
-
-  "😎",
-  "⚡",
-  "♾️",
-  "💙",
-  "🌌",
-  "👁️",
-  "✨",
-  "🔥",
-  "🌀"
-
-];
-
-// ============================================================
-// 09. BUILD REPLIES
-// ============================================================
 
 const REPLIES = [
-  ...GOJO_QUOTES
+  "😎 " + GOJO_QUOTES[0],
+  "🕶️ " + GOJO_QUOTES[1],
+  "😏 " + GOJO_QUOTES[2],
+  "🌀 " + GOJO_QUOTES[3],
+  "♾️ " + GOJO_QUOTES[4],
+  "😂 " + GOJO_QUOTES[8],
+  "👀 " + GOJO_QUOTES[7],
+  "😎 " + GOJO_QUOTES[10],
+  "♾️ " + GOJO_QUOTES[12],
+  "🌀 " + GOJO_QUOTES[9]
 ];
 
-for (
-  const prefix of PREFIXES
-) {
-
-  for (
-    const message of MESSAGES
-  ) {
-
-    for (
-      const emoji of EMOJIS
-    ) {
-
-      REPLIES.push(
-        `${prefix}: ${message} ${emoji}`
+function loadData() {
+  try {
+    if (!fs.existsSync(DATA_FILE)) {
+      fs.writeFileSync(
+        DATA_FILE,
+        JSON.stringify(DEFAULT_DATA, null, 2)
       );
-
+      return { ...DEFAULT_DATA };
     }
 
+    const saved = JSON.parse(
+      fs.readFileSync(DATA_FILE, "utf8")
+    );
+
+    return {
+      ...DEFAULT_DATA,
+      ...saved
+    };
+  } catch (err) {
+    logError("loadData", err);
+    return { ...DEFAULT_DATA };
   }
-
 }
-
-// ============================================================
-// 10. RANDOM
-// ============================================================
-
-function randomReply() {
-
-  return REPLIES[
-    Math.floor(
-      Math.random() *
-      REPLIES.length
-    )
-  ];
-
-}
-
-// ============================================================
-// 11. SLEEP
-// ============================================================
-
-function sleep(ms) {
-
-  return new Promise(
-    resolve =>
-      setTimeout(
-        resolve,
-        ms
-      )
-  );
-
-}
-
-// ============================================================
-// 12. UPTIME
-// ============================================================
-
-function getUptime() {
-
-  const seconds =
-    Math.floor(
-      (Date.now() -
-        data.startedAt) /
-      1000
-    );
-
-  const days =
-    Math.floor(
-      seconds / 86400
-    );
-
-  const hours =
-    Math.floor(
-      (seconds % 86400) /
-      3600
-    );
-
-  const minutes =
-    Math.floor(
-      (seconds % 3600) /
-      60
-    );
-
-  const secs =
-    seconds % 60;
-
-  return (
-    `${days}d ` +
-    `${hours}h ` +
-    `${minutes}m ` +
-    `${secs}s`
-  );
-
-}
-
-// ============================================================
-// 13. ADMIN
-// ============================================================
-
-function isAdmin(id) {
-
-  return (
-    String(id) ===
-    String(ADMIN_ID)
-  );
-
-}
-
-// ============================================================
-// 14. ERROR LOG
-// ============================================================
-
-function logError(
-  where,
-  error
-) {
-
-  const message =
-
-    `[${new Date().toISOString()}] ` +
-    `${where}: ` +
-    `${error?.stack || error}\n`;
-
-  console.error(message);
-
-  stats.errors++;
-
-  data.totalErrors++;
-
-  data.lastErrorAt =
-    Date.now();
-
-  try {
-
-    fs.appendFileSync(
-      LOG_FILE,
-      message,
-      "utf8"
-    );
-
-  } catch (_) {}
-
-}
-
-// ============================================================
-// 15. SAVE
-// ============================================================
 
 function saveData() {
-
   try {
-
-    const tempFile =
-      DATA_FILE + ".tmp";
-
     fs.writeFileSync(
-
-      tempFile,
-
-      JSON.stringify(
-        data,
-        null,
-        2
-      ),
-
-      "utf8"
-
+      DATA_FILE,
+      JSON.stringify(data, null, 2)
     );
-
-    fs.renameSync(
-      tempFile,
-      DATA_FILE
-    );
-
-  } catch (error) {
-
-    logError(
-      "Save failed",
-      error
-    );
-
+  } catch (err) {
+    logError("saveData", err);
   }
-
 }
 
-// ============================================================
-// 16. BACKUP
-// ============================================================
-
-function backupData() {
-
+function logError(where, error) {
   try {
+    const message =
+      `[${new Date().toISOString()}] ${where}: ` +
+      `${error?.stack || error}\n`;
 
-    if (
-      fs.existsSync(
-        DATA_FILE
-      )
-    ) {
-
-      fs.copyFileSync(
-        DATA_FILE,
-        BACKUP_FILE
-      );
-
-    }
-
-  } catch (error) {
-
-    logError(
-      "Backup failed",
-      error
-    );
-
-  }
-
+    fs.appendFileSync(LOG_FILE, message);
+  } catch (_) {}
 }
 
-// ============================================================
-// 17. LOAD
-// ============================================================
-
-function loadData() {
-
-  try {
-
-    if (
-      !fs.existsSync(
-        DATA_FILE
-      )
-    ) {
-
-      data = {
-        ...DEFAULT_DATA,
-        startedAt: Date.now()
-      };
-
-      saveData();
-
-      return;
-
-    }
-
-    const saved =
-      JSON.parse(
-        fs.readFileSync(
-          DATA_FILE,
-          "utf8"
-        )
-      );
-
-    data = {
-
-      ...DEFAULT_DATA,
-
-      ...saved
-
-    };
-
-    data.delay =
-      Math.max(
-        MIN_DELAY,
-        Math.min(
-          MAX_DELAY,
-          Number(data.delay) ||
-          DEFAULT_DATA.delay
-        )
-      );
-
-    data.cooldown =
-      Math.max(
-        MIN_COOLDOWN,
-        Math.min(
-          MAX_COOLDOWN,
-          Number(data.cooldown) ||
-          DEFAULT_DATA.cooldown
-        )
-      );
-
-  } catch (error) {
-
-    logError(
-      "Load failed",
-      error
-    );
-
-    data = {
-      ...DEFAULT_DATA
-    };
-
-  }
-
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-loadData();
-
-backupData();
-
-// ============================================================
-// 18. SAFE SEND
-// ============================================================
-
-function send(
-  api,
-  message,
-  threadID,
-  messageID = null
-) {
-
-  return new Promise(
-    resolve => {
-
-      try {
-
-        api.sendMessage(
-
-          message,
-
-          threadID,
-
-          error => {
-
-            if (error) {
-
-              logError(
-                "sendMessage failed",
-                error
-              );
-
-              resolve(false);
-
-              return;
-
-            }
-
-            resolve(true);
-
-          },
-
-          messageID
-
-        );
-
-      } catch (error) {
-
-        logError(
-          "send exception",
-          error
-        );
-
-        resolve(false);
-
-      }
-
-    }
-  );
-
+function randomReply() {
+  return REPLIES[
+    Math.floor(Math.random() * REPLIES.length)
+  ];
 }
 
-// ============================================================
-// 19. REACTION
-// ============================================================
-
-function react(
-  api,
-  messageID
-) {
-
-  if (!api) return;
-
-  if (!messageID) return;
-
-  try {
-
-    if (
-      typeof api.setMessageReaction !==
-      "function"
-    ) {
-
-      return;
-
-    }
-
-    api.setMessageReaction(
-
-      "😆",
-
-      messageID,
-
-      error => {
-
-        if (error) {
-
-          logError(
-            "Reaction failed",
-            error
-          );
-
-          return;
-
-        }
-
-        stats.reactions++;
-
-      },
-
-      true
-
-    );
-
-  } catch (error) {
-
-    logError(
-      "Reaction exception",
-      error
-    );
-
-  }
-
+function isAdmin(id) {
+  return String(id) === String(ADMIN_ID);
 }
 
-// ============================================================
-// 20. DUPLICATE CHECK
-// ============================================================
+function isTargetUser(id) {
+  if (!TARGET_USER_ID) return true;
+  return String(id) === String(TARGET_USER_ID);
+}
 
-function isDuplicate(
-  messageID
-) {
+function rememberMessage(id) {
+  if (!id) return false;
 
-  if (!messageID) {
-    return false;
-  }
-
-  if (
-    seenMessages.has(
-      messageID
-    )
-  ) {
-
+  if (seenMessages.has(id)) {
     return true;
-
   }
 
-  seenMessages.add(
-    messageID
-  );
+  seenMessages.add(id);
 
-  while (
-    seenMessages.size >
-    MAX_SEEN_MESSAGES
-  ) {
-
-    const oldest =
-      seenMessages
-        .values()
-        .next()
-        .value;
-
-    if (!oldest) {
-      break;
-    }
-
-    seenMessages.delete(
-      oldest
-    );
-
+  if (seenMessages.size > MAX_SEEN) {
+    const first = seenMessages.values().next().value;
+    seenMessages.delete(first);
   }
 
   return false;
-
 }
 
-// ============================================================
-// 21. ENQUEUE
-// ============================================================
+async function safeSend(api, message, threadID) {
+  if (!api || !threadID) return false;
+
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      await new Promise((resolve, reject) => {
+        api.sendMessage(
+          message,
+          threadID,
+          err => {
+            if (err) reject(err);
+            else resolve();
+          }
+        );
+      });
+
+      return true;
+    } catch (err) {
+      data.totalErrors++;
+      logError(`send attempt ${attempt}`, err);
+
+      if (attempt < MAX_RETRIES) {
+        await sleep(1000 * attempt);
+      }
+    }
+  }
+
+  return false;
+}
+
+async function safeReact(api, reaction, messageID) {
+  if (!api || !messageID) return false;
+
+  try {
+    await new Promise((resolve, reject) => {
+      api.setMessageReaction(
+        reaction,
+        messageID,
+        err => {
+          if (err) reject(err);
+          else resolve();
+        },
+        true
+      );
+    });
+
+    return true;
+  } catch (err) {
+    logError("reaction", err);
+    return false;
+  }
+}
 
 function enqueue(item) {
-
-  if (!item) {
-    return false;
+  if (queue.length >= MAX_QUEUE) {
+    queue.shift();
   }
 
-  if (!item.api) {
-    return false;
-  }
-
-  if (!item.threadID) {
-    return false;
-  }
-
-  if (
-    queue.length >=
-    MAX_QUEUE
-  ) {
-
-    logError(
-      "Queue full",
-      new Error(
-        "Maximum queue reached"
-      )
-    );
-
-    return false;
-
-  }
-
-  queue.push({
-
-    ...item,
-
-    retries: 0,
-
-    createdAt:
-      Date.now()
-
-  });
-
-  stats.queuePeak =
-    Math.max(
-      stats.queuePeak,
-      queue.length
-    );
+  queue.push(item);
 
   startQueue();
-
-  return true;
-
 }
 
-// ============================================================
-// 22. START QUEUE
-// ============================================================
-
-function startQueue() {
-
-  if (shuttingDown) {
-    return;
-  }
-
-  if (queueRunning) {
-    return;
-  }
-
-  if (queue.length === 0) {
-    return;
-  }
+async function startQueue() {
+  if (queueRunning) return;
 
   queueRunning = true;
 
-  processQueue()
+  try {
+    while (queue.length > 0) {
+      const item = queue.shift();
 
-    .catch(error => {
+      if (!item) continue;
 
-      logError(
-        "Queue crashed",
-        error
-      );
+      await processQueueItem(item);
+      await sleep(Number(data.delay) || 2000);
+    }
+  } catch (err) {
+    logError("queue", err);
+  }
 
-    })
+  queueRunning = false;
 
-    .finally(() => {
-
-      queueRunning = false;
-
-      if (
-        !shuttingDown &&
-        queue.length > 0
-      ) {
-
-        setTimeout(
-          startQueue,
-          1000
-        );
-
-      }
-
-    });
-
+  if (queue.length > 0) {
+    setTimeout(startQueue, 100);
+  }
 }
 
-// ============================================================
-// 23. PROCESS QUEUE
-// ============================================================
+async function processQueueItem(item) {
+  if (!data.active) return;
+  if (!isTargetUser(item.senderID)) return;
 
-async function processQueue() {
+  const now = Date.now();
+  const last = userLastReply.get(item.senderID) || 0;
 
-  while (
-    queue.length > 0 &&
-    !shuttingDown
-  ) {
+  if (now - last < Number(data.cooldown)) {
+    return;
+  }
 
-    const item =
-      queue[0];
+  userLastReply.set(item.senderID, now);
 
-    if (!item) {
-
-      queue.shift();
-
-      continue;
-
-    }
-
-    if (!data.active) {
-
-      await sleep(1000);
-
-      continue;
-
-    }
-
-    const userKey =
-
-      `${item.threadID}:` +
-      `${item.senderID}`;
-
-    const lastReply =
-      userLastReply.get(
-        userKey
-      ) || 0;
-
-    const elapsed =
-      Date.now() -
-      lastReply;
-
-    const remaining =
-      data.cooldown -
-      elapsed;
-
-    if (remaining > 0) {
-
-      await sleep(
-        Math.min(
-          remaining,
-          1000
-        )
-      );
-
-      continue;
-
-    }
-
-    await sleep(
-      data.delay
+  if (data.autoReact && item.messageID) {
+    await safeReact(
+      item.api,
+      "😎",
+      item.messageID
     );
+  }
 
-    if (!data.active) {
-      continue;
-    }
+  const reply = randomReply();
 
-    const reply =
+  const sent = await safeSend(
+    item.api,
+    reply,
+    item.threadID
+  );
 
-      `♾️ [GOJO SATORU]\n\n` +
-      `${randomReply()}`;
-
-    let sent = false;
-
-    try {
-
-      sent = await send(
-
-        item.api,
-
-        reply,
-
-        item.threadID,
-
-        item.messageID
-
-      );
-
-    } catch (error) {
-
-      logError(
-        "Queue send exception",
-        error
-      );
-
-    }
-
-    if (sent) {
-
-      userLastReply.set(
-        userKey,
-        Date.now()
-      );
-
-      data.totalReplies++;
-
-      data.lastReplyAt =
-        Date.now();
-
-      stats.replied++;
-
-      saveData();
-
-      queue.shift();
-
-      continue;
-
-    }
-
-    item.retries++;
-
-    stats.retries++;
-
-    data.totalRetries++;
-
+  if (sent) {
+    data.totalReplies++;
     saveData();
-
-    if (
-      item.retries >=
-      MAX_RETRIES
-    ) {
-
-      queue.shift();
-
-      await sleep(2000);
-
-      continue;
-
-    }
-
-    const retryDelay =
-      Math.min(
-        15000,
-        2000 *
-        Math.pow(
-          2,
-          item.retries - 1
-        )
-      );
-
-    await sleep(
-      retryDelay
-    );
-
   }
-
 }
 
-// ============================================================
-// 24. CLEANUP
-// ============================================================
+function clearCooldowns() {
+  const now = Date.now();
 
-function cleanupCooldowns() {
-
-  const now =
-    Date.now();
-
-  const MAX_AGE =
-    60 * 60 * 1000;
-
-  for (
-    const [
-      key,
-      timestamp
-    ]
-    of userLastReply.entries()
-  ) {
-
-    if (
-      now - timestamp >
-      MAX_AGE
-    ) {
-
-      userLastReply.delete(
-        key
-      );
-
+  for (const [id, time] of userLastReply) {
+    if (now - time > Number(data.cooldown) * 3) {
+      userLastReply.delete(id);
     }
-
   }
-
 }
 
-// ============================================================
-// 25. HEALTH CHECK
-// ============================================================
+function healthCheck() {
+  if (healthRunning) return;
 
-setInterval(
-  () => {
+  healthRunning = true;
 
-    if (healthRunning) {
-      return;
-    }
-
-    healthRunning = true;
-
+  setInterval(() => {
     try {
+      clearCooldowns();
 
-      cleanupCooldowns();
-
-      if (
-        data.active &&
-        queue.length > 0 &&
-        !queueRunning &&
-        !shuttingDown
-      ) {
-
-        stats.recoveredWorkers++;
-
-        console.log(
-          "[GOJO] Queue worker recovered."
-        );
-
+      if (!queueRunning && queue.length > 0) {
         startQueue();
-
       }
 
-    } catch (error) {
-
-      logError(
-        "Health check failed",
-        error
-      );
-
-    } finally {
-
-      healthRunning = false;
-
-    }
-
-  },
-  30000
-);
-
-// ============================================================
-// 26. BACKUP TIMER
-// ============================================================
-
-setInterval(
-  () => {
-
-    try {
+      if (queue.length > MAX_QUEUE) {
+        queue.splice(0, queue.length - MAX_QUEUE);
+      }
 
       saveData();
-
-      backupData();
-
-    } catch (error) {
-
-      logError(
-        "Automatic backup failed",
-        error
-      );
-
+    } catch (err) {
+      logError("healthCheck", err);
     }
+  }, 30000);
+}
 
-  },
-  5 * 60 * 1000
-);
+healthCheck();
 
-// ============================================================
-// 27. UNHANDLED REJECTION
-// ============================================================
+module.exports.config = {
+  name: "gojo",
+  version: "14.0.0",
+  hasPermission: 0,
+  credits: "Gojo Infinity Edition",
+  description: "Gojo auto reply with render, target, queue and retry",
+  usePrefix: true,
+  commandCategory: "AI",
+  usages: "/gojo help",
+  cooldowns: 2
+};
 
-process.on(
-  "unhandledRejection",
-  error => {
-
-    logError(
-      "Unhandled rejection",
-      error
-    );
-
-    setTimeout(
-      () => {
-
-        if (
-          data.active &&
-          queue.length > 0 &&
-          !queueRunning &&
-          !shuttingDown
-        ) {
-
-          startQueue();
-
-        }
-
-      },
-      3000
-    );
-
-  }
-);
-
-// ============================================================
-// 28. UNCaught EXCEPTION
-// ============================================================
-
-process.on(
-  "uncaughtException",
-  error => {
-
-    logError(
-      "Uncaught exception",
-      error
-    );
-
-    setTimeout(
-      () => {
-
-        if (
-          data.active &&
-          queue.length > 0 &&
-          !queueRunning &&
-          !shuttingDown
-        ) {
-
-          startQueue();
-
-        }
-
-      },
-      3000
-    );
-
-  }
-);
-
-// ============================================================
-// 29. HANDLE EVENT
-// ============================================================
-
-module.exports.handleEvent =
-async function ({
+module.exports.handleEvent = async function ({
   api,
   event
 }) {
-
   try {
-
-    if (!event) {
-      return;
-    }
+    if (!event) return;
 
     const {
       threadID,
@@ -1295,111 +328,303 @@ async function ({
       body
     } = event;
 
-    if (!threadID) {
+    if (!threadID || !senderID) return;
+
+    if (String(senderID) === String(api.getCurrentUserID?.())) {
       return;
     }
 
-    if (!senderID) {
+    if (rememberMessage(messageID)) {
       return;
     }
 
-    if (!messageID) {
+    if (!isTargetUser(senderID)) {
       return;
     }
-
-    // --------------------------------------------------------
-    // IGNORE BOT'S OWN MESSAGE
-    // --------------------------------------------------------
-
-    try {
-
-      if (
-        typeof api.getCurrentUserID ===
-        "function"
-      ) {
-
-        const botID =
-          api.getCurrentUserID();
-
-        if (
-          String(senderID) ===
-          String(botID)
-        ) {
-
-          return;
-
-        }
-
-      }
-
-    } catch (error) {
-
-      logError(
-        "Bot ID check failed",
-        error
-      );
-
-    }
-
-    // --------------------------------------------------------
-    // DUPLICATE
-    // --------------------------------------------------------
-
-    if (
-      isDuplicate(
-        messageID
-      )
-    ) {
-
-      return;
-
-    }
-
-    stats.received++;
 
     data.totalReceived++;
 
-    // --------------------------------------------------------
-    // TARGET PERSON
-    // --------------------------------------------------------
-
     if (
-      !isTargetUser(
-        senderID
-      )
+      typeof body === "string" &&
+      body.trim().startsWith("/")
     ) {
-
       return;
-
     }
 
-    stats.targetReceived++;
+    enqueue({
+      api,
+      event,
+      threadID,
+      senderID,
+      messageID,
+      body
+    });
+  } catch (err) {
+    data.totalErrors++;
+    logError("handleEvent", err);
+  }
+};
 
-    // --------------------------------------------------------
-    // AUTO REACT
-    // --------------------------------------------------------
+module.exports.run = async function ({
+  api,
+  event,
+  args
+}) {
+  try {
+    const threadID = event.threadID;
 
-    if (
-      data.autoReact
-    ) {
+    const command = String(args?.[0] || "")
+      .toLowerCase();
 
-      react(
+    if (command === "on") {
+      if (!isAdmin(event.senderID)) return;
+
+      data.active = true;
+      saveData();
+
+      return safeSend(
         api,
-        messageID
+        "😎 Gojo auto-reply: ON",
+        threadID
       );
-
     }
 
-    // --------------------------------------------------------
-    // BOT STATUS
-    // --------------------------------------------------------
+    if (command === "off") {
+      if (!isAdmin(event.senderID)) return;
 
-    if (
-      !data.active
-    ) {
+      data.active = false;
+      saveData();
 
-      return;
-
+      return safeSend(
+        api,
+        "🛑 Gojo auto-reply: OFF",
+        threadID
+      );
     }
 
-    // -----------------------------------------------------
+    if (command === "reacton") {
+      if (!isAdmin(event.senderID)) return;
+
+      data.autoReact = true;
+      saveData();
+
+      return safeSend(
+        api,
+        "😎 Auto reaction: ON",
+        threadID
+      );
+    }
+
+    if (command === "reactoff") {
+      if (!isAdmin(event.senderID)) return;
+
+      data.autoReact = false;
+      saveData();
+
+      return safeSend(
+        api,
+        "🛑 Auto reaction: OFF",
+        threadID
+      );
+    }
+
+    if (command === "delay") {
+      if (!isAdmin(event.senderID)) return;
+
+      const value = Number(args[1]);
+
+      if (!Number.isFinite(value) || value < 0) {
+        return safeSend(
+          api,
+          "Usage: /gojo delay 2000",
+          threadID
+        );
+      }
+
+      data.delay = value;
+      saveData();
+
+      return safeSend(
+        api,
+        `⏱️ Delay set to ${value}ms`,
+        threadID
+      );
+    }
+
+    if (command === "cooldown") {
+      if (!isAdmin(event.senderID)) return;
+
+      const value = Number(args[1]);
+
+      if (!Number.isFinite(value) || value < 0) {
+        return safeSend(
+          api,
+          "Usage: /gojo cooldown 3000",
+          threadID
+        );
+      }
+
+      data.cooldown = value;
+      saveData();
+
+      return safeSend(
+        api,
+        `⏳ Cooldown set to ${value}ms`,
+        threadID
+      );
+    }
+
+    if (command === "quote") {
+      return safeSend(
+        api,
+        randomReply(),
+        threadID
+      );
+    }
+
+    if (command === "queue") {
+      return safeSend(
+        api,
+        `📦 Queue: ${queue.length}\n` +
+        `Running: ${queueRunning ? "YES" : "NO"}`,
+        threadID
+      );
+    }
+
+    if (command === "stats") {
+      return safeSend(
+        api,
+        `📊 GOJO STATS\n\n` +
+        `Active: ${data.active}\n` +
+        `Received: ${data.totalReceived}\n` +
+        `Replies: ${data.totalReplies}\n` +
+        `Errors: ${data.totalErrors}\n` +
+        `Queue: ${queue.length}\n` +
+        `Target: ${TARGET_USER_ID || "ALL"}`,
+        threadID
+      );
+    }
+
+    if (command === "status") {
+      return safeSend(
+        api,
+        `🕶️ GOJO STATUS\n\n` +
+        `Auto Reply: ${data.active ? "ON" : "OFF"}\n` +
+        `Reaction: ${data.autoReact ? "ON" : "OFF"}\n` +
+        `Delay: ${data.delay}ms\n` +
+        `Cooldown: ${data.cooldown}ms\n` +
+        `Queue: ${queue.length}\n` +
+        `Target: ${TARGET_USER_ID || "ALL"}`,
+        threadID
+      );
+    }
+
+    if (command === "clearqueue") {
+      if (!isAdmin(event.senderID)) return;
+
+      queue.length = 0;
+
+      return safeSend(
+        api,
+        "🧹 Gojo queue cleared.",
+        threadID
+      );
+    }
+
+    if (command === "resetstats") {
+      if (!isAdmin(event.senderID)) return;
+
+      data.totalReplies = 0;
+      data.totalReceived = 0;
+      data.totalErrors = 0;
+
+      saveData();
+
+      return safeSend(
+        api,
+        "♻️ Gojo statistics reset.",
+        threadID
+      );
+    }
+
+    if (command === "help") {
+      return safeSend(
+        api,
+        `🕶️ GOJO COMMANDS\n\n` +
+        `/gojo on\n` +
+        `/gojo off\n` +
+        `/gojo reacton\n` +
+        `/gojo reactoff\n` +
+        `/gojo delay 2000\n` +
+        `/gojo cooldown 3000\n` +
+        `/gojo quote\n` +
+        `/gojo status\n` +
+        `/gojo stats\n` +
+        `/gojo queue\n` +
+        `/gojo clearqueue\n` +
+        `/gojo resetstats`,
+        threadID
+      );
+    }
+
+    return safeSend(
+      api,
+      "🕶️ Use /gojo help",
+      threadID
+    );
+  } catch (err) {
+    logError("run", err);
+  }
+};
+
+/*
+==================================================
+RENDER
+==================================================
+*/
+
+module.exports.render = async function ({
+  api,
+  event,
+  args
+}) {
+  try {
+    const threadID = event?.threadID;
+
+    const target =
+      TARGET_USER_ID || "ALL USERS";
+
+    const output =
+      `🕶️ GOJO RENDER\n\n` +
+      `Status: ${data.active ? "ON" : "OFF"}\n` +
+      `Reaction: ${data.autoReact ? "ON" : "OFF"}\n` +
+      `Delay: ${data.delay}ms\n` +
+      `Cooldown: ${data.cooldown}ms\n` +
+      `Queue: ${queue.length}\n` +
+      `Replies: ${data.totalReplies}\n` +
+      `Received: ${data.totalReceived}\n` +
+      `Errors: ${data.totalErrors}\n` +
+      `Target: ${target}`;
+
+    if (api && threadID) {
+      return safeSend(
+        api,
+        output,
+        threadID
+      );
+    }
+
+    return output;
+  } catch (err) {
+    logError("render", err);
+    return null;
+  }
+};
+
+process.on("unhandledRejection", err => {
+  logError("unhandledRejection", err);
+});
+
+process.on("uncaughtException", err => {
+  logError("uncaughtException", err);
+});
