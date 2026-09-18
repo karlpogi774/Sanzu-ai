@@ -1,12 +1,33 @@
-const LOCKED_GC_NAME = "RYUK BOSS PINAKA POGI SA BUONG MUNDO";
-const DEFAULT_NICKNAME = "RYUK POGI";
-const ADMIN_ID = "61594055835097";
+// ======================================================
+// LOCKGC FINAL | RYUK POGI EDITION
+// GC LOCK + AUTO NICKNAME + COOLDOWN + RENDER
+// ======================================================
+
+const LOCKED_GC_NAME =
+  "RYUK BOSS PINAKA POGI SA BUONG MUNDO";
+
+const DEFAULT_NICKNAME =
+  "RYUK POGI";
+
+const ADMIN_ID =
+  "61594055835097";
+
+// ======================================================
+// SETTINGS
+// ======================================================
+
+const NICKNAME_COOLDOWN = 15000;
+const TITLE_CHECK_COOLDOWN = 15000;
+
+// ======================================================
+// MEMORY
+// ======================================================
 
 const lockedThreads = new Set();
-const nicknameEnabledThreads = new Set();
+const nicknameThreads = new Set();
 
 const nicknameCooldown = new Map();
-const RESTORE_COOLDOWN = 10000;
+const titleCooldown = new Map();
 
 // ======================================================
 // CONFIG
@@ -14,13 +35,15 @@ const RESTORE_COOLDOWN = 10000;
 
 module.exports.config = {
   name: "lockgc",
-  version: "2.0.0",
+  version: "3.0.0",
   hasPermission: 0,
   credits: "Ryuk",
-  description: "Locks GC name and manages auto nicknames",
+  description:
+    "GC lock with auto nickname and protection",
   usePrefix: true,
   commandCategory: "Group",
-  usages: "/lockgc on | off | nick | status",
+  usages:
+    "/lockgc on | off | nick | nickoff | status",
   cooldowns: 2
 };
 
@@ -28,23 +51,8 @@ module.exports.config = {
 // HELPERS
 // ======================================================
 
-function isAdmin(senderID) {
-  return String(senderID) === String(ADMIN_ID);
-}
-
-function safeSend(api, message, threadID) {
-  return new Promise(resolve => {
-    try {
-      api.sendMessage(
-        message,
-        threadID,
-        () => resolve()
-      );
-    } catch (err) {
-      console.error("[LOCKGC SEND ERROR]", err);
-      resolve();
-    }
-  });
+function isAdmin(id) {
+  return String(id) === String(ADMIN_ID);
 }
 
 function sleep(ms) {
@@ -53,25 +61,44 @@ function sleep(ms) {
   );
 }
 
+function sendMessage(api, message, threadID) {
+  return new Promise(resolve => {
+    try {
+      api.sendMessage(
+        message,
+        threadID,
+        () => resolve()
+      );
+    } catch (err) {
+      console.error(
+        "[LOCKGC SEND]",
+        err
+      );
+
+      resolve();
+    }
+  });
+}
+
 // ======================================================
-// SAFE SET TITLE
+// SET TITLE
 // ======================================================
 
-async function safeSetTitle(
+async function setGroupTitle(
   api,
-  title,
   threadID
 ) {
   try {
     await api.setTitle(
-      title,
+      LOCKED_GC_NAME,
       threadID
     );
 
     return true;
+
   } catch (err) {
     console.error(
-      "[LOCKGC TITLE ERROR]",
+      "[LOCKGC TITLE]",
       err
     );
 
@@ -80,26 +107,26 @@ async function safeSetTitle(
 }
 
 // ======================================================
-// SAFE NICKNAME
+// CHANGE NICKNAME
 // ======================================================
 
-async function safeNickname(
+async function changeNickname(
   api,
-  nickname,
   threadID,
   userID
 ) {
   try {
     await api.changeNickname(
-      nickname,
+      DEFAULT_NICKNAME,
       threadID,
       userID
     );
 
     return true;
+
   } catch (err) {
     console.error(
-      "[LOCKGC NICK ERROR]",
+      "[LOCKGC NICK]",
       err
     );
 
@@ -117,21 +144,24 @@ module.exports.run = async function ({
   args
 }) {
   try {
-    const {
-      threadID,
-      senderID
-    } = event;
+    const threadID =
+      event?.threadID;
+
+    const senderID =
+      event?.senderID;
+
+    if (!threadID) return;
 
     const command =
       String(args?.[0] || "")
         .toLowerCase();
 
     // --------------------------------------------------
-    // ADMIN ONLY
+    // ADMIN
     // --------------------------------------------------
 
     if (!isAdmin(senderID)) {
-      return safeSend(
+      return sendMessage(
         api,
         "❌ Admin only.",
         threadID
@@ -139,56 +169,67 @@ module.exports.run = async function ({
     }
 
     // --------------------------------------------------
-    // LOCKGC ON
+    // ON
     // --------------------------------------------------
 
     if (command === "on") {
-      lockedThreads.add(threadID);
 
-      nicknameEnabledThreads.add(threadID);
+      lockedThreads.add(
+        threadID
+      );
 
-      const titleChanged =
-        await safeSetTitle(
+      nicknameThreads.add(
+        threadID
+      );
+
+      const success =
+        await setGroupTitle(
           api,
-          LOCKED_GC_NAME,
           threadID
         );
 
-      if (!titleChanged) {
-        return safeSend(
+      if (!success) {
+        return sendMessage(
           api,
-          "❌ Hindi mapalitan ang GC name.\n" +
-          "Baka walang permission ang bot.",
+          "❌ Hindi ma-lock ang GC name.\n" +
+          "Check bot permissions.",
           threadID
         );
       }
 
-      return safeSend(
+      return sendMessage(
         api,
-        "🔒 LOCK GC: ON\n\n" +
+        "🔒 LOCKGC: ON\n\n" +
         `GC Name:\n${LOCKED_GC_NAME}\n\n` +
         `Auto Nickname: ${DEFAULT_NICKNAME}\n` +
-        "Status: ACTIVE",
+        "Protection: ACTIVE",
         threadID
       );
     }
 
     // --------------------------------------------------
-    // LOCKGC OFF
+    // OFF
     // --------------------------------------------------
 
     if (command === "off") {
-      lockedThreads.delete(threadID);
 
-      nicknameEnabledThreads.delete(
+      lockedThreads.delete(
         threadID
       );
 
-      return safeSend(
+      nicknameThreads.delete(
+        threadID
+      );
+
+      titleCooldown.delete(
+        threadID
+      );
+
+      return sendMessage(
         api,
-        "🔓 LOCK GC: OFF\n\n" +
-        "Auto restore: OFF\n" +
-        "Auto nickname: OFF",
+        "🔓 LOCKGC: OFF\n\n" +
+        "GC lock disabled.\n" +
+        "Auto nickname disabled.",
         threadID
       );
     }
@@ -198,14 +239,16 @@ module.exports.run = async function ({
     // --------------------------------------------------
 
     if (command === "nick") {
-      nicknameEnabledThreads.add(
+
+      nicknameThreads.add(
         threadID
       );
 
-      return safeSend(
+      return sendMessage(
         api,
         "👤 AUTO NICKNAME: ON\n\n" +
-        `Default: ${DEFAULT_NICKNAME}`,
+        `Nickname: ${DEFAULT_NICKNAME}\n` +
+        `Cooldown: ${NICKNAME_COOLDOWN}ms`,
         threadID
       );
     }
@@ -215,11 +258,12 @@ module.exports.run = async function ({
     // --------------------------------------------------
 
     if (command === "nickoff") {
-      nicknameEnabledThreads.delete(
+
+      nicknameThreads.delete(
         threadID
       );
 
-      return safeSend(
+      return sendMessage(
         api,
         "👤 AUTO NICKNAME: OFF",
         threadID
@@ -231,21 +275,45 @@ module.exports.run = async function ({
     // --------------------------------------------------
 
     if (command === "status") {
-      return safeSend(
+
+      return sendMessage(
         api,
-        "🔒 LOCK GC STATUS\n\n" +
+        "🔒 LOCKGC STATUS\n\n" +
+
         `GC Lock: ${
           lockedThreads.has(threadID)
             ? "ON"
             : "OFF"
-        }\n\n` +
+        }\n` +
+
         `Auto Nickname: ${
-          nicknameEnabledThreads.has(threadID)
+          nicknameThreads.has(threadID)
             ? "ON"
             : "OFF"
         }\n\n` +
-        `Locked Name:\n${LOCKED_GC_NAME}\n\n` +
-        `Nickname:\n${DEFAULT_NICKNAME}`,
+
+        `GC Name:\n${LOCKED_GC_NAME}\n\n` +
+
+        `Nickname:\n${DEFAULT_NICKNAME}\n\n` +
+
+        `Nickname Cooldown:\n` +
+        `${NICKNAME_COOLDOWN}ms`,
+        threadID
+      );
+    }
+
+    // --------------------------------------------------
+    // CLEAR
+    // --------------------------------------------------
+
+    if (command === "clear") {
+
+      nicknameCooldown.clear();
+      titleCooldown.clear();
+
+      return sendMessage(
+        api,
+        "🧹 LOCKGC cooldown cache cleared.",
         threadID
       );
     }
@@ -254,18 +322,20 @@ module.exports.run = async function ({
     // HELP
     // --------------------------------------------------
 
-    return safeSend(
+    return sendMessage(
       api,
       "🔒 LOCKGC COMMANDS\n\n" +
       "/lockgc on\n" +
       "/lockgc off\n" +
       "/lockgc nick\n" +
       "/lockgc nickoff\n" +
-      "/lockgc status",
+      "/lockgc status\n" +
+      "/lockgc clear",
       threadID
     );
 
   } catch (err) {
+
     console.error(
       "[LOCKGC COMMAND ERROR]",
       err
@@ -277,18 +347,20 @@ module.exports.run = async function ({
 // HANDLE EVENT
 // ======================================================
 
-module.exports.handleEvent = async function ({
+module.exports.handleEvent =
+async function ({
   api,
   event
 }) {
   try {
+
     if (!event) return;
 
-    const {
-      threadID,
-      senderID,
-      messageID
-    } = event;
+    const threadID =
+      event.threadID;
+
+    const senderID =
+      event.senderID;
 
     if (!threadID) return;
 
@@ -296,45 +368,73 @@ module.exports.handleEvent = async function ({
     // AUTO RESTORE GC NAME
     // ==================================================
 
-    if (lockedThreads.has(threadID)) {
-      try {
-        const info =
-          await new Promise(
-            (resolve, reject) => {
-              api.getThreadInfo(
-                threadID,
-                (err, data) => {
-                  if (err) {
-                    return reject(err);
-                  }
+    if (
+      lockedThreads.has(threadID)
+    ) {
 
-                  resolve(data);
-                }
+      const now =
+        Date.now();
+
+      const lastTitle =
+        titleCooldown.get(
+          threadID
+        ) || 0;
+
+      if (
+        now - lastTitle >=
+        TITLE_CHECK_COOLDOWN
+      ) {
+
+        titleCooldown.set(
+          threadID,
+          now
+        );
+
+        try {
+
+          const info =
+            await new Promise(
+              (resolve, reject) => {
+
+                api.getThreadInfo(
+                  threadID,
+                  (err, data) => {
+
+                    if (err) {
+                      return reject(err);
+                    }
+
+                    resolve(data);
+                  }
+                );
+
+              }
+            );
+
+          if (info) {
+
+            const currentName =
+              info.threadName || "";
+
+            if (
+              currentName !==
+              LOCKED_GC_NAME
+            ) {
+
+              await setGroupTitle(
+                api,
+                threadID
               );
             }
-          );
-
-        if (info) {
-          const currentName =
-            info.threadName || "";
-
-          if (
-            currentName !==
-            LOCKED_GC_NAME
-          ) {
-            await safeSetTitle(
-              api,
-              LOCKED_GC_NAME,
-              threadID
-            );
           }
-        }
 
-      } catch (err) {
-        console.error(
-          "[LOCKGC RESTORE ERROR]",
-          err
-        );
+        } catch (err) {
+
+          console.error(
+            "[LOCKGC RESTORE]",
+            err
+          );
+        }
       }
     }
 
@@ -343,7 +443,7 @@ module.exports.handleEvent = async function ({
     // ==================================================
 
     if (
-      !nicknameEnabledThreads.has(
+      !nicknameThreads.has(
         threadID
       )
     ) {
@@ -352,8 +452,12 @@ module.exports.handleEvent = async function ({
 
     if (!senderID) return;
 
-    // Ignore bot's own account
+    // --------------------------------------------------
+    // Ignore bot itself
+    // --------------------------------------------------
+
     try {
+
       const botID =
         api.getCurrentUserID?.();
 
@@ -364,23 +468,27 @@ module.exports.handleEvent = async function ({
       ) {
         return;
       }
+
     } catch (_) {}
 
     // --------------------------------------------------
-    // PER-USER COOLDOWN
+    // USER COOLDOWN
     // --------------------------------------------------
 
     const key =
       `${threadID}:${senderID}`;
 
-    const now = Date.now();
+    const now =
+      Date.now();
 
     const last =
-      nicknameCooldown.get(key) || 0;
+      nicknameCooldown.get(
+        key
+      ) || 0;
 
     if (
       now - last <
-      RESTORE_COOLDOWN
+      NICKNAME_COOLDOWN
     ) {
       return;
     }
@@ -394,38 +502,40 @@ module.exports.handleEvent = async function ({
     // CHANGE NICKNAME
     // --------------------------------------------------
 
-    await safeNickname(
+    await changeNickname(
       api,
-      DEFAULT_NICKNAME,
       threadID,
       senderID
     );
 
     // --------------------------------------------------
-    // CLEAN OLD COOLDOWNS
+    // LIMIT MEMORY
     // --------------------------------------------------
 
     if (
       nicknameCooldown.size > 1000
     ) {
+
       const entries =
         Array.from(
-          nicknameCooldown.entries()
+          nicknameCooldown.keys()
         );
 
-      entries
-        .slice(
+      for (
+        const key
+        of entries.slice(
           0,
-          Math.floor(
-            entries.length / 2
-          )
+          500
         )
-        .forEach(([key]) => {
-          nicknameCooldown.delete(key);
-        });
+      ) {
+        nicknameCooldown.delete(
+          key
+        );
+      }
     }
 
   } catch (err) {
+
     console.error(
       "[LOCKGC EVENT ERROR]",
       err
@@ -437,23 +547,27 @@ module.exports.handleEvent = async function ({
 // RENDER
 // ======================================================
 
-module.exports.render = async function ({
+module.exports.render =
+async function ({
   api,
   event
 }) {
   try {
+
     const threadID =
       event?.threadID;
 
-    const status =
+    const lockStatus =
       threadID &&
-      lockedThreads.has(threadID)
+      lockedThreads.has(
+        threadID
+      )
         ? "ON"
         : "OFF";
 
     const nickStatus =
       threadID &&
-      nicknameEnabledThreads.has(
+      nicknameThreads.has(
         threadID
       )
         ? "ON"
@@ -461,16 +575,24 @@ module.exports.render = async function ({
 
     const output =
       "🔒 LOCKGC RENDER\n\n" +
-      `GC Lock: ${status}\n` +
+
+      `GC Lock: ${lockStatus}\n` +
+
       `Auto Nickname: ${nickStatus}\n\n` +
+
       `GC Name:\n${LOCKED_GC_NAME}\n\n` +
-      `Nickname:\n${DEFAULT_NICKNAME}`;
+
+      `Nickname:\n${DEFAULT_NICKNAME}\n\n` +
+
+      `Cooldown:\n` +
+      `${NICKNAME_COOLDOWN}ms`;
 
     if (
       api &&
       threadID
     ) {
-      return safeSend(
+
+      return sendMessage(
         api,
         output,
         threadID
@@ -480,6 +602,7 @@ module.exports.render = async function ({
     return output;
 
   } catch (err) {
+
     console.error(
       "[LOCKGC RENDER ERROR]",
       err
@@ -490,7 +613,7 @@ module.exports.render = async function ({
 };
 
 // ======================================================
-// PROCESS ERROR PROTECTION
+// ERROR PROTECTION
 // ======================================================
 
 process.on(
@@ -502,3 +625,7 @@ process.on(
     );
   }
 );
+
+// ======================================================
+// END
+// ======================================================
