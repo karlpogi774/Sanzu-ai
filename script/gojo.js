@@ -1,5 +1,5 @@
 // ======================================================
-// GOJO BOT V11 | STABLE QUEUE EDITION
+// GOJO BOT V11 | INFINITY MAKUNAT EDITION
 // Sanzu-style command module
 // ======================================================
 
@@ -24,9 +24,6 @@ const MAX_SEEN = 3000;
 let data = { ...DEFAULT_DATA };
 let queue = [];
 let queueRunning = false;
-let lastQueueActivity = Date.now();
-let totalRecoveries = 0;
-let lastSaveTime = Date.now();
 
 const seenMessages = new Set();
 const userLastReply = new Map();
@@ -73,7 +70,6 @@ function saveData() {
     );
 
     fs.renameSync(tempFile, DATA_FILE);
-    lastSaveTime = Date.now();
   } catch (error) {
     logError("Save data failed", error);
   }
@@ -133,32 +129,10 @@ const GOJO_QUOTES = [
   "Walang makakalusot sa radar ng Gojo. 👁️",
   "Sapat na ang isang reply para mapansin. 😎",
   "Queue is moving. Infinity is watching. 🌌",
-  "Gojo Satoru: present. 😎",
-
-  "Six Eyes online, kalma lang. 👁️",
-  "Infinity barrier secured. ♾️",
-  "Gojo checking in. 💙",
-  "Infinite Void loading... 🌌",
-  "Chill lang, may Gojo sa GC. 😎",
-  "Gojo mode activated successfully. ⚡",
-  "Message received, Six Eyes detected it. 👁️",
-  "Walang panic sa Infinite Void. 🌌",
-  "Gojo energy detected. 💙",
-  "Reply prepared with Infinity style. ♾️",
-  "Naka-standby lang ang Honored One. 😎",
-  "Walang takas sa random quote ko. 😂",
-  "Gojo is here, keep the peace. 💙",
-  "Infinite confidence, limited words. ♾️",
-  "System ready, Gojo ready. ⚡",
-  "Isang message, isang sagot. 😎",
-  "Gojo's got the chat covered. 👁️",
-  "Infinity is working as intended. 🌌",
-  "Relax, hindi ito Infinite Panic. 😂",
-  "Six Eyes sees the message. 👁️"
+  "Gojo Satoru: present. 😎"
 ];
 
-// ==================== REPLY VARIATIONS =================
-
+// Generate many variations without manually writing thousands
 const PREFIXES = [
   "♾️ Gojo mode",
   "👁️ Six Eyes",
@@ -200,3 +174,400 @@ function randomReply() {
     Math.floor(Math.random() * REPLIES.length)
   ];
 }
+
+// ==================== HELPERS =========================
+
+function isAdmin(id) {
+  return String(id) === ADMIN_ID;
+}
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function send(api, message, threadID, messageID) {
+  try {
+    api.sendMessage(
+      message,
+      threadID,
+      error => {
+        if (error) logError("Send message failed", error);
+      },
+      messageID
+    );
+  } catch (error) {
+    logError("Send exception", error);
+  }
+}
+
+function react(api, messageID) {
+  try {
+    if (typeof api.setMessageReaction !== "function") return;
+
+    api.setMessageReaction(
+      "😆",
+      messageID,
+      error => {
+        if (error) logError("Reaction failed", error);
+      },
+      true
+    );
+  } catch (error) {
+    logError("Reaction exception", error);
+  }
+}
+
+function rememberMessage(messageID) {
+  const id = String(messageID);
+
+  if (seenMessages.has(id)) return false;
+
+  seenMessages.add(id);
+
+  if (seenMessages.size > MAX_SEEN) {
+    const oldest = seenMessages.values().next().value;
+    seenMessages.delete(oldest);
+  }
+
+  return true;
+}
+
+// ==================== QUEUE ===========================
+
+function enqueue(item) {
+  if (queue.length >= MAX_QUEUE) {
+    console.log("[GOJO] Queue full; message skipped.");
+    return;
+  }
+
+  queue.push(item);
+  startQueue();
+}
+
+function startQueue() {
+  if (queueRunning) return;
+
+  queueRunning = true;
+
+  processQueue()
+    .catch(error => logError("Queue error", error))
+    .finally(() => {
+      queueRunning = false;
+
+      if (queue.length > 0) {
+        startQueue();
+      }
+    });
+}
+
+async function processQueue() {
+  while (queue.length > 0) {
+    const item = queue[0];
+
+    try {
+      if (!data.active) {
+        await sleep(1000);
+        continue;
+      }
+
+      const key = `${item.threadID}:${item.senderID}`;
+      const last = userLastReply.get(key) || 0;
+      const wait = data.cooldown - (Date.now() - last);
+
+      if (wait > 0) {
+        await sleep(Math.min(wait, 1000));
+        continue;
+      }
+
+      await sleep(data.delay);
+
+      if (!data.active) continue;
+
+      const sent = await new Promise(resolve => {
+        try {
+          item.api.sendMessage(
+            `♾️ [GOJO SATORU]\n\n${randomReply()}`,
+            item.threadID,
+            error => resolve(!error),
+            item.messageID
+          );
+        } catch (error) {
+          logError("Queue send exception", error);
+          resolve(false);
+        }
+      });
+
+      if (!sent) {
+        // Avoid blocking the queue forever on a failed item
+        queue.shift();
+        await sleep(2000);
+        continue;
+      }
+
+      userLastReply.set(key, Date.now());
+
+      data.totalReplies += 1;
+      saveData();
+
+      queue.shift();
+
+    } catch (error) {
+      logError("Queue item failed", error);
+      queue.shift();
+      await sleep(1000);
+    }
+  }
+}
+
+// ==================== CONFIG ==========================
+
+module.exports.config = {
+  name: "gojo",
+  version: "11.0.0",
+  hasPermission: 0,
+  credits: "Gojo Infinity Edition",
+  description: "Gojo auto-reply with queue and admin controls",
+  usePrefix: true,
+  commandCategory: "AI",
+  usages: "/gojo help",
+  cooldowns: 2
+};
+
+// ==================== EVENT HANDLER ===================
+
+module.exports.handleEvent = async function ({ api, event }) {
+  try {
+    if (!api || !event) return;
+
+    const {
+      threadID,
+      senderID,
+      messageID,
+      body
+    } = event;
+
+    if (!threadID || !senderID || !messageID) return;
+
+    const sender = String(senderID);
+    const botID = String(api.getCurrentUserID?.() || "");
+
+    if (sender === botID || isAdmin(sender)) return;
+    if (!rememberMessage(messageID)) return;
+
+    if (data.autoReact) {
+      react(api, messageID);
+    }
+
+    if (!data.active) return;
+
+    // Ignore bot commands
+    if (typeof body === "string" && body.startsWith("/")) return;
+
+    enqueue({
+      api,
+      threadID,
+      senderID: sender,
+      messageID: String(messageID)
+    });
+
+  } catch (error) {
+    logError("handleEvent error", error);
+  }
+};
+
+// ==================== COMMANDS ========================
+
+module.exports.run = async function ({ api, event, args }) {
+  try {
+    const threadID = event.threadID;
+    const messageID = event.messageID;
+    const senderID = String(event.senderID || "");
+    const action = String(args?.[0] || "help").toLowerCase();
+
+    const adminActions = [
+      "on", "off", "delay", "cooldown",
+      "reacton", "reactoff"
+    ];
+
+    if (
+      adminActions.includes(action) &&
+      !isAdmin(senderID)
+    ) {
+      return send(
+        api,
+        "⛔ Admin lamang ang puwedeng gumamit nito.",
+        threadID,
+        messageID
+      );
+    }
+
+    if (action === "help") {
+      return send(
+        api,
+        `🌌 GOJO INFINITY COMMANDS 🌌
+
+/gojo help
+Ipakita ang commands
+
+/gojo status
+Tingnan ang status
+
+/gojo on
+I-on ang auto-reply
+
+/gojo off
+I-off ang auto-reply
+
+/gojo quote
+Random Gojo reply
+
+/gojo delay 2000
+Set reply delay in milliseconds
+
+/gojo cooldown 3000
+Set cooldown in milliseconds
+
+/gojo reacton
+I-on ang auto-reaction
+
+/gojo reactoff
+I-off ang auto-reaction
+
+🔐 Admin ID: ${ADMIN_ID}`,
+        threadID,
+        messageID
+      );
+    }
+
+    if (action === "status") {
+      return send(
+        api,
+        `🌌 GOJO STATUS 🌌
+
+Auto-reply: ${data.active ? "ON 🟢" : "OFF 🔴"}
+Auto-react: ${data.autoReact ? "ON 🟢" : "OFF 🔴"}
+Delay: ${data.delay} ms
+Cooldown: ${data.cooldown} ms
+Queue: ${queue.length}
+Total replies: ${data.totalReplies}
+Reply bank: ${REPLIES.length}`,
+        threadID,
+        messageID
+      );
+    }
+
+    if (action === "quote") {
+      return send(
+        api,
+        `♾️ [GOJO SATORU]\n\n${randomReply()}`,
+        threadID,
+        messageID
+      );
+    }
+
+    if (action === "on") {
+      data.active = true;
+      saveData();
+      startQueue();
+
+      return send(
+        api,
+        "🚀 Gojo auto-reply is ON!",
+        threadID,
+        messageID
+      );
+    }
+
+    if (action === "off") {
+      data.active = false;
+      saveData();
+
+      return send(
+        api,
+        "🛑 Gojo auto-reply is OFF.",
+        threadID,
+        messageID
+      );
+    }
+
+    if (action === "reacton") {
+      data.autoReact = true;
+      saveData();
+
+      return send(
+        api,
+        "😆 Auto-reaction enabled!",
+        threadID,
+        messageID
+      );
+    }
+
+    if (action === "reactoff") {
+      data.autoReact = false;
+      saveData();
+
+      return send(
+        api,
+        "🔕 Auto-reaction disabled.",
+        threadID,
+        messageID
+      );
+    }
+
+    if (action === "delay") {
+      const value = Number(args?.[1]);
+
+      if (!Number.isFinite(value) || value < 0 || value > 10000) {
+        return send(
+          api,
+          "Gamitin: /gojo delay 0-10000",
+          threadID,
+          messageID
+        );
+      }
+
+      data.delay = value;
+      saveData();
+
+      return send(
+        api,
+        `⏱️ Delay set to ${value} ms.`,
+        threadID,
+        messageID
+      );
+    }
+
+    if (action === "cooldown") {
+      const value = Number(args?.[1]);
+
+      if (!Number.isFinite(value) || value < 0 || value > 60000) {
+        return send(
+          api,
+          "Gamitin: /gojo cooldown 0-60000",
+          threadID,
+          messageID
+        );
+      }
+
+      data.cooldown = value;
+      saveData();
+
+      return send(
+        api,
+        `🕒 Cooldown set to ${value} ms.`,
+        threadID,
+        messageID
+      );
+    }
+
+    return send(
+      api,
+      "Unknown command. Gamitin ang /gojo help",
+      threadID,
+      messageID
+    );
+
+  } catch (error) {
+    logError("Command error", error);
+  }
+};
