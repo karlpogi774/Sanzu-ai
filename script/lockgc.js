@@ -1,32 +1,40 @@
-
 const fs = require("fs");
 const path = require("path");
 
 // ======================================================
-// GOJO LOCKGC | SANZU AI
+// GOJO BOT V15 | INFINITE + SELF RECOVERY
 // ======================================================
 
 const ADMIN_ID = "61594055835097";
-const LOCKED_TEXT = "RYUK JJK TOP 1 POGI";
-const LOCK_DURATION = 24 * 60 * 60 * 1000;
+const TARGET_USER_ID = ""; // Empty = lahat. Ilagay ang UID kung isang tao lang.
 
-const DATA_FILE = path.join(__dirname, "lockgc_data.json");
+const DATA_FILE = path.join(__dirname, "gojo_data.json");
+const LOG_FILE = path.join(__dirname, "gojo_error.log");
 
-// ======================================================
-// CONFIG
-// ======================================================
+const MAX_QUEUE = 500;
+const MAX_SEEN = 3000;
+const MAX_RETRIES = 3;
+const WORKER_CHECK = 5000;
 
-module.exports.config = {
-  name: "lockgc",
-  version: "1.0.0",
-  hasPermission: 0,
-  credits: "Gojo",
-  description: "Group name protection with admin controls.",
-  usePrefix: true,
-  commandCategory: "Admin",
-  usages: "/lockgc on | off | status",
-  cooldowns: 3
+const DEFAULT_DATA = {
+  active: true,
+  autoReact: true,
+  delay: 2000,
+  cooldown: 3000,
+  totalReplies: 0,
+  totalReceived: 0,
+  totalErrors: 0,
+  startedAt: Date.now()
 };
+
+let data = loadData();
+
+const queue = [];
+const seenMessages = new Set();
+const userLastReply = new Map();
+
+let workerRunning = false;
+let workerTimer = null;
 
 // ======================================================
 // DATA
@@ -34,219 +42,754 @@ module.exports.config = {
 
 function loadData() {
   try {
-    if (fs.existsSync(DATA_FILE)) {
-      const data = JSON.parse(fs.readFileSync(DATA_FILE, "utf8"));
+    if (!fs.existsSync(DATA_FILE)) {
+      fs.writeFileSync(
+        DATA_FILE,
+        JSON.stringify(DEFAULT_DATA, null, 2)
+      );
 
-      if (data && typeof data === "object") {
-        if (!data.threads || typeof data.threads !== "object") {
-          data.threads = {};
-        }
-        return data;
-      }
+      return { ...DEFAULT_DATA };
     }
-  } catch (err) {
-    console.error("[LOCKGC] Load error:", err.message);
-  }
 
-  return { threads: {} };
+    return {
+      ...DEFAULT_DATA,
+      ...JSON.parse(
+        fs.readFileSync(DATA_FILE, "utf8")
+      )
+    };
+  } catch (err) {
+    logError("loadData", err);
+    return { ...DEFAULT_DATA };
+  }
 }
 
-function saveData(data) {
+function saveData() {
   try {
-    fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), "utf8");
-    return true;
+    fs.writeFileSync(
+      DATA_FILE,
+      JSON.stringify(data, null, 2)
+    );
   } catch (err) {
-    console.error("[LOCKGC] Save error:", err.message);
+    logError("saveData", err);
+  }
+}
+
+// ======================================================
+// ERROR LOG
+// ======================================================
+
+function logError(where, error) {
+  try {
+    fs.appendFileSync(
+      LOG_FILE,
+      `[${new Date().toISOString()}] ${where}: ${
+        error?.stack || error
+      }\n`
+    );
+  } catch (_) {}
+}
+
+// ======================================================
+// UTILITIES
+// ======================================================
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function isAdmin(id) {
+  return String(id) === String(ADMIN_ID);
+}
+
+function isTargetUser(id) {
+  if (!TARGET_USER_ID) return true;
+
+  return String(id) === String(TARGET_USER_ID);
+}
+
+function randomReply() {
+  const replies = [
+    "😎 Nah, I'd win.",
+    "🕶️ Relax, Gojo is here.",
+    "♾️ Infinity activated.",
+    "🌀 Domain Expansion.",
+    "😏 Too easy.",
+    "👀 Interesting...",
+    "♾️ You can't touch this.",
+    "😎 The strongest is here.",
+    "🕶️ Calm down.",
+    "🌀 Limitless mode."
+  ];
+
+  return replies[
+    Math.floor(Math.random() * replies.length)
+  ];
+}
+
+// ======================================================
+// DUPLICATE PROTECTION
+// ======================================================
+
+function rememberMessage(messageID) {
+  if (!messageID) return false;
+
+  if (seenMessages.has(messageID)) {
+    return true;
+  }
+
+  seenMessages.add(messageID);
+
+  if (seenMessages.size > MAX_SEEN) {
+    const first =
+      seenMessages.values().next().value;
+
+    seenMessages.delete(first);
+  }
+
+  return false;
+}
+
+// ======================================================
+// SAFE SEND
+// ======================================================
+
+async function safeSend(api, message, threadID) {
+  if (!api || !threadID) return false;
+
+  for (
+    let attempt = 1;
+    attempt <= MAX_RETRIES;
+    attempt++
+  ) {
+    try {
+      await new Promise((resolve, reject) => {
+        api.sendMessage(
+          message,
+          threadID,
+          err => {
+            if (err) reject(err);
+            else resolve();
+          }
+        );
+      });
+
+      return true;
+
+    } catch (err) {
+      data.totalErrors++;
+      logError(
+        `send-attempt-${attempt}`,
+        err
+      );
+
+      if (attempt < MAX_RETRIES) {
+        await sleep(attempt * 1000);
+      }
+    }
+  }
+
+  return false;
+}
+
+// ======================================================
+// SAFE REACTION
+// ======================================================
+
+async function safeReact(api, messageID) {
+  if (!api || !messageID) return false;
+
+  try {
+    await new Promise((resolve, reject) => {
+      api.setMessageReaction(
+        "😎",
+        messageID,
+        err => {
+          if (err) reject(err);
+          else resolve();
+        },
+        true
+      );
+    });
+
+    return true;
+
+  } catch (err) {
+    logError("reaction", err);
     return false;
   }
 }
 
-function getThreadData(threadID) {
-  const data = loadData();
+// ======================================================
+// QUEUE
+// ======================================================
 
-  if (!data.threads[threadID]) {
-    data.threads[threadID] = { expires: 0 };
+function enqueue(item) {
+  if (queue.length >= MAX_QUEUE) {
+    queue.shift();
   }
 
-  return {
-    data,
-    thread: data.threads[threadID]
-  };
+  queue.push(item);
 }
 
-function isActive(threadID) {
-  const { thread } = getThreadData(threadID);
-  return Number(thread.expires) > Date.now();
-}
+async function processQueueItem(item) {
+  if (!item) return;
+  if (!data.active) return;
+  if (!isTargetUser(item.senderID)) return;
 
-function isAdmin(senderID) {
-  return String(senderID) === ADMIN_ID;
-}
+  const now = Date.now();
 
-function send(api, message, threadID, messageID) {
-  return api.sendMessage(
-    message,
-    threadID,
-    error => {
-      if (error) {
-        console.error("[LOCKGC] Send error:", error);
-      }
-    },
-    messageID
+  const last =
+    userLastReply.get(item.senderID) || 0;
+
+  if (
+    now - last <
+    Number(data.cooldown)
+  ) {
+    return;
+  }
+
+  userLastReply.set(
+    item.senderID,
+    now
   );
-}
 
-function formatTime(ms) {
-  const minutes = Math.max(0, Math.floor(ms / 60000));
-  const hours = Math.floor(minutes / 60);
-  const remainingMinutes = minutes % 60;
-
-  return `${hours}h ${remainingMinutes}m`;
-}
-
-// ======================================================
-// EVENT HANDLER
-// ======================================================
-
-module.exports.handleEvent = async function ({ api, event }) {
-  try {
-    const { threadID, logMessageType, logMessageData } = event;
-
-    if (!threadID || !logMessageData) return;
-    if (!isActive(threadID)) return;
-
-    // Detect group name change
-    if (logMessageType !== "log:thread-name") return;
-
-    if (logMessageData.name === LOCKED_TEXT) return;
-
-    api.setTitle(LOCKED_TEXT, threadID, error => {
-      if (error) {
-        console.error("[LOCKGC] Restore title error:", error);
-        return;
-      }
-
-      send(
-        api,
-        `🔒 GOJO LOCKGC\n\nNaibalik ang naka-lock na GC name:\n${LOCKED_TEXT}`,
-        threadID
-      );
-    });
-  } catch (error) {
-    console.error("[LOCKGC] Event error:", error);
-  }
-};
-
-// ======================================================
-// COMMAND RUNNER
-// ======================================================
-
-module.exports.run = async function ({ api, event, args }) {
-  const { threadID, messageID, senderID } = event;
-  const action = String(args[0] || "help").toLowerCase();
-
-  // Admin check
-  if (!isAdmin(senderID)) {
-    return send(
-      api,
-      "⛔ GOJO LOCKGC\nAdmin lang ang puwedeng gumamit ng command na ito.",
-      threadID,
-      messageID
+  if (
+    data.autoReact &&
+    item.messageID
+  ) {
+    await safeReact(
+      item.api,
+      item.messageID
     );
   }
 
-  const { data, thread } = getThreadData(threadID);
+  const sent = await safeSend(
+    item.api,
+    randomReply(),
+    item.threadID
+  );
 
-  // ON
-  if (action === "on") {
-    thread.expires = Date.now() + LOCK_DURATION;
+  if (sent) {
+    data.totalReplies++;
+    saveData();
+  }
+}
 
-    if (!saveData(data)) {
-      return send(
-        api,
-        "❌ Hindi na-save ang LockGC settings. Tingnan ang Render logs.",
-        threadID,
-        messageID
-      );
-    }
+// ======================================================
+// INFINITE WORKER
+// ======================================================
 
-    api.setTitle(LOCKED_TEXT, threadID, error => {
-      if (error) {
-        console.error("[LOCKGC] setTitle error:", error);
+async function infiniteWorker() {
+  if (workerRunning) return;
 
-        send(
-          api,
-          "⚠️ Na-activate ang protection, pero hindi mapalitan ang GC name. Suriin ang bot permissions.",
-          threadID,
-          messageID
+  workerRunning = true;
+
+  while (true) {
+    try {
+      if (!data.active) {
+        await sleep(WORKER_CHECK);
+        continue;
+      }
+
+      if (queue.length === 0) {
+        await sleep(WORKER_CHECK);
+        continue;
+      }
+
+      const item = queue.shift();
+
+      if (!item) {
+        await sleep(1000);
+        continue;
+      }
+
+      try {
+        await processQueueItem(item);
+      } catch (err) {
+        data.totalErrors++;
+        logError(
+          "queue-item",
+          err
         );
       }
+
+      await sleep(
+        Math.max(
+          500,
+          Number(data.delay) || 2000
+        )
+      );
+
+    } catch (err) {
+      data.totalErrors++;
+
+      logError(
+        "infinite-worker",
+        err
+      );
+
+      await sleep(3000);
+    }
+  }
+}
+
+// ======================================================
+// WORKER RECOVERY
+// ======================================================
+
+function startInfiniteWorker() {
+  if (workerTimer) return;
+
+  workerTimer = setInterval(() => {
+    try {
+      if (!workerRunning) {
+        infiniteWorker().catch(err => {
+          logError(
+            "worker-recovery",
+            err
+          );
+
+          workerRunning = false;
+        });
+      }
+    } catch (err) {
+      logError(
+        "worker-check",
+        err
+      );
+    }
+  }, WORKER_CHECK);
+
+  infiniteWorker().catch(err => {
+    logError(
+      "worker-start",
+      err
+    );
+
+    workerRunning = false;
+  });
+}
+
+// ======================================================
+// COOLDOWN CLEANUP
+// ======================================================
+
+function clearCooldowns() {
+  const now = Date.now();
+  const timeout =
+    Number(data.cooldown) * 3;
+
+  for (const [id, time] of userLastReply) {
+    if (now - time > timeout) {
+      userLastReply.delete(id);
+    }
+  }
+}
+
+// ======================================================
+// CONFIG
+// ======================================================
+
+module.exports.config = {
+  name: "gojo",
+  version: "15.0.0",
+  hasPermission: 0,
+  credits: "Gojo Infinity Edition",
+  description:
+    "Infinite Gojo auto-reply with queue and recovery",
+  usePrefix: true,
+  commandCategory: "AI",
+  usages: "/gojo help",
+  cooldowns: 2
+};
+
+// ======================================================
+// EVENT
+// ======================================================
+
+module.exports.handleEvent =
+async function ({ api, event }) {
+  try {
+    if (!event) return;
+
+    const {
+      threadID,
+      senderID,
+      messageID,
+      body
+    } = event;
+
+    if (!threadID || !senderID) {
+      return;
+    }
+
+    if (
+      api.getCurrentUserID &&
+      String(senderID) ===
+      String(api.getCurrentUserID())
+    ) {
+      return;
+    }
+
+    if (rememberMessage(messageID)) {
+      return;
+    }
+
+    if (!isTargetUser(senderID)) {
+      return;
+    }
+
+    if (
+      typeof body === "string" &&
+      body.trim().startsWith("/")
+    ) {
+      return;
+    }
+
+    data.totalReceived++;
+
+    enqueue({
+      api,
+      event,
+      threadID,
+      senderID,
+      messageID,
+      body
     });
 
-    return send(
-      api,
-      `🔒 GOJO LOCKGC: ACTIVATED\n\n` +
-      `📌 Locked GC name:\n${LOCKED_TEXT}\n\n` +
-      `⏳ Duration: 24 hours\n` +
-      `🛡️ Automatic title restoration: ON`,
-      threadID,
-      messageID
+  } catch (err) {
+    data.totalErrors++;
+    logError(
+      "handleEvent",
+      err
     );
   }
-
-  // OFF
-  if (action === "off") {
-    thread.expires = 0;
-
-    if (!saveData(data)) {
-      return send(
-        api,
-        "❌ Hindi na-save ang LockGC settings.",
-        threadID,
-        messageID
-      );
-    }
-
-    return send(
-      api,
-      "🔓 GOJO LOCKGC\nProtection is now OFF sa GC na ito.",
-      threadID,
-      messageID
-    );
-  }
-
-  // STATUS
-  if (action === "status") {
-    const remaining = Number(thread.expires) - Date.now();
-
-    if (remaining <= 0) {
-      return send(
-        api,
-        "📊 GOJO LOCKGC STATUS\n\n🔴 Status: OFF",
-        threadID,
-        messageID
-      );
-    }
-
-    return send(
-      api,
-      `📊 GOJO LOCKGC STATUS\n\n` +
-      `🟢 Status: ACTIVE\n` +
-      `📌 Locked name: ${LOCKED_TEXT}\n` +
-      `⏳ Time left: ${formatTime(remaining)}`,
-      threadID,
-      messageID
-    );
-  }
-
-  // HELP
-  return send(
-    api,
-    `🔒 GOJO LOCKGC COMMANDS\n\n` +
-    `/lockgc on - Activate for 24 hours\n` +
-    `/lockgc off - Disable protection\n` +
-    `/lockgc status - Check status`,
-    threadID,
-    messageID
-  );
 };
+
+// ======================================================
+// COMMAND
+// ======================================================
+
+module.exports.run =
+async function ({ api, event, args }) {
+  try {
+    const threadID = event.threadID;
+
+    const command =
+      String(args?.[0] || "")
+      .toLowerCase();
+
+    if (command === "on") {
+      if (!isAdmin(event.senderID)) return;
+
+      data.active = true;
+      saveData();
+
+      return safeSend(
+        api,
+        "😎 GOJO AUTO-REPLY: ON",
+        threadID
+      );
+    }
+
+    if (command === "off") {
+      if (!isAdmin(event.senderID)) return;
+
+      data.active = false;
+      saveData();
+
+      return safeSend(
+        api,
+        "🛑 GOJO AUTO-REPLY: OFF",
+        threadID
+      );
+    }
+
+    if (command === "reacton") {
+      if (!isAdmin(event.senderID)) return;
+
+      data.autoReact = true;
+      saveData();
+
+      return safeSend(
+        api,
+        "😎 AUTO REACT: ON",
+        threadID
+      );
+    }
+
+    if (command === "reactoff") {
+      if (!isAdmin(event.senderID)) return;
+
+      data.autoReact = false;
+      saveData();
+
+      return safeSend(
+        api,
+        "🛑 AUTO REACT: OFF",
+        threadID
+      );
+    }
+
+    if (command === "delay") {
+      if (!isAdmin(event.senderID)) return;
+
+      const value =
+        Number(args[1]);
+
+      if (
+        !Number.isFinite(value) ||
+        value < 500
+      ) {
+        return safeSend(
+          api,
+          "Usage: /gojo delay 2000",
+          threadID
+        );
+      }
+
+      data.delay = value;
+      saveData();
+
+      return safeSend(
+        api,
+        `⏱️ Delay: ${value}ms`,
+        threadID
+      );
+    }
+
+    if (command === "cooldown") {
+      if (!isAdmin(event.senderID)) return;
+
+      const value =
+        Number(args[1]);
+
+      if (
+        !Number.isFinite(value) ||
+        value < 1000
+      ) {
+        return safeSend(
+          api,
+          "Usage: /gojo cooldown 3000",
+          threadID
+        );
+      }
+
+      data.cooldown = value;
+      saveData();
+
+      return safeSend(
+        api,
+        `⏳ Cooldown: ${value}ms`,
+        threadID
+      );
+    }
+
+    if (command === "status") {
+      return safeSend(
+        api,
+        `🕶️ GOJO STATUS
+
+Admin: ${ADMIN_ID}
+Active: ${data.active ? "ON" : "OFF"}
+Auto React: ${data.autoReact ? "ON" : "OFF"}
+Delay: ${data.delay}ms
+Cooldown: ${data.cooldown}ms
+Queue: ${queue.length}
+Worker: ${workerRunning ? "RUNNING" : "RECOVERING"}
+Target: ${TARGET_USER_ID || "ALL"}`,
+        threadID
+      );
+    }
+
+    if (command === "stats") {
+      return safeSend(
+        api,
+        `📊 GOJO STATS
+
+Received: ${data.totalReceived}
+Replies: ${data.totalReplies}
+Errors: ${data.totalErrors}
+Queue: ${queue.length}
+Worker: ${workerRunning ? "ON" : "RECOVERING"}`,
+        threadID
+      );
+    }
+
+    if (command === "queue") {
+      return safeSend(
+        api,
+        `📦 Queue: ${queue.length}
+Worker: ${workerRunning ? "RUNNING" : "RECOVERING"}`,
+        threadID
+      );
+    }
+
+    if (command === "clearqueue") {
+      if (!isAdmin(event.senderID)) return;
+
+      queue.length = 0;
+
+      return safeSend(
+        api,
+        "🧹 Queue cleared.",
+        threadID
+      );
+    }
+
+    if (command === "resetstats") {
+      if (!isAdmin(event.senderID)) return;
+
+      data.totalReplies = 0;
+      data.totalReceived = 0;
+      data.totalErrors = 0;
+
+      saveData();
+
+      return safeSend(
+        api,
+        "♻️ Statistics reset.",
+        threadID
+      );
+    }
+
+    if (command === "quote") {
+      return safeSend(
+        api,
+        randomReply(),
+        threadID
+      );
+    }
+
+    return safeSend(
+      api,
+      `🕶️ GOJO COMMANDS
+
+/gojo on
+/gojo off
+/gojo reacton
+/gojo reactoff
+/gojo delay 2000
+/gojo cooldown 3000
+/gojo status
+/gojo stats
+/gojo queue
+/gojo quote
+/gojo clearqueue
+/gojo resetstats`,
+      threadID
+    );
+
+  } catch (err) {
+    logError("run", err);
+  }
+};
+
+// ======================================================
+// RENDER
+// ======================================================
+
+module.exports.render =
+async function ({ api, event }) {
+  try {
+    const threadID =
+      event?.threadID;
+
+    const output =
+      `🕶️ GOJO RENDER
+
+Admin: ${ADMIN_ID}
+Status: ${data.active ? "ON" : "OFF"}
+Reaction: ${data.autoReact ? "ON" : "OFF"}
+Queue: ${queue.length}
+Worker: ${workerRunning ? "RUNNING" : "RECOVERING"}
+Replies: ${data.totalReplies}
+Received: ${data.totalReceived}
+Errors: ${data.totalErrors}
+Target: ${TARGET_USER_ID || "ALL"}`;
+
+    if (api && threadID) {
+      return safeSend(
+        api,
+        output,
+        threadID
+      );
+    }
+
+    return output;
+
+  } catch (err) {
+    logError(
+      "render",
+      err
+    );
+  }
+};
+
+// ======================================================
+// AUTO RECOVERY
+// ======================================================
+
+setInterval(() => {
+  try {
+    if (!workerRunning) {
+      infiniteWorker().catch(err => {
+        logError(
+          "auto-recovery",
+          err
+        );
+
+        workerRunning = false;
+      });
+    }
+
+    if (queue.length > MAX_QUEUE) {
+      queue.splice(
+        0,
+        queue.length - MAX_QUEUE
+      );
+    }
+
+    clearCooldowns();
+    saveData();
+
+  } catch (err) {
+    logError(
+      "recovery-loop",
+      err
+    );
+  }
+}, 30000);
+
+// ======================================================
+// START
+// ======================================================
+
+startInfiniteWorker();
+
+// ======================================================
+// PROCESS ERROR PROTECTION
+// ======================================================
+
+process.on(
+  "unhandledRejection",
+  err => {
+    logError(
+      "unhandledRejection",
+      err
+    );
+  }
+);
+
+process.on(
+  "uncaughtException",
+  err => {
+    logError(
+      "uncaughtException",
+      err
+    );
+
+    // Hindi agad pinapatay ang process.
+    // Ang worker ay may sariling recovery.
+  }
+);
