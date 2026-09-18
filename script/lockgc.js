@@ -3,163 +3,302 @@ const path = require("path");
 
 // ==========================================
 // CONFIGURATION
-const ADMIN_ID = "61594055835097"; 
-const LOCKED_TEXT = "RYUK JJK TOP 1 POGI";
 // ==========================================
+const ADMIN_ID = "61594055835097";
+const LOCKED_TEXT = "RYUK JJK TOP 1 POGI";
+const LOCK_DURATION = 24 * 60 * 60 * 1000;
+const DATA_PATH = path.join(__dirname, "lockgc_data.json");
 
+// Nickname locking can be disabled by setting this to false.
+const LOCK_NICKNAMES = true;
+
+// ==========================================
+// COMMAND CONFIG
+// ==========================================
 module.exports.config = {
   name: "lockgc",
-  version: "2.0.0",
-  hasPermission: 2,
-  credits: "Jehosh",
-  description: "Auto-Lock GC Name and Nicknames protection script with fast detection.",
+  version: "3.0.0",
+  hasPermission: 0,
+  credits: "Gojo",
+  description: "Protects the group title and nicknames for a limited time.",
   usePrefix: true,
   commandCategory: "Admin",
-  usages: "/lockgc on — I-on ang auto-lock sa GC\n" +
-          "/lockgc off — I-off ang auto-lock\n" +
-          "/lockgc status — Tingnan ang status",
+  usages:
+    "/lockgc on - Activate protection for 24 hours\n" +
+    "/lockgc off - Disable protection\n" +
+    "/lockgc status - Check protection status",
   cooldowns: 3
 };
 
-const DATA_PATH = path.join(__dirname, "lockgc_data.json");
-
+// ==========================================
+// DATA MANAGEMENT
+// ==========================================
 function loadData() {
   try {
     if (fs.existsSync(DATA_PATH)) {
-      return JSON.parse(fs.readFileSync(DATA_PATH, "utf8"));
+      const parsed = JSON.parse(fs.readFileSync(DATA_PATH, "utf8"));
+
+      if (parsed && typeof parsed === "object") {
+        if (!parsed.threads || typeof parsed.threads !== "object") {
+          parsed.threads = {};
+        }
+        return parsed;
+      }
     }
-  } catch (err) {}
+  } catch (err) {
+    console.error("[LockGC] Failed to load data:", err.message);
+  }
+
   return { threads: {} };
 }
 
 function saveData(data) {
   try {
-    fs.writeFileSync(DATA_PATH, JSON.stringify(data, null, 2), "utf8");
-  } catch (err) {}
-}
-
-function isThreadActive(threadID) {
-  const data = loadData();
-  const threadData = data.threads[threadID];
-  return threadData && threadData.expires && Number(threadData.expires) > Date.now();
-}
-
-// Mas mabilis at sabay-sabay na pag-apply ng nicknames para hindi matagalan
-function applyLockedNicknames(api, threadID) {
-  api.getThreadInfo(threadID, (err, info) => {
-    if (err || !info || !info.participantIDs) return;
-    info.participantIDs.forEach((userID, index) => {
-      setTimeout(() => {
-        try {
-          api.changeNickname(LOCKED_TEXT, threadID, userID, () => {});
-        } catch (e) {}
-      }, index * 800); // Binilis ko ang interval sa 800ms para mas mabilis matapos
-    });
-  });
-}
-
-// ===== EVENT HANDLER: MABILIS NA DETECTION SA PAGPAPALIT =====
-module.exports.handleEvent = async function ({ api, event }) {
-  const { threadID, logMessageType, logMessageData } = event;
-  
-  if (!threadID || !isThreadActive(threadID)) return;
-
-  // 1. Mabilis na pagbabalik kapag pinalitan ang GC Name
-  if (logMessageType === "log:thread-name") {
-    if (logMessageData && logMessageData.name !== LOCKED_TEXT) {
-      setTimeout(() => {
-        try {
-          api.setTitle(LOCKED_TEXT, threadID, (err) => {
-            if (!err) {
-              api.sendMessage(`🍎 *Ryuk Security:* Bawal palitan ang pangalan ng GC! Ibinalik ko sa: "${LOCKED_TEXT}".`, threadID);
-            }
-          });
-        } catch (e) {}
-      }, 300); // Mas mabilis na detection (300ms)
-    }
-    return;
+    fs.writeFileSync(
+      DATA_PATH,
+      JSON.stringify(data, null, 2),
+      "utf8"
+    );
+    return true;
+  } catch (err) {
+    console.error("[LockGC] Failed to save data:", err.message);
+    return false;
   }
+}
 
-  // 2. Mabilis na pagbabalik kapag pinalitan ang Nickname ng kahit sino
-  if (logMessageType === "log:user-nickname") {
-    const targetUserID = logMessageData.participant_id;
-    if (logMessageData.nickname !== LOCKED_TEXT) {
-      setTimeout(() => {
-        try {
-          api.changeNickname(LOCKED_TEXT, threadID, targetUserID, (err) => {
-            if (!err) {
-              api.sendMessage(`🍎 *Ryuk Security:* Naka-lock ang nickname sa "${LOCKED_TEXT}". Huwag pasaway!`, threadID);
-            }
-          });
-        } catch (e) {}
-      }, 300); // Mas mabilis na detection (300ms)
-    }
-    return;
-  }
-};
-
-// ===== COMMAND RUNNER =====
-module.exports.run = async function ({ api, event, args }) {
-  const { threadID, messageID, senderID } = event;
-  const sub = (args[0] || "").toLowerCase();
+function getThreadData(threadID) {
   const data = loadData();
 
-  if (!data.threads) data.threads = {};
   if (!data.threads[threadID]) {
     data.threads[threadID] = { expires: 0 };
   }
 
-  const currentThread = data.threads[threadID];
+  return {
+    data,
+    threadData: data.threads[threadID]
+  };
+}
 
-  // Admin Guard
-  if (senderID !== ADMIN_ID) {
-    return api.sendMessage("❌ *Ryuk:* Admin lang ang pwedeng mag-activate ng proteksyong ito.", threadID, messageID);
+function isThreadActive(threadID) {
+  const { threadData } = getThreadData(threadID);
+  return Number(threadData.expires) > Date.now();
+}
+
+function formatTime(ms) {
+  const totalMinutes = Math.max(0, Math.floor(ms / 60000));
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+
+  return `${hours}h ${minutes}m`;
+}
+
+// ==========================================
+// APPLY LOCKED NICKNAMES
+// ==========================================
+function applyLockedNicknames(api, threadID) {
+  if (!LOCK_NICKNAMES) return;
+
+  api.getThreadInfo(threadID, (err, info) => {
+    if (err) {
+      console.error("[LockGC] Failed to get thread info:", err.message);
+      return;
+    }
+
+    if (!info || !Array.isArray(info.participantIDs)) return;
+
+    info.participantIDs.forEach((userID, index) => {
+      setTimeout(() => {
+        if (!isThreadActive(threadID)) return;
+
+        api.changeNickname(
+          LOCKED_TEXT,
+          threadID,
+          userID,
+          err => {
+            if (err) {
+              console.error(
+                `[LockGC] Failed to change nickname for ${userID}:`,
+                err.message
+              );
+            }
+          }
+        );
+      }, index * 1000);
+    });
+  });
+}
+
+// ==========================================
+// EVENT HANDLER
+// ==========================================
+module.exports.handleEvent = async function ({ api, event }) {
+  const {
+    threadID,
+    logMessageType,
+    logMessageData
+  } = event;
+
+  if (!threadID || !isThreadActive(threadID)) return;
+  if (!logMessageData) return;
+
+  // Group title changed
+  if (logMessageType === "log:thread-name") {
+    const newName = logMessageData.name;
+
+    if (newName === LOCKED_TEXT) return;
+
+    api.setTitle(LOCKED_TEXT, threadID, err => {
+      if (err) {
+        console.error("[LockGC] Failed to restore group title:", err.message);
+        return;
+      }
+
+      api.sendMessage(
+        `🔒 Gojo LockGC\nGroup name protection is active.\nRestored title: ${LOCKED_TEXT}`,
+        threadID
+      );
+    });
+
+    return;
   }
 
-  if (sub === "on") {
-    currentThread.expires = Date.now() + 24 * 60 * 60 * 1000;
-    saveData(data);
+  // Member nickname changed
+  if (
+    LOCK_NICKNAMES &&
+    logMessageType === "log:user-nickname"
+  ) {
+    const targetUserID = logMessageData.participant_id;
+    const newNickname = logMessageData.nickname;
 
-    // I-lock agad ang GC Name at mga Nicknames
-    api.setTitle(LOCKED_TEXT, threadID, () => {});
+    if (!targetUserID || newNickname === LOCKED_TEXT) return;
+
+    api.changeNickname(
+      LOCKED_TEXT,
+      threadID,
+      targetUserID,
+      err => {
+        if (err) {
+          console.error(
+            "[LockGC] Failed to restore nickname:",
+            err.message
+          );
+          return;
+        }
+
+        api.sendMessage(
+          `🔒 Gojo LockGC\nNickname protection is active.\nRestored nickname: ${LOCKED_TEXT}`,
+          threadID
+        );
+      }
+    );
+  }
+};
+
+// ==========================================
+// COMMAND RUNNER
+// ==========================================
+module.exports.run = async function ({ api, event, args }) {
+  const { threadID, messageID, senderID } = event;
+  const sub = (args[0] || "").toLowerCase();
+
+  // Admin check
+  if (String(senderID) !== ADMIN_ID) {
+    return api.sendMessage(
+      "⛔ Gojo LockGC\nAdmin lang ang puwedeng gumamit ng command na ito.",
+      threadID,
+      messageID
+    );
+  }
+
+  const { data, threadData } = getThreadData(threadID);
+
+  // ========================================
+  // ON
+  // ========================================
+  if (sub === "on") {
+    threadData.expires = Date.now() + LOCK_DURATION;
+
+    if (!saveData(data)) {
+      return api.sendMessage(
+        "❌ Hindi na-save ang LockGC settings. Pakisuri ang file permissions.",
+        threadID,
+        messageID
+      );
+    }
+
+    api.setTitle(LOCKED_TEXT, threadID, err => {
+      if (err) {
+        console.error("[LockGC] Failed to set group title:", err.message);
+      }
+    });
+
     applyLockedNicknames(api, threadID);
 
     return api.sendMessage(
-      `🍎 LOCKGC PROTECTION: ACTIVATED 🔒\n\n` +
-      `📌 GC Name & Nicknames are now locked to:\n"${LOCKED_TEXT}"\n` +
-      `⚡ Mabilis nang idedetect at ibabalik kapag may nagbago!\n` +
-      `⏳ Duration: 24 Oras`,
+      `🔒 GOJO LOCKGC: ACTIVATED\n\n` +
+      `📌 Protected title:\n${LOCKED_TEXT}\n\n` +
+      `👤 Nickname lock: ${LOCK_NICKNAMES ? "ON" : "OFF"}\n` +
+      `⏳ Duration: 24 hours\n` +
+      `⚡ Protection is now active.`,
       threadID,
       messageID
     );
   }
 
+  // ========================================
+  // OFF
+  // ========================================
   if (sub === "off") {
-    currentThread.expires = 0;
-    saveData(data);
-    return api.sendMessage("🍎 *Ryuk:* Naka-off na ang lockgc protection sa GC na ito.", threadID, messageID);
-  }
+    threadData.expires = 0;
 
-  if (sub === "status") {
-    const left = Number(currentThread.expires) - Date.now();
-    if (left <= 0) return api.sendMessage("📊 Status: Naka-OFF ang lockgc protection sa GC na 'to.", threadID, messageID);
+    if (!saveData(data)) {
+      return api.sendMessage(
+        "❌ Hindi na-save ang LockGC settings.",
+        threadID,
+        messageID
+      );
+    }
 
-    const hours = Math.floor(left / (1000 * 60 * 60));
-    const mins = Math.floor((left % (1000 * 60 * 60)) / (1000 * 60));
     return api.sendMessage(
-      `📊 LOCKGC STATUS:\n` +
-      `• Time left: ${hours}h ${mins}m\n` +
-      `• Target Text: ${LOCKED_TEXT} (Protected)`,
+      "🔓 GOJO LOCKGC\nNaka-off na ang protection sa GC na ito.",
       threadID,
       messageID
     );
   }
 
+  // ========================================
+  // STATUS
+  // ========================================
+  if (sub === "status") {
+    const remaining = Number(threadData.expires) - Date.now();
+
+    if (remaining <= 0) {
+      return api.sendMessage(
+        "📊 GOJO LOCKGC STATUS\nStatus: OFF",
+        threadID,
+        messageID
+      );
+    }
+
+    return api.sendMessage(
+      `📊 GOJO LOCKGC STATUS\n\n` +
+      `🔒 Status: ACTIVE\n` +
+      `📌 Locked text: ${LOCKED_TEXT}\n` +
+      `👤 Nickname lock: ${LOCK_NICKNAMES ? "ON" : "OFF"}\n` +
+      `⏳ Time remaining: ${formatTime(remaining)}`,
+      threadID,
+      messageID
+    );
+  }
+
+  // ========================================
+  // HELP
+  // ========================================
   return api.sendMessage(
-    `🍎 LockGC Commands:\n` +
-    `/lockgc on — I-on ang auto lock ng GC name at nicknames\n` +
-    `/lockgc off — Patayin ang proteksyon\n` +
-    `/lockgc status — Tingnan ang status`,
+    `🔒 GOJO LOCKGC COMMANDS\n\n` +
+    `/lockgc on - Activate protection for 24 hours\n` +
+    `/lockgc off - Disable protection\n` +
+    `/lockgc status - Check status`,
     threadID,
     messageID
   );
