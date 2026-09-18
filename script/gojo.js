@@ -1,268 +1,245 @@
-"use strict";
-
 const fs = require("fs");
 const path = require("path");
 
-// ============================================================
-// BOT CONFIG
-// ============================================================
-
-const ADMIN_ID = "61594055835097";
-const DATA_FILE = path.join(__dirname, "adminbot_data.json");
-
-const MAX_QUEUE = 100;
-const COOLDOWN = 5000;
-const REPLY_DELAY = 2000;
-
-// ============================================================
-// DATA
-// ============================================================
-
-const DEFAULT_DATA = {
-  activeThreads: {},
-  autoReact: true
+module.exports.config = {
+  name: "gojo",
+  version: "1.5.0",
+  hasPermission: 0,
+  credits: "Gojo Makunat Edition",
+  description: "24h Gojo auto-reply with anti-spam, auto-react & silent protection.",
+  usePrefix: true,
+  commandCategory: "Fun",
+  usages: "/gojo on — start\n/gojo off — stop\n/gojo status — check",
+  cooldowns: 5
 };
 
-let data;
+const ADMIN_ID = "61594055835097";
+const DATA_PATH = path.join(__dirname, "gojo_data.json");
 
-try {
-  data = fs.existsSync(DATA_FILE)
-    ? { ...DEFAULT_DATA, ...JSON.parse(fs.readFileSync(DATA_FILE, "utf8")) }
-    : { ...DEFAULT_DATA };
+const COOLDOWN_MS = 3000;
+const USER_SPAM_LIMIT = 3;
+const SPAM_WINDOW_MS = 10000;
 
-  if (!data.activeThreads || typeof data.activeThreads !== "object") {
-    data.activeThreads = {};
-  }
-} catch {
-  data = { ...DEFAULT_DATA };
+const lastReplyTime = {};
+const userMessageTracker = {};
+
+const REPLIES = [
+  "😎 Gojo is still here.",
+  "♾️ Limitless active.",
+  "🕶️ The strongest has arrived.",
+  "😏 Nice try.",
+  "🌀 Domain Expansion.",
+  "😂 Still running.",
+  "👀 I saw that.",
+  "♾️ Infinity remains active.",
+  "😎 Gojo online.",
+  "🕶️ You cannot stop Infinity.",
+  "😏 Easy.",
+  "🌀 Unlimited Void.",
+  "♾️ Limitless.",
+  "😎 Still here.",
+  "👀 Interesting...",
+  "😂 That won't stop Gojo.",
+  "♾️ Infinity detected.",
+  "🕶️ Gojo mode active."
+];
+
+const EMOJIS = [
+  "😎",
+  "♾️",
+  "🕶️",
+  "👀",
+  "😂",
+  "🌀"
+];
+
+function loadData() {
+  try {
+    if (fs.existsSync(DATA_PATH)) {
+      return {
+        active: false,
+        expires: 0,
+        activatedBy: null,
+        ...JSON.parse(fs.readFileSync(DATA_PATH, "utf8"))
+      };
+    }
+  } catch {}
+
+  return {
+    active: false,
+    expires: 0,
+    activatedBy: null
+  };
 }
 
-function save() {
+function saveData(data) {
   try {
     fs.writeFileSync(
-      DATA_FILE,
+      DATA_PATH,
       JSON.stringify(data, null, 2)
     );
   } catch {}
 }
 
-// ============================================================
-// STATE
-// ============================================================
+function isActive() {
+  const data = loadData();
 
-const queue = [];
-const cooldowns = new Map();
-
-let running = false;
-let stopped = false;
-
-// ============================================================
-// HELPERS
-// ============================================================
-
-function isAdmin(id) {
-  return String(id) === ADMIN_ID;
-}
-
-function isActive(threadID) {
-  return data.activeThreads[String(threadID)] === true;
-}
-
-function isSilent(body) {
   return (
-    typeof body === "string" &&
-    /^\/silent(?:\s|$)/i.test(body.trim())
+    data.active === true &&
+    data.expires > Date.now()
   );
 }
 
-function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
+function isAdmin(senderID) {
+  return String(senderID) === ADMIN_ID;
 }
 
-// ============================================================
-// SAFE SEND
-// ============================================================
+function isSilentCommand(body) {
+  if (typeof body !== "string") return false;
 
-function send(api, message, threadID) {
-  return new Promise(resolve => {
-    try {
-      api.sendMessage(message, threadID, () => {
-        resolve(true);
-      });
-    } catch {
-      resolve(false);
-    }
-  });
+  return /^\/silent(?:\s|$)/i.test(
+    body.trim()
+  );
 }
 
-// ============================================================
-// REPLIES
-// ============================================================
+function isSpamming(senderID) {
+  const now = Date.now();
 
-const REPLIES = [
-  "😎 Gojo is still online.",
-  "♾️ Limitless active.",
-  "🕶️ Still here.",
-  "😏 Nice try.",
-  "👀 I saw that.",
-  "🌀 Domain Expansion.",
-  "♾️ Infinity remains active.",
-  "😎 Bot online.",
-  "😂 Still running.",
-  "🕶️ Gojo detected."
-];
+  if (!userMessageTracker[senderID]) {
+    userMessageTracker[senderID] = [];
+  }
+
+  userMessageTracker[senderID] =
+    userMessageTracker[senderID].filter(
+      time => now - time < SPAM_WINDOW_MS
+    );
+
+  userMessageTracker[senderID].push(now);
+
+  return (
+    userMessageTracker[senderID].length >
+    USER_SPAM_LIMIT
+  );
+}
 
 function randomReply() {
   return REPLIES[
-    Math.floor(Math.random() * REPLIES.length)
+    Math.floor(
+      Math.random() * REPLIES.length
+    )
   ];
 }
 
-// ============================================================
-// QUEUE
-// ============================================================
-
-function addQueue(item) {
-  if (!item) return;
-  if (queue.length >= MAX_QUEUE) return;
-
-  queue.push(item);
-  void worker();
+function randomEmoji() {
+  return EMOJIS[
+    Math.floor(
+      Math.random() * EMOJIS.length
+    )
+  ];
 }
-
-async function worker() {
-  if (running || stopped) return;
-
-  running = true;
-
-  try {
-    while (queue.length && !stopped) {
-      const item = queue.shift();
-
-      if (!item) continue;
-      if (!isActive(item.threadID)) continue;
-
-      const key =
-        `${item.threadID}:${item.senderID}`;
-
-      const now = Date.now();
-      const last = cooldowns.get(key) || 0;
-
-      if (now - last < COOLDOWN) continue;
-
-      cooldowns.set(key, now);
-
-      if (
-        data.autoReact &&
-        item.messageID &&
-        typeof item.api.setMessageReaction === "function"
-      ) {
-        try {
-          item.api.setMessageReaction(
-            "😎",
-            item.messageID,
-            () => {},
-            true
-          );
-        } catch {}
-      }
-
-      await sleep(REPLY_DELAY);
-
-      if (!isActive(item.threadID)) continue;
-
-      await send(
-        item.api,
-        randomReply(),
-        item.threadID
-      );
-    }
-  } catch (err) {
-    console.error("[ADMINBOT] Worker error:", err);
-  }
-
-  running = false;
-
-  if (queue.length && !stopped) {
-    setImmediate(() => void worker());
-  }
-}
-
-// ============================================================
-// COMMAND CONFIG
-// ============================================================
-
-module.exports.config = {
-  name: "adminbot",
-  version: "1.0.0",
-  hasPermission: 0,
-  usePrefix: true,
-  commandCategory: "Admin",
-  cooldowns: 2
-};
 
 // ============================================================
 // EVENT HANDLER
 // ============================================================
 
-module.exports.handleEvent = async function ({ api, event }) {
+module.exports.handleEvent = async function ({
+  api,
+  event
+}) {
   try {
     if (!event) return;
 
     const {
       threadID,
       senderID,
+      body,
       messageID,
-      body
+      type
     } = event;
 
     if (!threadID || !senderID) return;
 
-    // Ignore bot itself
-    try {
-      const botID = api.getCurrentUserID?.();
+    let botID = null;
 
-      if (
-        botID &&
-        String(senderID) === String(botID)
-      ) {
-        return;
-      }
+    try {
+      botID = api.getCurrentUserID();
     } catch {}
 
-    // /silent is ignored by this module.
-    if (isSilent(body)) return;
-
-    // Ignore all commands.
     if (
-      typeof body === "string" &&
+      botID &&
+      String(senderID) === String(botID)
+    ) {
+      return;
+    }
+
+    // /silent is ignored by Gojo.
+    // It must NEVER turn Gojo's own state OFF.
+    if (isSilentCommand(body)) {
+      return;
+    }
+
+    if (!isActive()) return;
+
+    if (isSpamming(senderID)) return;
+
+    const now = Date.now();
+
+    if (
+      lastReplyTime[threadID] &&
+      now - lastReplyTime[threadID] <
+        COOLDOWN_MS
+    ) {
+      return;
+    }
+
+    if (
+      (type === "message" ||
+       type === "message_reply") &&
+      messageID
+    ) {
+      try {
+        api.setMessageReaction(
+          randomEmoji(),
+          messageID,
+          () => {},
+          true
+        );
+      } catch {}
+    }
+
+    if (
+      !body ||
+      typeof body !== "string" ||
       body.trim().startsWith("/")
     ) {
       return;
     }
 
-    if (!isActive(threadID)) return;
+    lastReplyTime[threadID] = now;
 
-    addQueue({
-      api,
-      threadID: String(threadID),
-      senderID: String(senderID),
-      messageID,
-      body
-    });
+    try {
+      api.sendMessage(
+        randomReply(),
+        threadID,
+        messageID
+      );
+    } catch (err) {
+      console.error(
+        "[GOJO] Send error:",
+        err
+      );
+    }
 
   } catch (err) {
-    console.error("[ADMINBOT] Event error:", err);
-
-    // Recover worker if an event causes an error.
-    if (!running && queue.length) {
-      setImmediate(() => void worker());
-    }
+    console.error(
+      "[GOJO] Event error:",
+      err
+    );
   }
 };
 
 // ============================================================
-// COMMANDS
+// COMMAND
 // ============================================================
 
 module.exports.run = async function ({
@@ -273,163 +250,121 @@ module.exports.run = async function ({
   try {
     if (!event?.threadID) return;
 
-    const threadID = String(event.threadID);
-    const senderID = String(event.senderID || "");
-    const command =
-      String(args?.[0] || "status").toLowerCase();
+    const {
+      threadID,
+      messageID,
+      senderID
+    } = event;
 
-    // --------------------------------------------------------
-    // ON
-    // --------------------------------------------------------
+    const sub =
+      String(args?.[0] || "status")
+        .toLowerCase();
 
-    if (command === "on") {
+    const data = loadData();
+
+    if (sub === "on") {
       if (!isAdmin(senderID)) {
-        return send(
-          api,
+        return api.sendMessage(
           "⛔ Admin only.",
-          threadID
+          threadID,
+          messageID
         );
       }
 
-      data.activeThreads[threadID] = true;
-      save();
+      data.active = true;
+      data.expires =
+        Date.now() +
+        24 * 60 * 60 * 1000;
 
-      return send(
-        api,
-        "♾️ ADMINBOT ON\n😎 Active sa GC na ito.",
-        threadID
+      data.activatedBy = senderID;
+      data.activatedAt = Date.now();
+
+      saveData(data);
+
+      return api.sendMessage(
+        "♾️ GOJO ON!\n\n" +
+        "😎 24 Hours Active\n" +
+        "🛡️ Anti-Spam Active\n" +
+        "😎 Auto-React Active\n" +
+        "🔒 /silent ignored by Gojo\n" +
+        "♾️ Limitless mode active.",
+        threadID,
+        messageID
       );
     }
 
-    // --------------------------------------------------------
-    // OFF
-    // --------------------------------------------------------
-
-    if (command === "off") {
+    if (sub === "off") {
       if (!isAdmin(senderID)) {
-        return send(
-          api,
+        return api.sendMessage(
           "⛔ Admin only.",
-          threadID
+          threadID,
+          messageID
         );
       }
 
-      data.activeThreads[threadID] = false;
-      save();
+      data.active = false;
+      data.expires = 0;
 
-      return send(
-        api,
-        "🛑 ADMINBOT OFF",
-        threadID
+      saveData(data);
+
+      return api.sendMessage(
+        "🛑 Gojo OFF.",
+        threadID,
+        messageID
       );
     }
 
-    // --------------------------------------------------------
-    // STATUS
-    // --------------------------------------------------------
-
-    if (command === "status") {
-      return send(
-        api,
-        [
-          "♾️ ADMINBOT STATUS",
-          `GC: ${isActive(threadID) ? "ON 😎" : "OFF 🛑"}`,
-          `Queue: ${queue.length}/${MAX_QUEUE}`,
-          `Cooldown: ${COOLDOWN}ms`,
-          `React: ${data.autoReact ? "ON" : "OFF"}`
-        ].join("\n"),
-        threadID
-      );
-    }
-
-    // --------------------------------------------------------
-    // REACT ON/OFF
-    // --------------------------------------------------------
-
-    if (
-      command === "reacton" ||
-      command === "reactoff"
-    ) {
-      if (!isAdmin(senderID)) {
-        return send(
-          api,
-          "⛔ Admin only.",
-          threadID
+    if (sub === "status") {
+      if (!isActive()) {
+        return api.sendMessage(
+          "🛑 Gojo is currently OFF.",
+          threadID,
+          messageID
         );
       }
 
-      data.autoReact =
-        command === "reacton";
+      const left =
+        data.expires -
+        Date.now();
 
-      save();
+      const hours =
+        Math.floor(
+          left /
+          (1000 * 60 * 60)
+        );
 
-      return send(
-        api,
-        `😎 Auto React: ${
-          data.autoReact ? "ON" : "OFF"
-        }`,
-        threadID
+      const mins =
+        Math.floor(
+          (left %
+            (1000 * 60 * 60)) /
+          (1000 * 60)
+        );
+
+      return api.sendMessage(
+        "♾️ GOJO STATUS\n\n" +
+        "Status: ACTIVE 😎\n" +
+        `Time left: ${hours}h ${mins}m\n` +
+        "Anti-Spam: ON\n" +
+        "Auto-React: ON\n" +
+        "/silent Protection: ON",
+        threadID,
+        messageID
       );
     }
 
-    // --------------------------------------------------------
-    // HELP
-    // --------------------------------------------------------
-
-    return send(
-      api,
-      [
-        "♾️ ADMINBOT COMMANDS",
-        "/adminbot on",
-        "/adminbot off",
-        "/adminbot status",
-        "/adminbot reacton",
-        "/adminbot reactoff"
-      ].join("\n"),
-      threadID
+    return api.sendMessage(
+      "♾️ GOJO COMMANDS\n\n" +
+      "/gojo on\n" +
+      "/gojo off\n" +
+      "/gojo status",
+      threadID,
+      messageID
     );
 
   } catch (err) {
-    console.error("[ADMINBOT] Command error:", err);
+    console.error(
+      "[GOJO] Command error:",
+      err
+    );
   }
 };
-
-// ============================================================
-// CLEANUP
-// ============================================================
-
-setInterval(() => {
-  try {
-    const now = Date.now();
-
-    for (const [key, time] of cooldowns) {
-      if (now - time > COOLDOWN * 3) {
-        cooldowns.delete(key);
-      }
-    }
-
-    while (cooldowns.size > 3000) {
-      cooldowns.delete(
-        cooldowns.keys().next().value
-      );
-    }
-
-    save();
-
-    // Restart worker if something interrupted it.
-    if (!running && queue.length && !stopped) {
-      void worker();
-    }
-
-  } catch (err) {
-    console.error("[ADMINBOT] Cleanup error:", err);
-  }
-}, 60000);
-
-// ============================================================
-// START
-// ============================================================
-
-console.log(
-  "[ADMINBOT] Makunat Admin Bot loaded."
-);
