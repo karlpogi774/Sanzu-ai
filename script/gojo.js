@@ -1,343 +1,1292 @@
-// ======================================================
-// GOJO BOT V11 | INFINITY MAKUNAT EDITION
-// Sanzu-style command module
-// ======================================================
+// ============================================================
+// GOJO BOT V13 | INFINITY EXTENDED + PERSON TARGET
+// ============================================================
 
 const fs = require("fs");
 const path = require("path");
 
-const ADMIN_ID = "61594055835097";
-const DATA_FILE = path.join(__dirname, "gojo_data.json");
-const LOG_FILE = path.join(__dirname, "gojo_error.log");
+// ============================================================
+// 01. BASIC CONFIG
+// ============================================================
 
-const DEFAULT_DATA = {
-  active: true,
-  autoReact: true,
-  delay: 2000,
-  cooldown: 3000,
-  totalReplies: 0
-};
+const ADMIN_ID = "61594055835097";
+
+const BOT_NAME = "GOJO SATORU";
+const BOT_VERSION = "13.1.0";
+
+const DATA_FILE =
+  path.join(__dirname, "gojo_data.json");
+
+const BACKUP_FILE =
+  path.join(__dirname, "gojo_data.backup.json");
+
+const LOG_FILE =
+  path.join(__dirname, "gojo_error.log");
+
+// ============================================================
+// 02. PERSON ACCOUNT TARGET
+// ============================================================
+//
+// Ilagay ang Facebook User ID ng taong gusto mong i-target.
+//
+// Example:
+// const TARGET_USER_ID = "123456789012345";
+//
+// Para lahat ng users:
+// const TARGET_USER_ID = "";
+//
+// ============================================================
+
+const TARGET_USER_ID = "";
+
+function isTargetUser(id) {
+
+  // Blank = lahat ng users
+  if (!TARGET_USER_ID) {
+    return true;
+  }
+
+  return (
+    String(id) ===
+    String(TARGET_USER_ID)
+  );
+
+}
+
+// ============================================================
+// 03. LIMITS
+// ============================================================
 
 const MAX_QUEUE = 500;
-const MAX_SEEN = 3000;
+const MAX_SEEN_MESSAGES = 3000;
+const MAX_RETRIES = 3;
 
-let data = { ...DEFAULT_DATA };
+const MIN_DELAY = 500;
+const MAX_DELAY = 60000;
+
+const MIN_COOLDOWN = 1000;
+const MAX_COOLDOWN = 120000;
+
+const MAX_COOLDOWN_USERS = 5000;
+
+// ============================================================
+// 04. DEFAULT DATA
+// ============================================================
+
+const DEFAULT_DATA = {
+
+  active: true,
+
+  autoReact: true,
+
+  delay: 2000,
+
+  cooldown: 3000,
+
+  totalReplies: 0,
+
+  totalErrors: 0,
+
+  totalRetries: 0,
+
+  totalReceived: 0,
+
+  startedAt: Date.now(),
+
+  lastReplyAt: 0,
+
+  lastErrorAt: 0
+
+};
+
+// ============================================================
+// 05. RUNTIME
+// ============================================================
+
+let data = {
+  ...DEFAULT_DATA
+};
+
 let queue = [];
+
 let queueRunning = false;
 
+let shuttingDown = false;
+
+let healthRunning = false;
+
 const seenMessages = new Set();
+
 const userLastReply = new Map();
 
-// ==================== LOAD / SAVE =====================
+// ============================================================
+// 06. STATISTICS
+// ============================================================
 
-function logError(where, error) {
+const stats = {
+
+  received: 0,
+
+  targetReceived: 0,
+
+  replied: 0,
+
+  failed: 0,
+
+  retries: 0,
+
+  reactions: 0,
+
+  errors: 0,
+
+  recoveredWorkers: 0,
+
+  queuePeak: 0
+
+};
+
+// ============================================================
+// 07. GOJO QUOTES
+// ============================================================
+
+const GOJO_QUOTES = [
+
+  "Sa buong langit at lupa, ako lamang ang nag-iisang Honored One. ♾️",
+
+  "Infinity ang pagitan natin. Hindi mo ako maaabot. 😎",
+
+  "Domain Expansion: Infinite Void. 🌌",
+
+  "Relax ka lang. Nandito na ang pinakamalakas. 💙",
+
+  "Six Eyes activated. 👁️",
+
+  "Gojo mode: ON. ♾️",
+
+  "Infinity is always active. ♾️",
+
+  "Welcome to Infinite Void. 🌌",
+
+  "The strongest has arrived. 💙",
+
+  "Six Eyes never misses. 👁️",
+
+  "Gojo Satoru: present. 😎",
+
+  "Walang makakalampas sa Infinity. ♾️",
+
+  "Chill lang. Ako na bahala. 💙",
+
+  "Infinite Void detected. 🌌",
+
+  "Gojo is watching. 👁️",
+
+  "Infinity protection activated. ♾️",
+
+  "Honored One reporting. 😎",
+
+  "Domain Expansion ready. 🌌",
+
+  "Six Eyes online. 👁️",
+
+  "Gojo system is online. 💙",
+
+  "Infinite Void initialized. 🌌",
+
+  "The strongest is here. 😎",
+
+  "Infinity detected. ♾️",
+
+  "Gojo protocol activated. 😎",
+
+  "Six Eyes scanning. 👁️",
+
+  "Infinity barrier deployed. ♾️",
+
+  "Honored One mode activated. 💙",
+
+  "Gojo Satoru online. 😎",
+
+  "Domain Expansion available. 🌌",
+
+  "Infinity never sleeps. ♾️",
+
+  "Six Eyes operational. 👁️",
+
+  "Gojo mode remains active. 😎",
+
+  "Infinite Void standing by. 🌌",
+
+  "Nobody gets past Infinity. ♾️",
+
+  "The strongest is monitoring. 💙",
+
+  "Six Eyes detected activity. 👁️",
+
+  "Gojo has entered the chat. 😎",
+
+  "Infinity shield active. ♾️",
+
+  "Infinite Void is watching. 🌌",
+
+  "Honored One has arrived. 💙",
+
+  "Gojo Satoru: ready. 😎",
+
+  "Six Eyes status: ONLINE. 👁️",
+
+  "Infinity status: ACTIVE. ♾️",
+
+  "Domain Expansion: READY. 🌌",
+
+  "Gojo Infinity protocol initialized. ♾️",
+
+  "Six Eyes monitoring complete. 👁️",
+
+  "Infinite Void connection stable. 🌌",
+
+  "Infinity barrier operational. ♾️",
+
+  "Gojo system detected activity. 😎",
+
+  "Honored One connection established. 💙",
+
+  "Six Eyes are watching. 👁️",
+
+  "Infinity protocol is ready. ♾️",
+
+  "Gojo monitoring system active. 😎",
+
+  "Infinite Void system ready. 🌌",
+
+  "The strongest remains online. 💙",
+
+  "Gojo protocol remains active. ♾️",
+
+  "Infinity system is stable. 😎",
+
+  "Six Eyes signal received. 👁️",
+
+  "Domain Expansion system ready. 🌌",
+
+  "Gojo system ready for another message. 😎"
+
+];
+
+// ============================================================
+// 08. RESPONSE COMPONENTS
+// ============================================================
+
+const PREFIXES = [
+
+  "♾️ Gojo mode",
+
+  "👁️ Six Eyes",
+
+  "🌌 Infinite Void",
+
+  "💙 Honored One",
+
+  "⚡ Infinity",
+
+  "😎 Gojo Satoru",
+
+  "🌀 Domain Expansion",
+
+  "✨ Gojo System"
+
+];
+
+const MESSAGES = [
+
+  "activated",
+
+  "online",
+
+  "detected",
+
+  "ready",
+
+  "checking the chat",
+
+  "monitoring activity",
+
+  "processing",
+
+  "on standby",
+
+  "watching",
+
+  "reply system ready",
+
+  "connection stable",
+
+  "system active",
+
+  "message detected",
+
+  "status confirmed",
+
+  "monitoring enabled"
+
+];
+
+const EMOJIS = [
+
+  "😎",
+  "⚡",
+  "♾️",
+  "💙",
+  "🌌",
+  "👁️",
+  "✨",
+  "🔥",
+  "🌀"
+
+];
+
+// ============================================================
+// 09. BUILD REPLIES
+// ============================================================
+
+const REPLIES = [
+  ...GOJO_QUOTES
+];
+
+for (
+  const prefix of PREFIXES
+) {
+
+  for (
+    const message of MESSAGES
+  ) {
+
+    for (
+      const emoji of EMOJIS
+    ) {
+
+      REPLIES.push(
+        `${prefix}: ${message} ${emoji}`
+      );
+
+    }
+
+  }
+
+}
+
+// ============================================================
+// 10. RANDOM
+// ============================================================
+
+function randomReply() {
+
+  return REPLIES[
+    Math.floor(
+      Math.random() *
+      REPLIES.length
+    )
+  ];
+
+}
+
+// ============================================================
+// 11. SLEEP
+// ============================================================
+
+function sleep(ms) {
+
+  return new Promise(
+    resolve =>
+      setTimeout(
+        resolve,
+        ms
+      )
+  );
+
+}
+
+// ============================================================
+// 12. UPTIME
+// ============================================================
+
+function getUptime() {
+
+  const seconds =
+    Math.floor(
+      (Date.now() -
+        data.startedAt) /
+      1000
+    );
+
+  const days =
+    Math.floor(
+      seconds / 86400
+    );
+
+  const hours =
+    Math.floor(
+      (seconds % 86400) /
+      3600
+    );
+
+  const minutes =
+    Math.floor(
+      (seconds % 3600) /
+      60
+    );
+
+  const secs =
+    seconds % 60;
+
+  return (
+    `${days}d ` +
+    `${hours}h ` +
+    `${minutes}m ` +
+    `${secs}s`
+  );
+
+}
+
+// ============================================================
+// 13. ADMIN
+// ============================================================
+
+function isAdmin(id) {
+
+  return (
+    String(id) ===
+    String(ADMIN_ID)
+  );
+
+}
+
+// ============================================================
+// 14. ERROR LOG
+// ============================================================
+
+function logError(
+  where,
+  error
+) {
+
   const message =
-    `[${new Date().toISOString()}] ${where}: ` +
+
+    `[${new Date().toISOString()}] ` +
+    `${where}: ` +
     `${error?.stack || error}\n`;
 
   console.error(message);
 
+  stats.errors++;
+
+  data.totalErrors++;
+
+  data.lastErrorAt =
+    Date.now();
+
   try {
-    fs.appendFileSync(LOG_FILE, message);
+
+    fs.appendFileSync(
+      LOG_FILE,
+      message,
+      "utf8"
+    );
+
   } catch (_) {}
+
 }
 
-function loadData() {
+// ============================================================
+// 15. SAVE
+// ============================================================
+
+function saveData() {
+
   try {
-    if (fs.existsSync(DATA_FILE)) {
-      const saved = JSON.parse(
-        fs.readFileSync(DATA_FILE, "utf8")
+
+    const tempFile =
+      DATA_FILE + ".tmp";
+
+    fs.writeFileSync(
+
+      tempFile,
+
+      JSON.stringify(
+        data,
+        null,
+        2
+      ),
+
+      "utf8"
+
+    );
+
+    fs.renameSync(
+      tempFile,
+      DATA_FILE
+    );
+
+  } catch (error) {
+
+    logError(
+      "Save failed",
+      error
+    );
+
+  }
+
+}
+
+// ============================================================
+// 16. BACKUP
+// ============================================================
+
+function backupData() {
+
+  try {
+
+    if (
+      fs.existsSync(
+        DATA_FILE
+      )
+    ) {
+
+      fs.copyFileSync(
+        DATA_FILE,
+        BACKUP_FILE
       );
+
+    }
+
+  } catch (error) {
+
+    logError(
+      "Backup failed",
+      error
+    );
+
+  }
+
+}
+
+// ============================================================
+// 17. LOAD
+// ============================================================
+
+function loadData() {
+
+  try {
+
+    if (
+      !fs.existsSync(
+        DATA_FILE
+      )
+    ) {
 
       data = {
         ...DEFAULT_DATA,
-        ...saved
+        startedAt: Date.now()
       };
+
+      saveData();
+
+      return;
+
     }
+
+    const saved =
+      JSON.parse(
+        fs.readFileSync(
+          DATA_FILE,
+          "utf8"
+        )
+      );
+
+    data = {
+
+      ...DEFAULT_DATA,
+
+      ...saved
+
+    };
+
+    data.delay =
+      Math.max(
+        MIN_DELAY,
+        Math.min(
+          MAX_DELAY,
+          Number(data.delay) ||
+          DEFAULT_DATA.delay
+        )
+      );
+
+    data.cooldown =
+      Math.max(
+        MIN_COOLDOWN,
+        Math.min(
+          MAX_COOLDOWN,
+          Number(data.cooldown) ||
+          DEFAULT_DATA.cooldown
+        )
+      );
+
   } catch (error) {
-    logError("Load data failed", error);
-    data = { ...DEFAULT_DATA };
-  }
-}
 
-function saveData() {
-  try {
-    const tempFile = DATA_FILE + ".tmp";
-
-    fs.writeFileSync(
-      tempFile,
-      JSON.stringify(data, null, 2)
+    logError(
+      "Load failed",
+      error
     );
 
-    fs.renameSync(tempFile, DATA_FILE);
-  } catch (error) {
-    logError("Save data failed", error);
+    data = {
+      ...DEFAULT_DATA
+    };
+
   }
+
 }
 
 loadData();
 
-// ==================== GOJO REPLIES ====================
+backupData();
 
-const GOJO_QUOTES = [
-  "Sa buong langit at lupa, ako lamang ang nag-iisang Honored One. ♾️",
-  "Infinity ang pagitan natin. Hindi mo ako maaabot. 😎",
-  "Domain Expansion: Infinite Void. 🌌",
-  "Relax ka lang. Nandito na ang pinakamalakas. 💙",
-  "Six Eyes activated. 👁️",
-  "Hindi ako nagyayabang. Sinasabi ko lang ang katotohanan. 😏",
-  "Gojo mode: ON. ♾️",
-  "Masyado kang mabagal para sa Infinity ko. ⚡",
-  "Walang drama. Isang reply lang, sapat na. 😂",
-  "Nasa ibang level ang laro ko. 🌌",
-  "Hindi pa nga ako seryoso. 💙",
-  "Ang lakas mo naman... sa chat. 😂",
-  "Infinity barrier: activated. ♾️",
-  "Sige, tuloy mo lang. Nakikinig ang Six Eyes. 👁️",
-  "Ang tunay na lakas ay marunong maghintay. ⏳",
-  "Gojo Satoru reporting for duty. 😎",
-  "Hindi ako late. Dramatic entrance lang. ✨",
-  "Walang lag sa confidence ko. ⚡",
-  "Random ang quote, pero Gojo ang dating. 😂",
-  "Keep calm. Infinity is handling the messages. 🌌",
-  "May bagong message? Gojo has entered the chat. 😎",
-  "Isang reply lang, unlimited confidence. ♾️",
-  "Ang bawat message ay may sariling oras. ⏱️",
-  "Six Eyes online. System ready. 👁️",
-  "Walang duplicate, walang kalituhan. 💙",
-  "Ang reply ay darating sa tamang oras. ⏳",
-  "Gojo energy: 100%. 🔋",
-  "Hindi kailangang mag-spam para maging legendary. 😎",
-  "Domain Expansion: Organized Reply Queue. 🌌",
-  "Infinity activated. Reply queued. ♾️",
-  "Sagot na may style, hindi puro ingay. 💙",
-  "Gojo's random wisdom has arrived. ✨",
-  "Ang tunay na flex ay stable na bot. ⚡",
-  "Minsan, ang katahimikan ay bahagi ng strategy. 😌",
-  "Message received. Infinity acknowledged. ♾️",
-  "Walang panic. May error log naman. 🛠️",
-  "Kung may problema, debug muna bago mag-drama. 😂",
-  "Gojo's got this. 😎",
-  "Naka-Infinity ang depensa, naka-queue ang sagot. 🌌",
-  "Six Eyes detected: may bagong message. 👁️",
-  "One message, one reply. Simple lang. 💙",
-  "Ang confidence ay libre. Gamitin nang maayos. 😏",
-  "Walang shortcut sa pagiging Honored One. ♾️",
-  "Gojo bot: ready kapag kailangan. 💙",
-  "Infinity mode: stable and ready. ⚡",
-  "Sino'ng nagsabing kailangan kong mag-effort? 😏",
-  "Walang makakalusot sa radar ng Gojo. 👁️",
-  "Sapat na ang isang reply para mapansin. 😎",
-  "Queue is moving. Infinity is watching. 🌌",
-  "Gojo Satoru: present. 😎"
-];
+// ============================================================
+// 18. SAFE SEND
+// ============================================================
 
-// Generate many variations without manually writing thousands
-const PREFIXES = [
-  "♾️ Gojo mode",
-  "👁️ Six Eyes",
-  "🌌 Infinite Void",
-  "💙 Honored One",
-  "⚡ Infinity"
-];
+function send(
+  api,
+  message,
+  threadID,
+  messageID = null
+) {
 
-const MESSAGES = [
-  "activated",
-  "online",
-  "detected",
-  "ready",
-  "checking the chat",
-  "has entered the GC",
-  "is watching",
-  "is processing",
-  "is on standby",
-  "reply queued"
-];
+  return new Promise(
+    resolve => {
 
-const EMOJIS = [
-  "😎", "⚡", "♾️", "💙", "🌌",
-  "👁️", "✨", "😂", "🔥", "🌀"
-];
+      try {
 
-const REPLIES = [...GOJO_QUOTES];
+        api.sendMessage(
 
-for (const prefix of PREFIXES) {
-  for (const message of MESSAGES) {
-    for (const emoji of EMOJIS) {
-      REPLIES.push(`${prefix}: ${message} ${emoji}`);
+          message,
+
+          threadID,
+
+          error => {
+
+            if (error) {
+
+              logError(
+                "sendMessage failed",
+                error
+              );
+
+              resolve(false);
+
+              return;
+
+            }
+
+            resolve(true);
+
+          },
+
+          messageID
+
+        );
+
+      } catch (error) {
+
+        logError(
+          "send exception",
+          error
+        );
+
+        resolve(false);
+
+      }
+
     }
-  }
+  );
+
 }
 
-function randomReply() {
-  return REPLIES[
-    Math.floor(Math.random() * REPLIES.length)
-  ];
-}
+// ============================================================
+// 19. REACTION
+// ============================================================
 
-// ==================== HELPERS =========================
+function react(
+  api,
+  messageID
+) {
 
-function isAdmin(id) {
-  return String(id) === ADMIN_ID;
-}
+  if (!api) return;
 
-function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
+  if (!messageID) return;
 
-function send(api, message, threadID, messageID) {
   try {
-    api.sendMessage(
-      message,
-      threadID,
-      error => {
-        if (error) logError("Send message failed", error);
-      },
-      messageID
-    );
-  } catch (error) {
-    logError("Send exception", error);
-  }
-}
 
-function react(api, messageID) {
-  try {
-    if (typeof api.setMessageReaction !== "function") return;
+    if (
+      typeof api.setMessageReaction !==
+      "function"
+    ) {
+
+      return;
+
+    }
 
     api.setMessageReaction(
+
       "😆",
+
       messageID,
+
       error => {
-        if (error) logError("Reaction failed", error);
+
+        if (error) {
+
+          logError(
+            "Reaction failed",
+            error
+          );
+
+          return;
+
+        }
+
+        stats.reactions++;
+
       },
+
       true
+
     );
+
   } catch (error) {
-    logError("Reaction exception", error);
-  }
-}
 
-function rememberMessage(messageID) {
-  const id = String(messageID);
+    logError(
+      "Reaction exception",
+      error
+    );
 
-  if (seenMessages.has(id)) return false;
-
-  seenMessages.add(id);
-
-  if (seenMessages.size > MAX_SEEN) {
-    const oldest = seenMessages.values().next().value;
-    seenMessages.delete(oldest);
   }
 
-  return true;
 }
 
-// ==================== QUEUE ===========================
+// ============================================================
+// 20. DUPLICATE CHECK
+// ============================================================
+
+function isDuplicate(
+  messageID
+) {
+
+  if (!messageID) {
+    return false;
+  }
+
+  if (
+    seenMessages.has(
+      messageID
+    )
+  ) {
+
+    return true;
+
+  }
+
+  seenMessages.add(
+    messageID
+  );
+
+  while (
+    seenMessages.size >
+    MAX_SEEN_MESSAGES
+  ) {
+
+    const oldest =
+      seenMessages
+        .values()
+        .next()
+        .value;
+
+    if (!oldest) {
+      break;
+    }
+
+    seenMessages.delete(
+      oldest
+    );
+
+  }
+
+  return false;
+
+}
+
+// ============================================================
+// 21. ENQUEUE
+// ============================================================
 
 function enqueue(item) {
-  if (queue.length >= MAX_QUEUE) {
-    console.log("[GOJO] Queue full; message skipped.");
+
+  if (!item) {
+    return false;
+  }
+
+  if (!item.api) {
+    return false;
+  }
+
+  if (!item.threadID) {
+    return false;
+  }
+
+  if (
+    queue.length >=
+    MAX_QUEUE
+  ) {
+
+    logError(
+      "Queue full",
+      new Error(
+        "Maximum queue reached"
+      )
+    );
+
+    return false;
+
+  }
+
+  queue.push({
+
+    ...item,
+
+    retries: 0,
+
+    createdAt:
+      Date.now()
+
+  });
+
+  stats.queuePeak =
+    Math.max(
+      stats.queuePeak,
+      queue.length
+    );
+
+  startQueue();
+
+  return true;
+
+}
+
+// ============================================================
+// 22. START QUEUE
+// ============================================================
+
+function startQueue() {
+
+  if (shuttingDown) {
     return;
   }
 
-  queue.push(item);
-  startQueue();
-}
+  if (queueRunning) {
+    return;
+  }
 
-function startQueue() {
-  if (queueRunning) return;
+  if (queue.length === 0) {
+    return;
+  }
 
   queueRunning = true;
 
   processQueue()
-    .catch(error => logError("Queue error", error))
+
+    .catch(error => {
+
+      logError(
+        "Queue crashed",
+        error
+      );
+
+    })
+
     .finally(() => {
+
       queueRunning = false;
 
-      if (queue.length > 0) {
-        startQueue();
+      if (
+        !shuttingDown &&
+        queue.length > 0
+      ) {
+
+        setTimeout(
+          startQueue,
+          1000
+        );
+
       }
+
     });
+
 }
 
+// ============================================================
+// 23. PROCESS QUEUE
+// ============================================================
+
 async function processQueue() {
-  while (queue.length > 0) {
-    const item = queue[0];
+
+  while (
+    queue.length > 0 &&
+    !shuttingDown
+  ) {
+
+    const item =
+      queue[0];
+
+    if (!item) {
+
+      queue.shift();
+
+      continue;
+
+    }
+
+    if (!data.active) {
+
+      await sleep(1000);
+
+      continue;
+
+    }
+
+    const userKey =
+
+      `${item.threadID}:` +
+      `${item.senderID}`;
+
+    const lastReply =
+      userLastReply.get(
+        userKey
+      ) || 0;
+
+    const elapsed =
+      Date.now() -
+      lastReply;
+
+    const remaining =
+      data.cooldown -
+      elapsed;
+
+    if (remaining > 0) {
+
+      await sleep(
+        Math.min(
+          remaining,
+          1000
+        )
+      );
+
+      continue;
+
+    }
+
+    await sleep(
+      data.delay
+    );
+
+    if (!data.active) {
+      continue;
+    }
+
+    const reply =
+
+      `♾️ [GOJO SATORU]\n\n` +
+      `${randomReply()}`;
+
+    let sent = false;
 
     try {
-      if (!data.active) {
-        await sleep(1000);
-        continue;
-      }
 
-      const key = `${item.threadID}:${item.senderID}`;
-      const last = userLastReply.get(key) || 0;
-      const wait = data.cooldown - (Date.now() - last);
+      sent = await send(
 
-      if (wait > 0) {
-        await sleep(Math.min(wait, 1000));
-        continue;
-      }
+        item.api,
 
-      await sleep(data.delay);
+        reply,
 
-      if (!data.active) continue;
+        item.threadID,
 
-      const sent = await new Promise(resolve => {
-        try {
-          item.api.sendMessage(
-            `♾️ [GOJO SATORU]\n\n${randomReply()}`,
-            item.threadID,
-            error => resolve(!error),
-            item.messageID
-          );
-        } catch (error) {
-          logError("Queue send exception", error);
-          resolve(false);
-        }
-      });
+        item.messageID
 
-      if (!sent) {
-        // Avoid blocking the queue forever on a failed item
-        queue.shift();
-        await sleep(2000);
-        continue;
-      }
+      );
 
-      userLastReply.set(key, Date.now());
+    } catch (error) {
 
-      data.totalReplies += 1;
+      logError(
+        "Queue send exception",
+        error
+      );
+
+    }
+
+    if (sent) {
+
+      userLastReply.set(
+        userKey,
+        Date.now()
+      );
+
+      data.totalReplies++;
+
+      data.lastReplyAt =
+        Date.now();
+
+      stats.replied++;
+
       saveData();
 
       queue.shift();
 
-    } catch (error) {
-      logError("Queue item failed", error);
-      queue.shift();
-      await sleep(1000);
+      continue;
+
     }
+
+    item.retries++;
+
+    stats.retries++;
+
+    data.totalRetries++;
+
+    saveData();
+
+    if (
+      item.retries >=
+      MAX_RETRIES
+    ) {
+
+      queue.shift();
+
+      await sleep(2000);
+
+      continue;
+
+    }
+
+    const retryDelay =
+      Math.min(
+        15000,
+        2000 *
+        Math.pow(
+          2,
+          item.retries - 1
+        )
+      );
+
+    await sleep(
+      retryDelay
+    );
+
   }
+
 }
 
-// ==================== CONFIG ==========================
+// ============================================================
+// 24. CLEANUP
+// ============================================================
 
-module.exports.config = {
-  name: "gojo",
-  version: "11.0.0",
-  hasPermission: 0,
-  credits: "Gojo Infinity Edition",
-  description: "Gojo auto-reply with queue and admin controls",
-  usePrefix: true,
-  commandCategory: "AI",
-  usages: "/gojo help",
-  cooldowns: 2
-};
+function cleanupCooldowns() {
 
-// ==================== EVENT HANDLER ===================
+  const now =
+    Date.now();
 
-module.exports.handleEvent = async function ({ api, event }) {
+  const MAX_AGE =
+    60 * 60 * 1000;
+
+  for (
+    const [
+      key,
+      timestamp
+    ]
+    of userLastReply.entries()
+  ) {
+
+    if (
+      now - timestamp >
+      MAX_AGE
+    ) {
+
+      userLastReply.delete(
+        key
+      );
+
+    }
+
+  }
+
+}
+
+// ============================================================
+// 25. HEALTH CHECK
+// ============================================================
+
+setInterval(
+  () => {
+
+    if (healthRunning) {
+      return;
+    }
+
+    healthRunning = true;
+
+    try {
+
+      cleanupCooldowns();
+
+      if (
+        data.active &&
+        queue.length > 0 &&
+        !queueRunning &&
+        !shuttingDown
+      ) {
+
+        stats.recoveredWorkers++;
+
+        console.log(
+          "[GOJO] Queue worker recovered."
+        );
+
+        startQueue();
+
+      }
+
+    } catch (error) {
+
+      logError(
+        "Health check failed",
+        error
+      );
+
+    } finally {
+
+      healthRunning = false;
+
+    }
+
+  },
+  30000
+);
+
+// ============================================================
+// 26. BACKUP TIMER
+// ============================================================
+
+setInterval(
+  () => {
+
+    try {
+
+      saveData();
+
+      backupData();
+
+    } catch (error) {
+
+      logError(
+        "Automatic backup failed",
+        error
+      );
+
+    }
+
+  },
+  5 * 60 * 1000
+);
+
+// ============================================================
+// 27. UNHANDLED REJECTION
+// ============================================================
+
+process.on(
+  "unhandledRejection",
+  error => {
+
+    logError(
+      "Unhandled rejection",
+      error
+    );
+
+    setTimeout(
+      () => {
+
+        if (
+          data.active &&
+          queue.length > 0 &&
+          !queueRunning &&
+          !shuttingDown
+        ) {
+
+          startQueue();
+
+        }
+
+      },
+      3000
+    );
+
+  }
+);
+
+// ============================================================
+// 28. UNCaught EXCEPTION
+// ============================================================
+
+process.on(
+  "uncaughtException",
+  error => {
+
+    logError(
+      "Uncaught exception",
+      error
+    );
+
+    setTimeout(
+      () => {
+
+        if (
+          data.active &&
+          queue.length > 0 &&
+          !queueRunning &&
+          !shuttingDown
+        ) {
+
+          startQueue();
+
+        }
+
+      },
+      3000
+    );
+
+  }
+);
+
+// ============================================================
+// 29. HANDLE EVENT
+// ============================================================
+
+module.exports.handleEvent =
+async function ({
+  api,
+  event
+}) {
+
   try {
-    if (!api || !event) return;
+
+    if (!event) {
+      return;
+    }
 
     const {
       threadID,
@@ -346,228 +1295,111 @@ module.exports.handleEvent = async function ({ api, event }) {
       body
     } = event;
 
-    if (!threadID || !senderID || !messageID) return;
-
-    const sender = String(senderID);
-    const botID = String(api.getCurrentUserID?.() || "");
-
-    if (sender === botID || isAdmin(sender)) return;
-    if (!rememberMessage(messageID)) return;
-
-    if (data.autoReact) {
-      react(api, messageID);
+    if (!threadID) {
+      return;
     }
 
-    if (!data.active) return;
+    if (!senderID) {
+      return;
+    }
 
-    // Ignore bot commands
-    if (typeof body === "string" && body.startsWith("/")) return;
+    if (!messageID) {
+      return;
+    }
 
-    enqueue({
-      api,
-      threadID,
-      senderID: sender,
-      messageID: String(messageID)
-    });
+    // --------------------------------------------------------
+    // IGNORE BOT'S OWN MESSAGE
+    // --------------------------------------------------------
 
-  } catch (error) {
-    logError("handleEvent error", error);
-  }
-};
+    try {
 
-// ==================== COMMANDS ========================
+      if (
+        typeof api.getCurrentUserID ===
+        "function"
+      ) {
 
-module.exports.run = async function ({ api, event, args }) {
-  try {
-    const threadID = event.threadID;
-    const messageID = event.messageID;
-    const senderID = String(event.senderID || "");
-    const action = String(args?.[0] || "help").toLowerCase();
+        const botID =
+          api.getCurrentUserID();
 
-    const adminActions = [
-      "on", "off", "delay", "cooldown",
-      "reacton", "reactoff"
-    ];
+        if (
+          String(senderID) ===
+          String(botID)
+        ) {
+
+          return;
+
+        }
+
+      }
+
+    } catch (error) {
+
+      logError(
+        "Bot ID check failed",
+        error
+      );
+
+    }
+
+    // --------------------------------------------------------
+    // DUPLICATE
+    // --------------------------------------------------------
 
     if (
-      adminActions.includes(action) &&
-      !isAdmin(senderID)
+      isDuplicate(
+        messageID
+      )
     ) {
-      return send(
-        api,
-        "⛔ Admin lamang ang puwedeng gumamit nito.",
-        threadID,
-        messageID
-      );
+
+      return;
+
     }
 
-    if (action === "help") {
-      return send(
-        api,
-        `🌌 GOJO INFINITY COMMANDS 🌌
+    stats.received++;
 
-/gojo help
-Ipakita ang commands
+    data.totalReceived++;
 
-/gojo status
-Tingnan ang status
+    // --------------------------------------------------------
+    // TARGET PERSON
+    // --------------------------------------------------------
 
-/gojo on
-I-on ang auto-reply
+    if (
+      !isTargetUser(
+        senderID
+      )
+    ) {
 
-/gojo off
-I-off ang auto-reply
+      return;
 
-/gojo quote
-Random Gojo reply
-
-/gojo delay 2000
-Set reply delay in milliseconds
-
-/gojo cooldown 3000
-Set cooldown in milliseconds
-
-/gojo reacton
-I-on ang auto-reaction
-
-/gojo reactoff
-I-off ang auto-reaction
-
-🔐 Admin ID: ${ADMIN_ID}`,
-        threadID,
-        messageID
-      );
     }
 
-    if (action === "status") {
-      return send(
-        api,
-        `🌌 GOJO STATUS 🌌
+    stats.targetReceived++;
 
-Auto-reply: ${data.active ? "ON 🟢" : "OFF 🔴"}
-Auto-react: ${data.autoReact ? "ON 🟢" : "OFF 🔴"}
-Delay: ${data.delay} ms
-Cooldown: ${data.cooldown} ms
-Queue: ${queue.length}
-Total replies: ${data.totalReplies}
-Reply bank: ${REPLIES.length}`,
-        threadID,
+    // --------------------------------------------------------
+    // AUTO REACT
+    // --------------------------------------------------------
+
+    if (
+      data.autoReact
+    ) {
+
+      react(
+        api,
         messageID
       );
+
     }
 
-    if (action === "quote") {
-      return send(
-        api,
-        `♾️ [GOJO SATORU]\n\n${randomReply()}`,
-        threadID,
-        messageID
-      );
+    // --------------------------------------------------------
+    // BOT STATUS
+    // --------------------------------------------------------
+
+    if (
+      !data.active
+    ) {
+
+      return;
+
     }
 
-    if (action === "on") {
-      data.active = true;
-      saveData();
-      startQueue();
-
-      return send(
-        api,
-        "🚀 Gojo auto-reply is ON!",
-        threadID,
-        messageID
-      );
-    }
-
-    if (action === "off") {
-      data.active = false;
-      saveData();
-
-      return send(
-        api,
-        "🛑 Gojo auto-reply is OFF.",
-        threadID,
-        messageID
-      );
-    }
-
-    if (action === "reacton") {
-      data.autoReact = true;
-      saveData();
-
-      return send(
-        api,
-        "😆 Auto-reaction enabled!",
-        threadID,
-        messageID
-      );
-    }
-
-    if (action === "reactoff") {
-      data.autoReact = false;
-      saveData();
-
-      return send(
-        api,
-        "🔕 Auto-reaction disabled.",
-        threadID,
-        messageID
-      );
-    }
-
-    if (action === "delay") {
-      const value = Number(args?.[1]);
-
-      if (!Number.isFinite(value) || value < 0 || value > 10000) {
-        return send(
-          api,
-          "Gamitin: /gojo delay 0-10000",
-          threadID,
-          messageID
-        );
-      }
-
-      data.delay = value;
-      saveData();
-
-      return send(
-        api,
-        `⏱️ Delay set to ${value} ms.`,
-        threadID,
-        messageID
-      );
-    }
-
-    if (action === "cooldown") {
-      const value = Number(args?.[1]);
-
-      if (!Number.isFinite(value) || value < 0 || value > 60000) {
-        return send(
-          api,
-          "Gamitin: /gojo cooldown 0-60000",
-          threadID,
-          messageID
-        );
-      }
-
-      data.cooldown = value;
-      saveData();
-
-      return send(
-        api,
-        `🕒 Cooldown set to ${value} ms.`,
-        threadID,
-        messageID
-      );
-    }
-
-    return send(
-      api,
-      "Unknown command. Gamitin ang /gojo help",
-      threadID,
-      messageID
-    );
-
-  } catch (error) {
-    logError("Command error", error);
-  }
-};
+    // -----------------------------------------------------
