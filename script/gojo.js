@@ -1,35 +1,224 @@
+
+"use strict";
+
+// ============================================================
+// GOJO BOT V16 | INFINITY MAKUNAT EDITION
+// Per-GC Activation + Queue Protection + Retry
+// Per-GC/User Cooldown + Auto React + Persistence
+// Watchdog + Backup + Error Log + Render Status
+// ============================================================
+
 const fs = require("fs");
 const path = require("path");
 
+// ============================================================
+// CONFIG
+// ============================================================
+
 const ADMIN_ID = "61594055835097";
-const TARGET_USER_ID = ""; // Ilagay dito ang Facebook UID na ita-target. Empty = lahat.
+
+// Empty = lahat ng users.
+// Kapag may UID, siya lang ang rereplyan.
+const TARGET_USER_ID = "";
 
 const DATA_FILE = path.join(__dirname, "gojo_data.json");
+const BACKUP_FILE = path.join(__dirname, "gojo_data.backup.json");
+const TEMP_FILE = path.join(__dirname, "gojo_data.tmp.json");
 const LOG_FILE = path.join(__dirname, "gojo_error.log");
 
+const MAX_QUEUE = 300;
+const MAX_SEEN = 3000;
+const MAX_COOLDOWN_USERS = 3000;
+
+const MAX_RETRIES = 3;
+const SEND_TIMEOUT = 15000;
+
+const DEFAULT_DELAY = 2000;
+const DEFAULT_COOLDOWN = 3000;
+
+const MIN_DELAY = 500;
+const MAX_DELAY = 60000;
+
+const MIN_COOLDOWN = 1000;
+const MAX_COOLDOWN = 120000;
+
+const HEALTH_INTERVAL = 30000;
+const SAVE_INTERVAL = 60000;
+const BACKUP_INTERVAL = 300000;
+
+// ============================================================
+// DEFAULT DATA
+// ============================================================
+
 const DEFAULT_DATA = {
-  active: true,
+  // Active threads lang ang naka-on.
+  activeThreads: [],
+
   autoReact: true,
-  delay: 2000,
-  cooldown: 3000,
+  delay: DEFAULT_DELAY,
+  cooldown: DEFAULT_COOLDOWN,
+
   totalReplies: 0,
   totalReceived: 0,
   totalErrors: 0,
-  startedAt: Date.now()
+  totalRetries: 0,
+
+  startedAt: Date.now(),
+  lastReplyAt: 0,
+  lastErrorAt: 0
 };
 
+// ============================================================
+// ERROR LOG
+// ============================================================
+
+function logError(where, error) {
+  try {
+    const message =
+      `[${new Date().toISOString()}] ${where}: ` +
+      `${error?.stack || error}\n`;
+
+    fs.appendFileSync(LOG_FILE, message);
+  } catch (_) {}
+}
+
+// ============================================================
+// DATA LOAD / SAVE
+// ============================================================
+
+function loadData() {
+  try {
+    let saved;
+
+    if (fs.existsSync(DATA_FILE)) {
+      saved = JSON.parse(
+        fs.readFileSync(DATA_FILE, "utf8")
+      );
+    } else if (fs.existsSync(BACKUP_FILE)) {
+      saved = JSON.parse(
+        fs.readFileSync(BACKUP_FILE, "utf8")
+      );
+    } else {
+      return { ...DEFAULT_DATA };
+    }
+
+    const merged = {
+      ...DEFAULT_DATA,
+      ...saved
+    };
+
+    if (!Array.isArray(merged.activeThreads)) {
+      merged.activeThreads = [];
+    }
+
+    merged.activeThreads = [
+      ...new Set(
+        merged.activeThreads
+          .filter(Boolean)
+          .map(String)
+      )
+    ];
+
+    merged.delay = clampNumber(
+      merged.delay,
+      MIN_DELAY,
+      MAX_DELAY,
+      DEFAULT_DELAY
+    );
+
+    merged.cooldown = clampNumber(
+      merged.cooldown,
+      MIN_COOLDOWN,
+      MAX_COOLDOWN,
+      DEFAULT_COOLDOWN
+    );
+
+    merged.autoReact = merged.autoReact !== false;
+
+    return merged;
+  } catch (error) {
+    logError("loadData", error);
+
+    try {
+      if (fs.existsSync(BACKUP_FILE)) {
+        const backup = JSON.parse(
+          fs.readFileSync(BACKUP_FILE, "utf8")
+        );
+
+        return {
+          ...DEFAULT_DATA,
+          ...backup,
+          activeThreads: Array.isArray(backup.activeThreads)
+            ? backup.activeThreads.map(String)
+            : []
+        };
+      }
+    } catch (backupError) {
+      logError("loadBackup", backupError);
+    }
+
+    return { ...DEFAULT_DATA };
+  }
+}
+
 let data = loadData();
+
+function saveData() {
+  try {
+    fs.writeFileSync(
+      TEMP_FILE,
+      JSON.stringify(data, null, 2)
+    );
+
+    fs.renameSync(TEMP_FILE, DATA_FILE);
+  } catch (error) {
+    logError("saveData", error);
+  }
+}
+
+function backupData() {
+  try {
+    if (fs.existsSync(DATA_FILE)) {
+      fs.copyFileSync(DATA_FILE, BACKUP_FILE);
+    }
+  } catch (error) {
+    logError("backupData", error);
+  }
+}
+
+// ============================================================
+// RUNTIME STATE
+// ============================================================
+
+const activeThreads = new Set(
+  data.activeThreads.map(String)
+);
 
 const queue = [];
 const seenMessages = new Set();
 const userLastReply = new Map();
 
 let queueRunning = false;
-let healthRunning = false;
+let shuttingDown = false;
+let maintenanceStarted = false;
 
-const MAX_QUEUE = 500;
-const MAX_SEEN = 3000;
-const MAX_RETRIES = 3;
+let lastWorkerActivity = Date.now();
+
+const stats = {
+  received: 0,
+  replied: 0,
+  failed: 0,
+  reactions: 0,
+  errors: 0,
+  retries: 0,
+  dropped: 0,
+  queuePeak: 0,
+  recoveredWorkers: 0
+};
+
+// ============================================================
+// GOJO REPLIES
+// ============================================================
 
 const GOJO_QUOTES = [
   "Nah, I'd win. 😎",
@@ -59,53 +248,22 @@ const REPLIES = [
   "👀 " + GOJO_QUOTES[7],
   "😎 " + GOJO_QUOTES[10],
   "♾️ " + GOJO_QUOTES[12],
-  "🌀 " + GOJO_QUOTES[9]
+  "🌀 " + GOJO_QUOTES[9],
+  "😎 Infinity is working.",
+  "🕶️ Gojo online.",
+  "♾️ You cannot bypass Infinity.",
+  "🌀 Unlimited Void.",
+  "😏 Easy.",
+  "😂 Nice try.",
+  "👀 I saw that.",
+  "😎 Still here.",
+  "♾️ Limitless.",
+  "🕶️ The strongest has arrived."
 ];
 
-function loadData() {
-  try {
-    if (!fs.existsSync(DATA_FILE)) {
-      fs.writeFileSync(
-        DATA_FILE,
-        JSON.stringify(DEFAULT_DATA, null, 2)
-      );
-      return { ...DEFAULT_DATA };
-    }
-
-    const saved = JSON.parse(
-      fs.readFileSync(DATA_FILE, "utf8")
-    );
-
-    return {
-      ...DEFAULT_DATA,
-      ...saved
-    };
-  } catch (err) {
-    logError("loadData", err);
-    return { ...DEFAULT_DATA };
-  }
-}
-
-function saveData() {
-  try {
-    fs.writeFileSync(
-      DATA_FILE,
-      JSON.stringify(data, null, 2)
-    );
-  } catch (err) {
-    logError("saveData", err);
-  }
-}
-
-function logError(where, error) {
-  try {
-    const message =
-      `[${new Date().toISOString()}] ${where}: ` +
-      `${error?.stack || error}\n`;
-
-    fs.appendFileSync(LOG_FILE, message);
-  } catch (_) {}
-}
+// ============================================================
+// UTILITY
+// ============================================================
 
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -117,6 +275,16 @@ function randomReply() {
   ];
 }
 
+function clampNumber(value, min, max, fallback) {
+  const number = Number(value);
+
+  if (!Number.isFinite(number)) {
+    return fallback;
+  }
+
+  return Math.min(Math.max(number, min), max);
+}
+
 function isAdmin(id) {
   return String(id) === String(ADMIN_ID);
 }
@@ -126,8 +294,44 @@ function isTargetUser(id) {
   return String(id) === String(TARGET_USER_ID);
 }
 
-function rememberMessage(id) {
-  if (!id) return false;
+function isActive(threadID) {
+  return activeThreads.has(String(threadID));
+}
+
+function setActive(threadID, enabled) {
+  const id = String(threadID);
+
+  if (enabled) {
+    activeThreads.add(id);
+  } else {
+    activeThreads.delete(id);
+  }
+
+  data.activeThreads = [...activeThreads];
+  saveData();
+}
+
+function formatUptime() {
+  const seconds = Math.floor(
+    (Date.now() - data.startedAt) / 1000
+  );
+
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const secs = seconds % 60;
+
+  return `${days}d ${hours}h ${minutes}m ${secs}s`;
+}
+
+// ============================================================
+// MESSAGE MEMORY
+// ============================================================
+
+function rememberMessage(messageID) {
+  if (!messageID) return false;
+
+  const id = String(messageID);
 
   if (seenMessages.has(id)) {
     return true;
@@ -136,188 +340,384 @@ function rememberMessage(id) {
   seenMessages.add(id);
 
   if (seenMessages.size > MAX_SEEN) {
-    const first = seenMessages.values().next().value;
-    seenMessages.delete(first);
-  }
+    const oldest = seenMessages.values().next().value;
 
-  return false;
-}
-
-async function safeSend(api, message, threadID) {
-  if (!api || !threadID) return false;
-
-  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-    try {
-      await new Promise((resolve, reject) => {
-        api.sendMessage(
-          message,
-          threadID,
-          err => {
-            if (err) reject(err);
-            else resolve();
-          }
-        );
-      });
-
-      return true;
-    } catch (err) {
-      data.totalErrors++;
-      logError(`send attempt ${attempt}`, err);
-
-      if (attempt < MAX_RETRIES) {
-        await sleep(1000 * attempt);
-      }
+    if (oldest) {
+      seenMessages.delete(oldest);
     }
   }
 
   return false;
 }
 
+// ============================================================
+// COOLDOWN CLEANUP
+// ============================================================
+
+function clearCooldowns() {
+  const now = Date.now();
+  const cooldown = Number(data.cooldown) || DEFAULT_COOLDOWN;
+
+  for (const [key, timestamp] of userLastReply) {
+    if (now - timestamp > cooldown * 3) {
+      userLastReply.delete(key);
+    }
+  }
+
+  if (userLastReply.size > MAX_COOLDOWN_USERS) {
+    const excess = userLastReply.size - MAX_COOLDOWN_USERS;
+    let removed = 0;
+
+    for (const key of userLastReply.keys()) {
+      userLastReply.delete(key);
+      removed++;
+
+      if (removed >= excess) break;
+    }
+  }
+}
+
+// ============================================================
+// CALLBACK WITH TIMEOUT
+// ============================================================
+
+function callbackRequest(run, timeout = SEND_TIMEOUT) {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      reject(new Error("API callback timed out"));
+    }, timeout);
+
+    const done = error => {
+      if (settled) return;
+
+      settled = true;
+      clearTimeout(timer);
+
+      if (error) reject(error);
+      else resolve(true);
+    };
+
+    try {
+      run(done);
+    } catch (error) {
+      if (!settled) {
+        settled = true;
+        clearTimeout(timer);
+        reject(error);
+      }
+    }
+  });
+}
+
+// ============================================================
+// SAFE SEND
+// ============================================================
+
+async function safeSend(api, message, threadID) {
+  if (!api || !threadID || !message) {
+    return false;
+  }
+
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      await callbackRequest(done => {
+        api.sendMessage(message, threadID, done);
+      });
+
+      return true;
+    } catch (error) {
+      data.totalErrors++;
+      data.lastErrorAt = Date.now();
+      stats.errors++;
+
+      logError(`safeSend attempt ${attempt}`, error);
+
+      if (attempt < MAX_RETRIES) {
+        data.totalRetries++;
+        stats.retries++;
+
+        const wait = 1000 * Math.pow(2, attempt - 1);
+        await sleep(wait);
+      }
+    }
+  }
+
+  stats.failed++;
+  return false;
+}
+
+// ============================================================
+// SAFE REACTION
+// ============================================================
+
 async function safeReact(api, reaction, messageID) {
-  if (!api || !messageID) return false;
+  if (!api || !messageID || !api.setMessageReaction) {
+    return false;
+  }
 
   try {
-    await new Promise((resolve, reject) => {
+    await callbackRequest(done => {
       api.setMessageReaction(
         reaction,
         messageID,
-        err => {
-          if (err) reject(err);
-          else resolve();
-        },
+        done,
         true
       );
     });
 
+    stats.reactions++;
     return true;
-  } catch (err) {
-    logError("reaction", err);
+  } catch (error) {
+    data.totalErrors++;
+    data.lastErrorAt = Date.now();
+    stats.errors++;
+
+    logError("safeReact", error);
     return false;
   }
 }
 
+// ============================================================
+// QUEUE
+// ============================================================
+
 function enqueue(item) {
+  if (
+    !item ||
+    !item.threadID ||
+    !item.senderID
+  ) {
+    return false;
+  }
+
+  // Do not delete older queued messages silently.
   if (queue.length >= MAX_QUEUE) {
-    queue.shift();
+    stats.dropped++;
+    return false;
   }
 
   queue.push(item);
 
+  if (queue.length > stats.queuePeak) {
+    stats.queuePeak = queue.length;
+  }
+
   startQueue();
+  return true;
 }
 
+function clearThreadQueue(threadID) {
+  const id = String(threadID);
+
+  for (let i = queue.length - 1; i >= 0; i--) {
+    if (String(queue[i].threadID) === id) {
+      queue.splice(i, 1);
+    }
+  }
+}
+
+// ============================================================
+// QUEUE WORKER
+// ============================================================
+
 async function startQueue() {
-  if (queueRunning) return;
+  if (queueRunning || shuttingDown) return;
 
   queueRunning = true;
+  lastWorkerActivity = Date.now();
 
   try {
-    while (queue.length > 0) {
+    while (queue.length > 0 && !shuttingDown) {
       const item = queue.shift();
 
       if (!item) continue;
 
-      await processQueueItem(item);
-      await sleep(Number(data.delay) || 2000);
+      lastWorkerActivity = Date.now();
+
+      try {
+        await processQueueItem(item);
+      } catch (error) {
+        data.totalErrors++;
+        data.lastErrorAt = Date.now();
+        stats.errors++;
+
+        logError("processQueueItem", error);
+      }
+
+      lastWorkerActivity = Date.now();
+
+      const delay = clampNumber(
+        data.delay,
+        MIN_DELAY,
+        MAX_DELAY,
+        DEFAULT_DELAY
+      );
+
+      await sleep(delay);
     }
-  } catch (err) {
-    logError("queue", err);
-  }
+  } catch (error) {
+    data.totalErrors++;
+    data.lastErrorAt = Date.now();
+    stats.errors++;
 
-  queueRunning = false;
+    logError("queueWorker", error);
+  } finally {
+    queueRunning = false;
+    lastWorkerActivity = Date.now();
 
-  if (queue.length > 0) {
-    setTimeout(startQueue, 100);
+    // Recover any item added while worker was finishing.
+    if (queue.length > 0 && !shuttingDown) {
+      stats.recoveredWorkers++;
+
+      setTimeout(() => {
+        startQueue();
+      }, 250);
+    }
   }
 }
 
+// ============================================================
+// PROCESS QUEUE ITEM
+// ============================================================
+
 async function processQueueItem(item) {
-  if (!data.active) return;
-  if (!isTargetUser(item.senderID)) return;
+  const threadID = String(item.threadID);
+  const senderID = String(item.senderID);
 
+  // Per-GC ON/OFF check.
+  if (!isActive(threadID)) return;
+
+  if (!isTargetUser(senderID)) return;
+
+  const cooldown = clampNumber(
+    data.cooldown,
+    MIN_COOLDOWN,
+    MAX_COOLDOWN,
+    DEFAULT_COOLDOWN
+  );
+
+  // Cooldown is separated per GC and per sender.
+  const cooldownKey = `${threadID}:${senderID}`;
   const now = Date.now();
-  const last = userLastReply.get(item.senderID) || 0;
+  const last = userLastReply.get(cooldownKey) || 0;
 
-  if (now - last < Number(data.cooldown)) {
-    return;
-  }
+  if (now - last < cooldown) return;
 
-  userLastReply.set(item.senderID, now);
+  // Mark before actions to prevent rapid duplicate replies.
+  userLastReply.set(cooldownKey, now);
 
   if (data.autoReact && item.messageID) {
-    await safeReact(
-      item.api,
-      "😎",
-      item.messageID
-    );
+    await safeReact(item.api, "😎", item.messageID);
   }
 
-  const reply = randomReply();
+  // Check again in case /gojo off was used during reaction.
+  if (!isActive(threadID)) return;
 
   const sent = await safeSend(
     item.api,
-    reply,
-    item.threadID
+    randomReply(),
+    threadID
   );
 
   if (sent) {
     data.totalReplies++;
+    data.lastReplyAt = Date.now();
+    stats.replied++;
+
     saveData();
   }
 }
 
-function clearCooldowns() {
-  const now = Date.now();
+// ============================================================
+// WATCHDOG + MAINTENANCE
+// ============================================================
 
-  for (const [id, time] of userLastReply) {
-    if (now - time > Number(data.cooldown) * 3) {
-      userLastReply.delete(id);
-    }
-  }
-}
-
-function healthCheck() {
-  if (healthRunning) return;
-
-  healthRunning = true;
+function startMaintenance() {
+  if (maintenanceStarted) return;
+  maintenanceStarted = true;
 
   setInterval(() => {
     try {
+      if (shuttingDown) return;
+
       clearCooldowns();
 
-      if (!queueRunning && queue.length > 0) {
+      data.delay = clampNumber(
+        data.delay,
+        MIN_DELAY,
+        MAX_DELAY,
+        DEFAULT_DELAY
+      );
+
+      data.cooldown = clampNumber(
+        data.cooldown,
+        MIN_COOLDOWN,
+        MAX_COOLDOWN,
+        DEFAULT_COOLDOWN
+      );
+
+      // Worker recovery if queue is waiting but worker is idle.
+      if (queue.length > 0 && !queueRunning) {
+        stats.recoveredWorkers++;
         startQueue();
       }
 
-      if (queue.length > MAX_QUEUE) {
-        queue.splice(0, queue.length - MAX_QUEUE);
+      // Stuck-worker detection.
+      if (
+        queueRunning &&
+        queue.length > 0 &&
+        Date.now() - lastWorkerActivity > SEND_TIMEOUT * 2
+      ) {
+        logError(
+          "watchdog",
+          new Error("Worker appears stalled; waiting for current API request to settle")
+        );
       }
+    } catch (error) {
+      data.totalErrors++;
+      data.lastErrorAt = Date.now();
 
-      saveData();
-    } catch (err) {
-      logError("healthCheck", err);
+      logError("watchdog", error);
     }
-  }, 30000);
+  }, HEALTH_INTERVAL);
+
+  setInterval(() => {
+    if (!shuttingDown) saveData();
+  }, SAVE_INTERVAL);
+
+  setInterval(() => {
+    if (!shuttingDown) backupData();
+  }, BACKUP_INTERVAL);
 }
 
-healthCheck();
+startMaintenance();
+
+// ============================================================
+// COMMAND CONFIG
+// ============================================================
 
 module.exports.config = {
   name: "gojo",
-  version: "14.0.0",
+  version: "16.0.0",
   hasPermission: 0,
-  credits: "Gojo Infinity Edition",
-  description: "Gojo auto reply with render, target, queue and retry",
+  credits: "Gojo Infinity Makunat Edition",
+  description:
+    "Per-GC Gojo auto reply with queue protection, cooldown, retry, auto reaction and persistence",
   usePrefix: true,
   commandCategory: "AI",
   usages: "/gojo help",
   cooldowns: 2
 };
 
-module.exports.handleEvent = async function ({
-  api,
-  event
-}) {
+// ============================================================
+// HANDLE EVENT
+// ============================================================
+
+module.exports.handleEvent = async function ({ api, event }) {
   try {
     if (!event) return;
 
@@ -330,20 +730,23 @@ module.exports.handleEvent = async function ({
 
     if (!threadID || !senderID) return;
 
-    if (String(senderID) === String(api.getCurrentUserID?.())) {
-      return;
-    }
+    // Ignore bot's own messages.
+    try {
+      const botID = api?.getCurrentUserID?.();
 
-    if (rememberMessage(messageID)) {
-      return;
-    }
+      if (botID && String(senderID) === String(botID)) {
+        return;
+      }
+    } catch (_) {}
 
-    if (!isTargetUser(senderID)) {
-      return;
-    }
+    // Ignore duplicate events.
+    if (rememberMessage(messageID)) return;
 
+    // Count received messages.
+    stats.received++;
     data.totalReceived++;
 
+    // Commands should not trigger auto-reply.
     if (
       typeof body === "string" &&
       body.trim().startsWith("/")
@@ -351,280 +754,129 @@ module.exports.handleEvent = async function ({
       return;
     }
 
+    // Per-GC activation check.
+    if (!isActive(threadID)) return;
+
+    // Optional target user filter.
+    if (!isTargetUser(senderID)) return;
+
     enqueue({
       api,
       event,
-      threadID,
-      senderID,
+      threadID: String(threadID),
+      senderID: String(senderID),
       messageID,
       body
     });
-  } catch (err) {
+  } catch (error) {
     data.totalErrors++;
-    logError("handleEvent", err);
+    data.lastErrorAt = Date.now();
+    stats.errors++;
+
+    logError("handleEvent", error);
   }
 };
 
-module.exports.run = async function ({
-  api,
-  event,
-  args
-}) {
-  try {
-    const threadID = event.threadID;
+// ============================================================
+// COMMAND RUN
+// ============================================================
 
-    const command = String(args?.[0] || "")
-      .toLowerCase();
+module.exports.run = async function ({ api, event, args }) {
+  try {
+    if (!event || !event.threadID) return;
+
+    const threadID = String(event.threadID);
+    const command = String(args?.[0] || "").toLowerCase();
+
+    const admin = isAdmin(event.senderID);
+
+    // --------------------------------------------------------
+    // HELP
+    // --------------------------------------------------------
+
+    if (!command || command === "help") {
+      return safeSend(
+        api,
+        [
+          "♾️ GOJO V16 COMMANDS",
+          "",
+          "/gojo on - Enable sa GC na ito",
+          "/gojo off - Disable sa GC na ito",
+          "/gojo status - Status ng GC na ito",
+          "/gojo reacton - Enable auto reaction",
+          "/gojo reactoff - Disable auto reaction",
+          "/gojo delay 2000 - Set reply delay",
+          "/gojo cooldown 3000 - Set user cooldown",
+          "/gojo stats - Bot statistics",
+          "/gojo clear - Clear pending queue ng GC na ito",
+          "/gojo help - Show commands",
+          "",
+          "Note: ON/OFF ay per-GC. Hindi nito gagalawin ang ibang GC."
+        ].join("\n"),
+        threadID
+      );
+    }
+
+    // --------------------------------------------------------
+    // ADMIN-ONLY COMMANDS
+    // --------------------------------------------------------
+
+    const adminCommands = [
+      "on",
+      "off",
+      "reacton",
+      "reactoff",
+      "delay",
+      "cooldown",
+      "clear"
+    ];
+
+    if (adminCommands.includes(command) && !admin) {
+      return safeSend(
+        api,
+        "⛔ Admin only ang command na ito.",
+        threadID
+      );
+    }
+
+    // --------------------------------------------------------
+    // ON - THIS GC ONLY
+    // --------------------------------------------------------
 
     if (command === "on") {
-      if (!isAdmin(event.senderID)) return;
-
-      data.active = true;
-      saveData();
+      setActive(threadID, true);
 
       return safeSend(
         api,
-        "😎 Gojo auto-reply: ON",
+        "😎 Gojo ON sa GC na ito lamang.\n♾️ Ibang GC: walang pagbabago.",
         threadID
       );
     }
+
+    // --------------------------------------------------------
+    // OFF - THIS GC ONLY
+    // --------------------------------------------------------
 
     if (command === "off") {
-      if (!isAdmin(event.senderID)) return;
-
-      data.active = false;
-      saveData();
+      setActive(threadID, false);
+      clearThreadQueue(threadID);
 
       return safeSend(
         api,
-        "🛑 Gojo auto-reply: OFF",
+        "🛑 Gojo OFF sa GC na ito lamang.\n📦 Pending messages ng GC na ito ay nilinis.",
         threadID
       );
     }
 
-    if (command === "reacton") {
-      if (!isAdmin(event.senderID)) return;
-
-      data.autoReact = true;
-      saveData();
-
-      return safeSend(
-        api,
-        "😎 Auto reaction: ON",
-        threadID
-      );
-    }
-
-    if (command === "reactoff") {
-      if (!isAdmin(event.senderID)) return;
-
-      data.autoReact = false;
-      saveData();
-
-      return safeSend(
-        api,
-        "🛑 Auto reaction: OFF",
-        threadID
-      );
-    }
-
-    if (command === "delay") {
-      if (!isAdmin(event.senderID)) return;
-
-      const value = Number(args[1]);
-
-      if (!Number.isFinite(value) || value < 0) {
-        return safeSend(
-          api,
-          "Usage: /gojo delay 2000",
-          threadID
-        );
-      }
-
-      data.delay = value;
-      saveData();
-
-      return safeSend(
-        api,
-        `⏱️ Delay set to ${value}ms`,
-        threadID
-      );
-    }
-
-    if (command === "cooldown") {
-      if (!isAdmin(event.senderID)) return;
-
-      const value = Number(args[1]);
-
-      if (!Number.isFinite(value) || value < 0) {
-        return safeSend(
-          api,
-          "Usage: /gojo cooldown 3000",
-          threadID
-        );
-      }
-
-      data.cooldown = value;
-      saveData();
-
-      return safeSend(
-        api,
-        `⏳ Cooldown set to ${value}ms`,
-        threadID
-      );
-    }
-
-    if (command === "quote") {
-      return safeSend(
-        api,
-        randomReply(),
-        threadID
-      );
-    }
-
-    if (command === "queue") {
-      return safeSend(
-        api,
-        `📦 Queue: ${queue.length}\n` +
-        `Running: ${queueRunning ? "YES" : "NO"}`,
-        threadID
-      );
-    }
-
-    if (command === "stats") {
-      return safeSend(
-        api,
-        `📊 GOJO STATS\n\n` +
-        `Active: ${data.active}\n` +
-        `Received: ${data.totalReceived}\n` +
-        `Replies: ${data.totalReplies}\n` +
-        `Errors: ${data.totalErrors}\n` +
-        `Queue: ${queue.length}\n` +
-        `Target: ${TARGET_USER_ID || "ALL"}`,
-        threadID
-      );
-    }
+    // --------------------------------------------------------
+    // STATUS
+    // --------------------------------------------------------
 
     if (command === "status") {
       return safeSend(
         api,
-        `🕶️ GOJO STATUS\n\n` +
-        `Auto Reply: ${data.active ? "ON" : "OFF"}\n` +
-        `Reaction: ${data.autoReact ? "ON" : "OFF"}\n` +
-        `Delay: ${data.delay}ms\n` +
-        `Cooldown: ${data.cooldown}ms\n` +
-        `Queue: ${queue.length}\n` +
-        `Target: ${TARGET_USER_ID || "ALL"}`,
-        threadID
-      );
-    }
-
-    if (command === "clearqueue") {
-      if (!isAdmin(event.senderID)) return;
-
-      queue.length = 0;
-
-      return safeSend(
-        api,
-        "🧹 Gojo queue cleared.",
-        threadID
-      );
-    }
-
-    if (command === "resetstats") {
-      if (!isAdmin(event.senderID)) return;
-
-      data.totalReplies = 0;
-      data.totalReceived = 0;
-      data.totalErrors = 0;
-
-      saveData();
-
-      return safeSend(
-        api,
-        "♻️ Gojo statistics reset.",
-        threadID
-      );
-    }
-
-    if (command === "help") {
-      return safeSend(
-        api,
-        `🕶️ GOJO COMMANDS\n\n` +
-        `/gojo on\n` +
-        `/gojo off\n` +
-        `/gojo reacton\n` +
-        `/gojo reactoff\n` +
-        `/gojo delay 2000\n` +
-        `/gojo cooldown 3000\n` +
-        `/gojo quote\n` +
-        `/gojo status\n` +
-        `/gojo stats\n` +
-        `/gojo queue\n` +
-        `/gojo clearqueue\n` +
-        `/gojo resetstats`,
-        threadID
-      );
-    }
-
-    return safeSend(
-      api,
-      "🕶️ Use /gojo help",
-      threadID
-    );
-  } catch (err) {
-    logError("run", err);
-  }
-};
-
-/*
-==================================================
-RENDER
-==================================================
-*/
-
-module.exports.render = async function ({
-  api,
-  event,
-  args
-}) {
-  try {
-    const threadID = event?.threadID;
-
-    const target =
-      TARGET_USER_ID || "ALL USERS";
-
-    const output =
-      `🕶️ GOJO RENDER\n\n` +
-      `Status: ${data.active ? "ON" : "OFF"}\n` +
-      `Reaction: ${data.autoReact ? "ON" : "OFF"}\n` +
-      `Delay: ${data.delay}ms\n` +
-      `Cooldown: ${data.cooldown}ms\n` +
-      `Queue: ${queue.length}\n` +
-      `Replies: ${data.totalReplies}\n` +
-      `Received: ${data.totalReceived}\n` +
-      `Errors: ${data.totalErrors}\n` +
-      `Target: ${target}`;
-
-    if (api && threadID) {
-      return safeSend(
-        api,
-        output,
-        threadID
-      );
-    }
-
-    return output;
-  } catch (err) {
-    logError("render", err);
-    return null;
-  }
-};
-
-process.on("unhandledRejection", err => {
-  logError("unhandledRejection", err);
-});
-
-process.on("uncaughtException", err => {
-  logError("uncaughtException", err);
-});
+        [
+          "♾️ GOJO V16 STATUS",
+          `GC Status: ${isActive(threadID) ? "ON 😎" : "OFF 🛑"}`,
+          `Auto React: ${data.autoReact ? "ON" : "OFF"}`,
+      
