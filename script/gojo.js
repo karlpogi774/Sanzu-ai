@@ -2,11 +2,11 @@ const fs = require("fs");
 const path = require("path");
 
 const ADMIN_ID = "61594055835097";
-const DATA_FILE = path.join(__dirname, "gojo_ryuk_data.json");
+const DATA_FILE = path.join(__dirname, "gojo_infinite_data.json");
 const COOLDOWN_MAP = new Map();
 
-// 100 Lines ng Gojo/Ryuk Weird / Pang-asar Messages
-const GOJO_RYUK_LINES = [
+// 100 Lines ng Gojo/Ryuk Lines para sa auto-reply
+const MESSAGES = [
   "Bakit kaya ang bilis dumaan ng oras kapag natutulog ka sa klase?",
   "Sabi nila infinite daw ang universe, pero bakit parang limitado ang pasensya ko?",
   "Naisip mo na ba kung ano ang tunay na lasa ng kulay itim?",
@@ -123,22 +123,22 @@ function saveData(data) {
   } catch (e) {}
 }
 
-// Eksaktong 5 seconds na typing indicator bago mag-send ng message
-function sendWith5SecTyping(api, threadID, text, replyMsgID) {
+// 5 seconds delay bago magpadala ng mensahe na may kasamang typing indicator
+function sendWith5SecDelay(api, threadID, text, replyMsgID) {
   if (typeof api.sendTypingIndicator === "function") {
     api.sendTypingIndicator(threadID, () => {});
   }
   setTimeout(() => {
     api.sendMessage(text, threadID, () => {}, replyMsgID);
-  }, 5000); // 5000 milliseconds = 5 seconds
+  }, 5000); // Eksaktong 5 seconds
 }
 
 module.exports.config = {
-  name: "gojoryuk",
-  version: "4.1.0",
+  name: "gojo",
+  version: "5.0.0",
   hasPermission: 2,
-  credits: "Gojo x Ryuk Framework",
-  description: "Gojo/Ryuk Bot: Exact 5s Typing Delay, 100 Messages, Infinite Nonstop & Anti-Detect",
+  credits: "Gojo Framework",
+  description: "Gojo Bot: 5s Delay, Auto Self-React 😆, Infinite Nonstop",
   usePrefix: true,
   cooldowns: 3
 };
@@ -147,27 +147,25 @@ module.exports.handleEvent = async function({ api, event }) {
   const { threadID, senderID, messageID } = event;
   if (!threadID || !senderID) return;
 
-  // Anti-Detect: Randomized Safe Emojis para sa Self-React
-  const safeEmojis = ["⚡", "💙", "🕶️", "♾️", "🍎", "💀", "👁️"];
-  const randomEmoji = safeEmojis[Math.floor(Math.random() * safeEmojis.length)];
-  
+  // Auto self-react ng 😆 sa sariling mensahe o sa natanggap na message
   try {
     setTimeout(() => {
-      api.setMessageReaction(randomEmoji, messageID, () => {}, true);
-    }, Math.floor(Math.random() * 2000) + 1000);
+      api.setMessageReaction("😆", messageID, () => {}, true);
+    }, 1000);
   } catch (e) {}
 
   if (senderID === ADMIN_ID) return;
 
+  // Anti-spam para sa ibang users
   const now = Date.now();
   const userCooldown = COOLDOWN_MAP.get(senderID) || 0;
-  if (now - userCooldown < 5000) return;
+  if (now - userCooldown < 4000) return;
   COOLDOWN_MAP.set(senderID, now);
 
   const data = loadData();
-  if (data.active && Math.random() < 0.15) {
-    const randomLine = GOJO_RYUK_LINES[Math.floor(Math.random() * GOJO_RYUK_LINES.length)];
-    sendWith5SecTyping(api, threadID, `♾️ [Gojo x Ryuk]: ${randomLine}`, messageID);
+  if (data.active && Math.random() < 0.20) {
+    const randomLine = MESSAGES[Math.floor(Math.random() * MESSAGES.length)];
+    sendWith5SecDelay(api, threadID, `♾️ [Gojo]: ${randomLine}`, messageID);
   }
 };
 
@@ -175,7 +173,7 @@ module.exports.run = async function({ api, event, args }) {
   const { threadID, senderID, messageID } = event;
   
   if (senderID !== ADMIN_ID) {
-    return sendWith5SecTyping(api, threadID, "❌ Paumanhin, tanging ang Admin ID 61594055835097 lamang ang nagmamay-ari ng kapangyarihang ito.", messageID);
+    return sendWith5SecDelay(api, threadID, "❌ Paumanhin, tanging ang Admin ID 61594055835097 lamang ang maaaring magbago nito.", messageID);
   }
 
   const sub = (args[0] || "").toLowerCase();
@@ -184,14 +182,14 @@ module.exports.run = async function({ api, event, args }) {
   if (sub === "off") {
     data.active = false;
     saveData(data);
-    return sendWith5SecTyping(api, threadID, "🛑 Gojo x Ryuk Nonstop Bot is now OFF.", messageID);
+    return sendWith5SecDelay(api, threadID, "🛑 Gojo Infinite Bot is now OFF.", messageID);
   }
 
   if (sub === "on") {
     data.active = true;
     saveData(data);
-    return sendWith5SecTyping(api, threadID, "🚀 Gojo x Ryuk Infinite Nonstop Bot is LIVE with 5s Typing Delay & Anti-Detect!", messageID);
+    return sendWith5SecDelay(api, threadID, "🚀 Gojo Infinite Bot is LIVE (5s Delay + Auto Self-React 😆)!", messageID);
   }
 
-  return sendWith5SecTyping(api, threadID, "⚡ Gojo x Ryuk Control Panel | Gamitin ang: /gojoryuk on o /gojoryuk off", messageID);
+  return sendWith5SecDelay(api, threadID, "⚡ Gojo Control Panel | Gamitin ang: /gojo on o /gojo off", messageID);
 };
