@@ -13,7 +13,7 @@ const path = require("path");
 // ============================================================
 
 const ADMIN_ID = "61594055835097";
-const TARGET_USER_ID = ""; // Empty = all users
+const TARGET_USER_ID = "";
 
 const DATA_FILE = path.join(__dirname, "gojo_data.json");
 const TEMP_FILE = DATA_FILE + ".tmp";
@@ -127,6 +127,15 @@ function isThreadActive(threadID) {
 function setThreadActive(threadID, enabled) {
   data.activeThreads[String(threadID)] = Boolean(enabled);
   saveData();
+}
+
+// ============================================================
+// SILENT PROTECTION
+// ============================================================
+
+function isSilentCommand(body) {
+  if (typeof body !== "string") return false;
+  return /^\/silent(?:\s|$)/i.test(body.trim());
 }
 
 // ============================================================
@@ -296,7 +305,6 @@ async function safeSend(api, message, threadID) {
       data.totalRetries++;
       stats.retries++;
 
-      // Exponential backoff: 1s, then 2s.
       await sleep(1000 * Math.pow(2, attempt));
     }
   }
@@ -357,7 +365,6 @@ function enqueue(item) {
   if (!item || !item.threadID || !item.senderID) return;
 
   if (queue.length >= MAX_QUEUE) {
-    // Do not grow memory without limit.
     return;
   }
 
@@ -404,7 +411,6 @@ async function startQueue() {
   } finally {
     queueRunning = false;
 
-    // Recover if items remain.
     if (queue.length > 0 && !shuttingDown) {
       setImmediate(() => {
         void startQueue();
@@ -418,7 +424,6 @@ async function startQueue() {
 // ============================================================
 
 async function processQueueItem(item) {
-  // Check this GC only.
   if (!isThreadActive(item.threadID)) return;
   if (!isTargetUser(item.senderID)) return;
 
@@ -442,7 +447,6 @@ async function processQueueItem(item) {
     await safeReact(item.api, item.messageID);
   }
 
-  // Re-check after reaction in case GC was disabled.
   if (!isThreadActive(item.threadID)) return;
 
   const sent = await safeSend(
@@ -504,6 +508,11 @@ module.exports.handleEvent = async function ({ api, event }) {
     if (rememberMessage(messageID)) return;
     if (!isTargetUser(senderID)) return;
 
+    // /silent must never be treated as a Gojo message.
+    if (isSilentCommand(body)) {
+      return;
+    }
+
     // Ignore command messages.
     if (typeof body === "string" && body.trim().startsWith("/")) {
       return;
@@ -541,13 +550,13 @@ module.exports.run = async function ({ api, event, args }) {
     const senderID = String(event.senderID || "");
     const command = String(args?.[0] || "help").toLowerCase();
 
-    // --------------------------------------------------------
-    // ON: this GC only
-    // --------------------------------------------------------
-
     if (command === "on") {
       if (!isAdmin(senderID)) {
-        return safeSend(api, "⛔ Admin lang ang puwedeng mag-on ng Gojo.", threadID);
+        return safeSend(
+          api,
+          "⛔ Admin lang ang puwedeng mag-on ng Gojo.",
+          threadID
+        );
       }
 
       setThreadActive(threadID, true);
@@ -559,18 +568,17 @@ module.exports.run = async function ({ api, event, args }) {
       );
     }
 
-    // --------------------------------------------------------
-    // OFF: this GC only
-    // --------------------------------------------------------
-
     if (command === "off") {
       if (!isAdmin(senderID)) {
-        return safeSend(api, "⛔ Admin lang ang puwedeng mag-off ng Gojo.", threadID);
+        return safeSend(
+          api,
+          "⛔ Admin lang ang puwedeng mag-off ng Gojo.",
+          threadID
+        );
       }
 
       setThreadActive(threadID, false);
 
-      // Clear pending messages from this GC only.
       for (let i = queue.length - 1; i >= 0; i--) {
         if (String(queue[i].threadID) === threadID) {
           queue.splice(i, 1);
@@ -583,10 +591,6 @@ module.exports.run = async function ({ api, event, args }) {
         threadID
       );
     }
-
-    // --------------------------------------------------------
-    // STATUS
-    // --------------------------------------------------------
 
     if (command === "status") {
       return safeSend(
@@ -607,13 +611,13 @@ module.exports.run = async function ({ api, event, args }) {
       );
     }
 
-    // --------------------------------------------------------
-    // AUTO REACT
-    // --------------------------------------------------------
-
     if (command === "reacton" || command === "reactoff") {
       if (!isAdmin(senderID)) {
-        return safeSend(api, "⛔ Admin lang ang puwedeng magbago ng settings.", threadID);
+        return safeSend(
+          api,
+          "⛔ Admin lang ang puwedeng magbago ng settings.",
+          threadID
+        );
       }
 
       data.autoReact = command === "reacton";
@@ -626,13 +630,13 @@ module.exports.run = async function ({ api, event, args }) {
       );
     }
 
-    // --------------------------------------------------------
-    // DELAY
-    // --------------------------------------------------------
-
     if (command === "delay") {
       if (!isAdmin(senderID)) {
-        return safeSend(api, "⛔ Admin lang ang puwedeng magbago ng settings.", threadID);
+        return safeSend(
+          api,
+          "⛔ Admin lang ang puwedeng magbago ng settings.",
+          threadID
+        );
       }
 
       const value = Number(args?.[1]);
@@ -645,19 +649,29 @@ module.exports.run = async function ({ api, event, args }) {
         );
       }
 
-      data.delay = clamp(value, MIN_DELAY, MAX_DELAY, DEFAULT_DELAY);
+      data.delay = clamp(
+        value,
+        MIN_DELAY,
+        MAX_DELAY,
+        DEFAULT_DELAY
+      );
+
       saveData();
 
-      return safeSend(api, `⏱️ Delay set: ${data.delay}ms`, threadID);
+      return safeSend(
+        api,
+        `⏱️ Delay set: ${data.delay}ms`,
+        threadID
+      );
     }
-
-    // --------------------------------------------------------
-    // COOLDOWN
-    // --------------------------------------------------------
 
     if (command === "cooldown") {
       if (!isAdmin(senderID)) {
-        return safeSend(api, "⛔ Admin lang ang puwedeng magbago ng settings.", threadID);
+        return safeSend(
+          api,
+          "⛔ Admin lang ang puwedeng magbago ng settings.",
+          threadID
+        );
       }
 
       const value = Number(args?.[1]);
@@ -670,15 +684,21 @@ module.exports.run = async function ({ api, event, args }) {
         );
       }
 
-      data.cooldown = clamp(value, MIN_COOLDOWN, MAX_COOLDOWN, DEFAULT_COOLDOWN);
+      data.cooldown = clamp(
+        value,
+        MIN_COOLDOWN,
+        MAX_COOLDOWN,
+        DEFAULT_COOLDOWN
+      );
+
       saveData();
 
-      return safeSend(api, `⏳ Cooldown set: ${data.cooldown}ms`, threadID);
+      return safeSend(
+        api,
+        `⏳ Cooldown set: ${data.cooldown}ms`,
+        threadID
+      );
     }
-
-    // --------------------------------------------------------
-    // HELP
-    // --------------------------------------------------------
 
     if (command === "help") {
       return safeSend(
@@ -725,7 +745,6 @@ const cleanupTimer = setInterval(() => {
   }
 }, 60000);
 
-// Prevent timer from being the only thing keeping Node alive.
 if (typeof cleanupTimer.unref === "function") {
   cleanupTimer.unref();
 }
