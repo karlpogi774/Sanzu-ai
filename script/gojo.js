@@ -1,8 +1,9 @@
 // ============================================================
-// GOJO BOT V16 | PER-GC STABLE EDITION
-// Sanzu-style command module
-// Per-GC ON/OFF + Queue Limit + Cooldown + Auto React
+// GOJO BOT V17 | MAKUNAT EDITION
+// Per-GC ON/OFF | Queue Guard | Retry | Cooldown | Auto React
 // ============================================================
+
+"use strict";
 
 const fs = require("fs");
 const path = require("path");
@@ -15,6 +16,7 @@ const ADMIN_ID = "61594055835097";
 const TARGET_USER_ID = ""; // Empty = all users
 
 const DATA_FILE = path.join(__dirname, "gojo_data.json");
+const TEMP_FILE = DATA_FILE + ".tmp";
 
 const DEFAULT_DELAY = 2000;
 const DEFAULT_COOLDOWN = 5000;
@@ -27,7 +29,10 @@ const MAX_COOLDOWN = 120000;
 
 const MAX_QUEUE = 100;
 const MAX_SEEN = 2000;
+const MAX_COOLDOWN_ENTRIES = 3000;
+
 const MAX_RETRIES = 2;
+const SEND_TIMEOUT = 20000;
 
 // ============================================================
 // DEFAULT DATA
@@ -47,7 +52,7 @@ const DEFAULT_DATA = {
 };
 
 // ============================================================
-// LOAD / SAVE
+// DATA LOAD / SAVE
 // ============================================================
 
 function loadData() {
@@ -81,23 +86,38 @@ function loadData() {
 
 let data = loadData();
 
-function saveData() {
-  try {
-    const temp = DATA_FILE + ".tmp";
+let saveRunning = false;
+let savePending = false;
 
+function saveData() {
+  if (saveRunning) {
+    savePending = true;
+    return;
+  }
+
+  saveRunning = true;
+
+  try {
     fs.writeFileSync(
-      temp,
+      TEMP_FILE,
       JSON.stringify(data, null, 2)
     );
 
-    fs.renameSync(temp, DATA_FILE);
+    fs.renameSync(TEMP_FILE, DATA_FILE);
   } catch (err) {
     console.error("[GOJO] Save error:", err);
+  } finally {
+    saveRunning = false;
+
+    if (savePending) {
+      savePending = false;
+      saveData();
+    }
   }
 }
 
 // ============================================================
-// PER-GC ACTIVATION
+// PER-GC STATUS
 // ============================================================
 
 function isThreadActive(threadID) {
@@ -110,7 +130,7 @@ function setThreadActive(threadID, enabled) {
 }
 
 // ============================================================
-// RUNTIME
+// RUNTIME STATE
 // ============================================================
 
 const queue = [];
@@ -119,6 +139,16 @@ const lastReplyByUser = new Map();
 
 let queueRunning = false;
 let shuttingDown = false;
+
+const stats = {
+  received: 0,
+  replied: 0,
+  failed: 0,
+  reactions: 0,
+  errors: 0,
+  retries: 0,
+  queuePeak: 0
+};
 
 // ============================================================
 // REPLIES
@@ -139,7 +169,12 @@ const REPLIES = [
   "🌀 Unlimited Void.",
   "😎 Still here.",
   "♾️ Limitless.",
-  "🕶️ Gojo online."
+  "🕶️ Gojo online.",
+  "😎 Infinity remains undefeated.",
+  "👀 Interesting...",
+  "🌀 Unlimited power.",
+  "😂 You really tried that?",
+  "♾️ Gojo detected."
 ];
 
 function randomReply() {
@@ -152,6 +187,20 @@ function randomReply() {
 // HELPERS
 // ============================================================
 
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function clamp(value, min, max, fallback) {
+  const n = Number(value);
+
+  if (!Number.isFinite(n)) {
+    return fallback;
+  }
+
+  return Math.max(min, Math.min(max, n));
+}
+
 function isAdmin(userID) {
   return String(userID) === String(ADMIN_ID);
 }
@@ -161,14 +210,8 @@ function isTargetUser(userID) {
     String(userID) === String(TARGET_USER_ID);
 }
 
-function clamp(value, min, max, fallback) {
-  const number = Number(value);
-
-  if (!Number.isFinite(number)) {
-    return fallback;
-  }
-
-  return Math.max(min, Math.min(max, number));
+function cooldownKey(threadID, senderID) {
+  return `${String(threadID)}:${String(senderID)}`;
 }
 
 function rememberMessage(messageID) {
@@ -176,9 +219,7 @@ function rememberMessage(messageID) {
 
   const id = String(messageID);
 
-  if (seenMessages.has(id)) {
-    return true;
-  }
+  if (seenMessages.has(id)) return true;
 
   seenMessages.add(id);
 
@@ -190,84 +231,143 @@ function rememberMessage(messageID) {
   return false;
 }
 
-function cooldownKey(threadID, senderID) {
-  return `${String(threadID)}:${String(senderID)}`;
+function clearOldCooldowns() {
+  const now = Date.now();
+  const duration = Math.max(
+    Number(data.cooldown) || DEFAULT_COOLDOWN,
+    DEFAULT_COOLDOWN
+  );
+
+  for (const [key, timestamp] of lastReplyByUser) {
+    if (now - timestamp > duration * 3) {
+      lastReplyByUser.delete(key);
+    }
+  }
+
+  while (lastReplyByUser.size > MAX_COOLDOWN_ENTRIES) {
+    const oldest = lastReplyByUser.keys().next().value;
+    if (!oldest) break;
+    lastReplyByUser.delete(oldest);
+  }
 }
 
 // ============================================================
-// SEND MESSAGE
+// SAFE SEND WITH LIMITED RETRIES
 // ============================================================
 
-function sendMessage(api, message, threadID) {
+async function sendOnce(api, message, threadID) {
+  if (!api || !threadID || !message) return false;
+
   return new Promise(resolve => {
-    if (!api || !threadID || !message) {
-      return resolve(false);
-    }
+    let settled = false;
+
+    const finish = result => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      resolve(result);
+    };
+
+    const timeout = setTimeout(() => {
+      finish(false);
+    }, SEND_TIMEOUT);
 
     try {
       api.sendMessage(message, threadID, err => {
-        if (err) {
-          console.error("[GOJO] Send error:", err);
-          data.totalErrors++;
-          saveData();
-          return resolve(false);
-        }
-
-        resolve(true);
+        finish(!err);
       });
     } catch (err) {
-      console.error("[GOJO] Send exception:", err);
-      data.totalErrors++;
-      saveData();
-      resolve(false);
+      console.error("[GOJO] sendMessage exception:", err);
+      finish(false);
     }
   });
+}
+
+async function safeSend(api, message, threadID) {
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    const sent = await sendOnce(api, message, threadID);
+
+    if (sent) return true;
+
+    data.totalErrors++;
+    stats.errors++;
+
+    if (attempt < MAX_RETRIES) {
+      data.totalRetries++;
+      stats.retries++;
+
+      // Exponential backoff: 1s, then 2s.
+      await sleep(1000 * Math.pow(2, attempt));
+    }
+  }
+
+  stats.failed++;
+  saveData();
+  return false;
 }
 
 // ============================================================
 // SAFE REACTION
 // ============================================================
 
-function react(api, messageID) {
+async function safeReact(api, messageID) {
+  if (
+    !data.autoReact ||
+    !api ||
+    !messageID ||
+    typeof api.setMessageReaction !== "function"
+  ) {
+    return false;
+  }
+
   return new Promise(resolve => {
-    if (
-      !data.autoReact ||
-      !api ||
-      !messageID ||
-      typeof api.setMessageReaction !== "function"
-    ) {
-      return resolve(false);
-    }
+    let settled = false;
+
+    const finish = result => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      resolve(result);
+    };
+
+    const timeout = setTimeout(() => finish(false), 10000);
 
     try {
       api.setMessageReaction(
         "😎",
         messageID,
-        err => resolve(!err),
+        err => {
+          if (!err) stats.reactions++;
+          finish(!err);
+        },
         true
       );
     } catch (err) {
       console.error("[GOJO] Reaction error:", err);
-      resolve(false);
+      finish(false);
     }
   });
 }
 
 // ============================================================
-// QUEUE
+// QUEUE MANAGEMENT
 // ============================================================
 
 function enqueue(item) {
   if (!item || !item.threadID || !item.senderID) return;
 
-  // Drop the new item if the queue is full.
-  // This avoids growing memory without limit.
   if (queue.length >= MAX_QUEUE) {
+    // Do not grow memory without limit.
     return;
   }
 
   queue.push(item);
-  startQueue();
+
+  if (queue.length > stats.queuePeak) {
+    stats.queuePeak = queue.length;
+  }
+
+  void startQueue();
 }
 
 async function startQueue() {
@@ -278,14 +378,14 @@ async function startQueue() {
   try {
     while (queue.length > 0 && !shuttingDown) {
       const item = queue.shift();
-
       if (!item) continue;
 
       try {
         await processQueueItem(item);
       } catch (err) {
-        console.error("[GOJO] Queue item error:", err);
         data.totalErrors++;
+        stats.errors++;
+        console.error("[GOJO] Worker item error:", err);
       }
 
       const delay = clamp(
@@ -295,33 +395,34 @@ async function startQueue() {
         DEFAULT_DELAY
       );
 
-      await new Promise(resolve => setTimeout(resolve, delay));
+      await sleep(delay);
     }
+  } catch (err) {
+    data.totalErrors++;
+    stats.errors++;
+    console.error("[GOJO] Queue worker error:", err);
   } finally {
     queueRunning = false;
 
-    // Restart if an item arrived while worker was ending.
+    // Recover if items remain.
     if (queue.length > 0 && !shuttingDown) {
-      startQueue();
+      setImmediate(() => {
+        void startQueue();
+      });
     }
   }
 }
 
 // ============================================================
-// PROCESS MESSAGE
+// PROCESS QUEUED MESSAGE
 // ============================================================
 
 async function processQueueItem(item) {
-  // Verify that this specific GC is still enabled.
+  // Check this GC only.
   if (!isThreadActive(item.threadID)) return;
-
   if (!isTargetUser(item.senderID)) return;
 
-  const key = cooldownKey(
-    item.threadID,
-    item.senderID
-  );
-
+  const key = cooldownKey(item.threadID, item.senderID);
   const now = Date.now();
 
   const cooldown = clamp(
@@ -335,17 +436,16 @@ async function processQueueItem(item) {
 
   if (now - last < cooldown) return;
 
-  // Set cooldown before sending to avoid duplicate replies.
   lastReplyByUser.set(key, now);
 
   if (data.autoReact && item.messageID) {
-    await react(item.api, item.messageID);
+    await safeReact(item.api, item.messageID);
   }
 
-  // Check again in case the GC was disabled during reaction.
+  // Re-check after reaction in case GC was disabled.
   if (!isThreadActive(item.threadID)) return;
 
-  const sent = await sendMessage(
+  const sent = await safeSend(
     item.api,
     randomReply(),
     item.threadID
@@ -354,6 +454,7 @@ async function processQueueItem(item) {
   if (sent) {
     data.totalReplies++;
     data.lastReplyAt = Date.now();
+    stats.replied++;
     saveData();
   }
 }
@@ -364,10 +465,10 @@ async function processQueueItem(item) {
 
 module.exports.config = {
   name: "gojo",
-  version: "16.0.0",
+  version: "17.0.0",
   hasPermission: 0,
-  credits: "Gojo Per-GC Stable Edition",
-  description: "Gojo auto reply with per-GC activation, cooldown and auto reaction",
+  credits: "Gojo Makunat Edition",
+  description: "Per-GC Gojo auto-reply with queue protection and recovery",
   usePrefix: true,
   commandCategory: "AI",
   usages: "/gojo on | off | status | help",
@@ -401,29 +502,30 @@ module.exports.handleEvent = async function ({ api, event }) {
     } catch (_) {}
 
     if (rememberMessage(messageID)) return;
-
     if (!isTargetUser(senderID)) return;
 
+    // Ignore command messages.
     if (typeof body === "string" && body.trim().startsWith("/")) {
       return;
     }
 
-    // Only process messages in enabled GCs.
+    // Only enabled GC can enqueue messages.
     if (!isThreadActive(threadID)) return;
 
     data.totalReceived++;
+    stats.received++;
 
     enqueue({
       api,
-      threadID,
-      senderID,
+      threadID: String(threadID),
+      senderID: String(senderID),
       messageID,
       body
     });
   } catch (err) {
-    console.error("[GOJO] handleEvent error:", err);
     data.totalErrors++;
-    saveData();
+    stats.errors++;
+    console.error("[GOJO] handleEvent error:", err);
   }
 };
 
@@ -440,52 +542,44 @@ module.exports.run = async function ({ api, event, args }) {
     const command = String(args?.[0] || "help").toLowerCase();
 
     // --------------------------------------------------------
-    // ON - only this GC
+    // ON: this GC only
     // --------------------------------------------------------
 
     if (command === "on") {
       if (!isAdmin(senderID)) {
-        return sendMessage(
-          api,
-          "⛔ Admin lang ang puwedeng mag-on ng Gojo.",
-          threadID
-        );
+        return safeSend(api, "⛔ Admin lang ang puwedeng mag-on ng Gojo.", threadID);
       }
 
       setThreadActive(threadID, true);
 
-      return sendMessage(
+      return safeSend(
         api,
-        "😎 Gojo auto-reply: ON\n📍 Enabled lang sa GC na ito.",
+        "😎 Gojo ON!\n📍 Active lang sa GC na ito.",
         threadID
       );
     }
 
     // --------------------------------------------------------
-    // OFF - only this GC
+    // OFF: this GC only
     // --------------------------------------------------------
 
     if (command === "off") {
       if (!isAdmin(senderID)) {
-        return sendMessage(
-          api,
-          "⛔ Admin lang ang puwedeng mag-off ng Gojo.",
-          threadID
-        );
+        return safeSend(api, "⛔ Admin lang ang puwedeng mag-off ng Gojo.", threadID);
       }
 
       setThreadActive(threadID, false);
 
-      // Remove only this GC's pending messages.
+      // Clear pending messages from this GC only.
       for (let i = queue.length - 1; i >= 0; i--) {
         if (String(queue[i].threadID) === threadID) {
           queue.splice(i, 1);
         }
       }
 
-      return sendMessage(
+      return safeSend(
         api,
-        "🛑 Gojo auto-reply: OFF\n📍 Disabled lang sa GC na ito.",
+        "🛑 Gojo OFF!\n📍 Disabled lang sa GC na ito.",
         threadID
       );
     }
@@ -495,19 +589,18 @@ module.exports.run = async function ({ api, event, args }) {
     // --------------------------------------------------------
 
     if (command === "status") {
-      const active = isThreadActive(threadID);
-
-      return sendMessage(
+      return safeSend(
         api,
         [
           "♾️ GOJO STATUS",
-          `GC: ${active ? "ON 😎" : "OFF 🛑"}`,
+          `GC: ${isThreadActive(threadID) ? "ON 😎" : "OFF 🛑"}`,
           `Auto React: ${data.autoReact ? "ON" : "OFF"}`,
           `Delay: ${data.delay}ms`,
           `Cooldown: ${data.cooldown}ms`,
-          `Total Replies: ${data.totalReplies}`,
-          `Total Received: ${data.totalReceived}`,
-          `Total Errors: ${data.totalErrors}`,
+          `Replies: ${data.totalReplies}`,
+          `Received: ${data.totalReceived}`,
+          `Errors: ${data.totalErrors}`,
+          `Retries: ${data.totalRetries}`,
           `Queue: ${queue.length}/${MAX_QUEUE}`
         ].join("\n"),
         threadID
@@ -515,22 +608,18 @@ module.exports.run = async function ({ api, event, args }) {
     }
 
     // --------------------------------------------------------
-    // AUTO REACTION
+    // AUTO REACT
     // --------------------------------------------------------
 
     if (command === "reacton" || command === "reactoff") {
       if (!isAdmin(senderID)) {
-        return sendMessage(
-          api,
-          "⛔ Admin lang ang puwedeng magbago ng settings.",
-          threadID
-        );
+        return safeSend(api, "⛔ Admin lang ang puwedeng magbago ng settings.", threadID);
       }
 
       data.autoReact = command === "reacton";
       saveData();
 
-      return sendMessage(
+      return safeSend(
         api,
         `😎 Auto reaction: ${data.autoReact ? "ON" : "OFF"}`,
         threadID
@@ -543,37 +632,23 @@ module.exports.run = async function ({ api, event, args }) {
 
     if (command === "delay") {
       if (!isAdmin(senderID)) {
-        return sendMessage(
-          api,
-          "⛔ Admin lang ang puwedeng magbago ng settings.",
-          threadID
-        );
+        return safeSend(api, "⛔ Admin lang ang puwedeng magbago ng settings.", threadID);
       }
 
       const value = Number(args?.[1]);
 
       if (!Number.isFinite(value)) {
-        return sendMessage(
+        return safeSend(
           api,
-          `Gamitin: /gojo delay ${DEFAULT_DELAY}\nAllowed: ${MIN_DELAY}-${MAX_DELAY}ms`,
+          `Usage: /gojo delay ${DEFAULT_DELAY}\nAllowed: ${MIN_DELAY}-${MAX_DELAY}ms`,
           threadID
         );
       }
 
-      data.delay = clamp(
-        value,
-        MIN_DELAY,
-        MAX_DELAY,
-        DEFAULT_DELAY
-      );
-
+      data.delay = clamp(value, MIN_DELAY, MAX_DELAY, DEFAULT_DELAY);
       saveData();
 
-      return sendMessage(
-        api,
-        `⏱️ Delay set to ${data.delay}ms`,
-        threadID
-      );
+      return safeSend(api, `⏱️ Delay set: ${data.delay}ms`, threadID);
     }
 
     // --------------------------------------------------------
@@ -582,37 +657,23 @@ module.exports.run = async function ({ api, event, args }) {
 
     if (command === "cooldown") {
       if (!isAdmin(senderID)) {
-        return sendMessage(
-          api,
-          "⛔ Admin lang ang puwedeng magbago ng settings.",
-          threadID
-        );
+        return safeSend(api, "⛔ Admin lang ang puwedeng magbago ng settings.", threadID);
       }
 
       const value = Number(args?.[1]);
 
       if (!Number.isFinite(value)) {
-        return sendMessage(
+        return safeSend(
           api,
-          `Gamitin: /gojo cooldown ${DEFAULT_COOLDOWN}\nAllowed: ${MIN_COOLDOWN}-${MAX_COOLDOWN}ms`,
+          `Usage: /gojo cooldown ${DEFAULT_COOLDOWN}\nAllowed: ${MIN_COOLDOWN}-${MAX_COOLDOWN}ms`,
           threadID
         );
       }
 
-      data.cooldown = clamp(
-        value,
-        MIN_COOLDOWN,
-        MAX_COOLDOWN,
-        DEFAULT_COOLDOWN
-      );
-
+      data.cooldown = clamp(value, MIN_COOLDOWN, MAX_COOLDOWN, DEFAULT_COOLDOWN);
       saveData();
 
-      return sendMessage(
-        api,
-        `⏳ Cooldown set to ${data.cooldown}ms`,
-        threadID
-      );
+      return safeSend(api, `⏳ Cooldown set: ${data.cooldown}ms`, threadID);
     }
 
     // --------------------------------------------------------
@@ -620,45 +681,63 @@ module.exports.run = async function ({ api, event, args }) {
     // --------------------------------------------------------
 
     if (command === "help") {
-      return sendMessage(
+      return safeSend(
         api,
         [
-          "♾️ GOJO COMMANDS",
+          "♾️ GOJO V17 COMMANDS",
           "/gojo on - Enable sa GC na ito",
           "/gojo off - Disable sa GC na ito",
-          "/gojo status - Tingnan ang status ng GC",
+          "/gojo status - Status ng GC",
           "/gojo reacton - Enable auto reaction",
           "/gojo reactoff - Disable auto reaction",
-          "/gojo delay 2000 - Set reply delay (ms)",
-          "/gojo cooldown 5000 - Set user cooldown (ms)",
-          "/gojo help - Ipakita ang commands"
+          "/gojo delay 2000 - Set reply delay",
+          "/gojo cooldown 5000 - Set cooldown",
+          "/gojo help - Show commands"
         ].join("\n"),
         threadID
       );
     }
 
-    return sendMessage(
+    return safeSend(
       api,
-      "Unknown command. Gamitin ang /gojo help",
+      "Unknown command. Gamitin: /gojo help",
       threadID
     );
   } catch (err) {
-    console.error("[GOJO] run error:", err);
     data.totalErrors++;
-    saveData();
+    stats.errors++;
+    console.error("[GOJO] Command error:", err);
   }
 };
 
 // ============================================================
-// CLEAN SHUTDOWN
+// PERIODIC CLEANUP
 // ============================================================
 
-process.on("SIGTERM", () => {
-  shuttingDown = true;
-  saveData();
-});
+const cleanupTimer = setInterval(() => {
+  try {
+    if (shuttingDown) return;
 
-process.on("SIGINT", () => {
+    clearOldCooldowns();
+    saveData();
+  } catch (err) {
+    console.error("[GOJO] Cleanup error:", err);
+  }
+}, 60000);
+
+// Prevent timer from being the only thing keeping Node alive.
+if (typeof cleanupTimer.unref === "function") {
+  cleanupTimer.unref();
+}
+
+// ============================================================
+// SHUTDOWN SAVE
+// ============================================================
+
+function shutdownSave() {
   shuttingDown = true;
   saveData();
-});
+}
+
+process.once("SIGTERM", shutdownSave);
+process.once("SIGINT", shutdownSave);
