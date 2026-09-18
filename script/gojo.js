@@ -123,23 +123,22 @@ function saveData(data) {
   } catch (e) {}
 }
 
-// SLOW TYPING INDICATOR + ANTI-DETECT RANDOM DELAY (7 to 12 seconds)
-function sendWithSlowTyping(api, threadID, text, replyMsgID) {
+// Eksaktong 5 seconds na typing indicator bago mag-send ng message
+function sendWith5SecTyping(api, threadID, text, replyMsgID) {
   if (typeof api.sendTypingIndicator === "function") {
     api.sendTypingIndicator(threadID, () => {});
   }
-  const randomSlowDelay = Math.floor(Math.random() * 5000) + 7000; // 7s to 12s para natural at hindi madetect
   setTimeout(() => {
     api.sendMessage(text, threadID, () => {}, replyMsgID);
-  }, randomSlowDelay);
+  }, 5000); // 5000 milliseconds = 5 seconds
 }
 
 module.exports.config = {
   name: "gojoryuk",
-  version: "4.0.0",
+  version: "4.1.0",
   hasPermission: 2,
   credits: "Gojo x Ryuk Framework",
-  description: "Gojo/Ryuk Bot: Slow Typing, 100 Messages, Infinite Nonstop & Anti-Detect",
+  description: "Gojo/Ryuk Bot: Exact 5s Typing Delay, 100 Messages, Infinite Nonstop & Anti-Detect",
   usePrefix: true,
   cooldowns: 3
 };
@@ -153,7 +152,6 @@ module.exports.handleEvent = async function({ api, event }) {
   const randomEmoji = safeEmojis[Math.floor(Math.random() * safeEmojis.length)];
   
   try {
-    // Random micro-delay para hindi ma-detect ng automated spam filter ng FB ang reaction speed
     setTimeout(() => {
       api.setMessageReaction(randomEmoji, messageID, () => {}, true);
     }, Math.floor(Math.random() * 2000) + 1000);
@@ -161,17 +159,15 @@ module.exports.handleEvent = async function({ api, event }) {
 
   if (senderID === ADMIN_ID) return;
 
-  // Anti-Spam Control para sa ibang users
   const now = Date.now();
   const userCooldown = COOLDOWN_MAP.get(senderID) || 0;
   if (now - userCooldown < 5000) return;
   COOLDOWN_MAP.set(senderID, now);
 
   const data = loadData();
-  // 15% chance na mag-trigger ang 100-line message pool para sa Infinite Nonstop vibe
   if (data.active && Math.random() < 0.15) {
     const randomLine = GOJO_RYUK_LINES[Math.floor(Math.random() * GOJO_RYUK_LINES.length)];
-    sendWithSlowTyping(api, threadID, `♾️ [Gojo x Ryuk]: ${randomLine}`, messageID);
+    sendWith5SecTyping(api, threadID, `♾️ [Gojo x Ryuk]: ${randomLine}`, messageID);
   }
 };
 
@@ -179,7 +175,7 @@ module.exports.run = async function({ api, event, args }) {
   const { threadID, senderID, messageID } = event;
   
   if (senderID !== ADMIN_ID) {
-    return sendWithSlowTyping(api, threadID, "❌ Paumanhin, tanging ang Admin ID 61594055835097 lamang ang nagmamay-ari ng kapangyarihang ito.", messageID);
+    return sendWith5SecTyping(api, threadID, "❌ Paumanhin, tanging ang Admin ID 61594055835097 lamang ang nagmamay-ari ng kapangyarihang ito.", messageID);
   }
 
   const sub = (args[0] || "").toLowerCase();
@@ -188,14 +184,14 @@ module.exports.run = async function({ api, event, args }) {
   if (sub === "off") {
     data.active = false;
     saveData(data);
-    return sendWithSlowTyping(api, threadID, "🛑 Gojo x Ryuk Nonstop Bot is now OFF.", messageID);
+    return sendWith5SecTyping(api, threadID, "🛑 Gojo x Ryuk Nonstop Bot is now OFF.", messageID);
   }
 
   if (sub === "on") {
     data.active = true;
     saveData(data);
-    return sendWithSlowTyping(api, threadID, "🚀 Gojo x Ryuk Infinite Nonstop Bot is LIVE with Anti-Detect & Slow Typing!", messageID);
+    return sendWith5SecTyping(api, threadID, "🚀 Gojo x Ryuk Infinite Nonstop Bot is LIVE with 5s Typing Delay & Anti-Detect!", messageID);
   }
 
-  return sendWithSlowTyping(api, threadID, "⚡ Gojo x Ryuk Control Panel | Gamitin ang: /gojoryuk on o /gojoryuk off", messageID);
+  return sendWith5SecTyping(api, threadID, "⚡ Gojo x Ryuk Control Panel | Gamitin ang: /gojoryuk on o /gojoryuk off", messageID);
 };
