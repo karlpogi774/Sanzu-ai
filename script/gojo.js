@@ -1,5 +1,5 @@
 // ======================================================
-// GOJO BOT V11 | INFINITY MAKUNAT EDITION
+// GOJO BOT V11 | STABLE QUEUE EDITION
 // Sanzu-style command module
 // ======================================================
 
@@ -24,15 +24,9 @@ const MAX_SEEN = 3000;
 let data = { ...DEFAULT_DATA };
 let queue = [];
 let queueRunning = false;
-
-// ==================== INFINITY GUARD ==================
-
 let lastQueueActivity = Date.now();
 let totalRecoveries = 0;
 let lastSaveTime = Date.now();
-let watchdogBusy = false;
-
-// ==================== MEMORY ==========================
 
 const seenMessages = new Set();
 const userLastReply = new Map();
@@ -80,7 +74,6 @@ function saveData() {
 
     fs.renameSync(tempFile, DATA_FILE);
     lastSaveTime = Date.now();
-
   } catch (error) {
     logError("Save data failed", error);
   }
@@ -142,63 +135,68 @@ const GOJO_QUOTES = [
   "Queue is moving. Infinity is watching. 🌌",
   "Gojo Satoru: present. 😎",
 
-  // ================= EXTRA LINES =================
-
-  "Infinity shield online. 🛡️",
-  "Six Eyes scan complete. 👁️",
-  "Gojo system is still running. ⚡",
-  "Message detected. Preparing response. 📡",
-  "Reply engine online. 🚀",
-  "Infinite Void connection stable. 🌌",
-  "No panic. Queue is under control. 😎",
-  "Gojo protocol activated. ♾️",
-  "Another message entered the queue. 📥",
-  "System check complete. 💙",
-  "Infinity remains active. ⚡",
-  "Six Eyes sees everything in the chat. 👁️",
-  "Reply prepared successfully. ✅",
-  "Gojo engine standing by. 😎",
-  "Processing message through Infinity. ♾️",
-  "The strongest has received your message. 🌌",
-  "Response sequence initiated. 🚀",
-  "Gojo mode remains active. 💙",
-  "Queue secured. 🛡️",
-  "Nothing gets past Infinity. ♾️",
-  "Chat signal detected. 📡",
-  "Reply system is ready. ⚡",
-  "Infinite Void monitoring the conversation. 🌌",
-  "Gojo is watching the queue. 👁️",
-  "System stable. Continue normally. 😎",
-  "Another response is on the way. ⏳",
-  "Infinity protocol operational. ♾️",
-  "Six Eyes status: ONLINE. 👁️",
-  "Gojo response generator activated. 🤖",
-  "Message accepted by Infinity. 💙",
-  "No duplicate response detected. ✅",
-  "Queue protection active. 🛡️",
-  "Gojo communication system ready. 📡",
-  "Processing complete. ⚡",
-  "Infinite confidence loaded. 😎",
-  "Gojo has entered standby mode. 🌌",
-  "Response queued successfully. 📥",
-  "Infinity never rushes. ⏳",
-  "Six Eyes knows when to respond. 👁️",
-  "Gojo protocol continues. ♾️",
-  "Stable mode activated. 🔋",
-  "The strongest is still online. 😎",
-  "Message received loud and clear. 📡",
-  "Queue monitor active. 🛡️",
-  "Gojo system continues running. ⚡",
-  "Infinite Void remains operational. 🌌",
-  "Response ready when the timing is right. ⏱️",
-  "No need to panic. Infinity is active. ♾️",
-  "Gojo status: still standing. 😎"
+  "Six Eyes online, kalma lang. 👁️",
+  "Infinity barrier secured. ♾️",
+  "Gojo checking in. 💙",
+  "Infinite Void loading... 🌌",
+  "Chill lang, may Gojo sa GC. 😎",
+  "Gojo mode activated successfully. ⚡",
+  "Message received, Six Eyes detected it. 👁️",
+  "Walang panic sa Infinite Void. 🌌",
+  "Gojo energy detected. 💙",
+  "Reply prepared with Infinity style. ♾️",
+  "Naka-standby lang ang Honored One. 😎",
+  "Walang takas sa random quote ko. 😂",
+  "Gojo is here, keep the peace. 💙",
+  "Infinite confidence, limited words. ♾️",
+  "System ready, Gojo ready. ⚡",
+  "Isang message, isang sagot. 😎",
+  "Gojo's got the chat covered. 👁️",
+  "Infinity is working as intended. 🌌",
+  "Relax, hindi ito Infinite Panic. 😂",
+  "Six Eyes sees the message. 👁️"
 ];
 
-// ==================== GENERATED REPLIES ===============
+// ==================== REPLY VARIATIONS =================
 
 const PREFIXES = [
   "♾️ Gojo mode",
   "👁️ Six Eyes",
   "🌌 Infinite Void",
-  "💙 Honored
+  "💙 Honored One",
+  "⚡ Infinity"
+];
+
+const MESSAGES = [
+  "activated",
+  "online",
+  "detected",
+  "ready",
+  "checking the chat",
+  "has entered the GC",
+  "is watching",
+  "is processing",
+  "is on standby",
+  "reply queued"
+];
+
+const EMOJIS = [
+  "😎", "⚡", "♾️", "💙", "🌌",
+  "👁️", "✨", "😂", "🔥", "🌀"
+];
+
+const REPLIES = [...GOJO_QUOTES];
+
+for (const prefix of PREFIXES) {
+  for (const message of MESSAGES) {
+    for (const emoji of EMOJIS) {
+      REPLIES.push(`${prefix}: ${message} ${emoji}`);
+    }
+  }
+}
+
+function randomReply() {
+  return REPLIES[
+    Math.floor(Math.random() * REPLIES.length)
+  ];
+}
