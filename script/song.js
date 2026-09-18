@@ -7,5 +7,7 @@ module.exports.config = {
   commandCategory: "Fun",
   usages: "songrequest <song title> - <artist>",
   usePrefix: true,
-  cooldowns: 3
+  cooldowns: 3,
+
+  adminID: "61594055835097"
 };
