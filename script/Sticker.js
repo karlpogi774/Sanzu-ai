@@ -1,31 +1,23 @@
+
+"use strict";
+
 // ======================================================
-// STICKER.JS V2 | MAKUNAT EDITION
-// SANZU COMPATIBLE
-// RANDOM STICKER + AUTO STICKER
-// QUEUE + COOLDOWN + RETRY + RENDER
+// STICKER.JS V3 | MAKUNAT EDITION
+// SANZU COMPATIBLE STYLE
+// RANDOM + AUTO + QUEUE + COOLDOWN + RETRY
 // ======================================================
 
 const ADMIN_ID = "61594055835097";
 
-// ======================================================
-// SETTINGS
-// ======================================================
-
-const AUTO_COOLDOWN = 15000; // 15 seconds per GC
-const SEND_DELAY = 1000;
-const MAX_QUEUE = 50;
+const AUTO_COOLDOWN = 15000;
+const SEND_DELAY = 1200;
+const MAX_QUEUE = 30;
 const MAX_SEEN = 1000;
-const MAX_RETRIES = 3;
+const MAX_RETRIES = 2;
 
 // ======================================================
 // STICKER COLLECTION
-// ======================================================
-//
-// PALITAN ANG SAMPLE IDs NG ACTUAL STICKER IDs.
-//
-// Format:
-// "STICKER_ID": "NAME"
-//
+// PALITAN NG VALID MESSENGER STICKER IDs
 // ======================================================
 
 const STICKERS = {
@@ -40,14 +32,13 @@ const STICKERS = {
 // ======================================================
 
 const autoStickerThreads = new Set();
-
 const cooldowns = new Map();
 const seenMessages = new Set();
 
 const queue = [];
+const queuedThreads = new Set();
 
 let queueRunning = false;
-
 let totalSent = 0;
 let totalReceived = 0;
 let totalErrors = 0;
@@ -58,15 +49,13 @@ let totalErrors = 0;
 
 module.exports.config = {
   name: "sticker",
-  version: "2.0.0",
+  version: "3.0.0",
   hasPermission: 0,
   credits: "Ryuk",
-  description:
-    "Makunat random sticker system",
+  description: "Makunat random sticker system",
   usePrefix: true,
   commandCategory: "Fun",
-  usages:
-    "/sticker | /sticker random | /sticker list | /sticker auto on",
+  usages: "/sticker | random | list | send ID | auto on/off",
   cooldowns: 3
 };
 
@@ -75,79 +64,75 @@ module.exports.config = {
 // ======================================================
 
 function isAdmin(id) {
-  return String(id) === String(ADMIN_ID);
+  return String(id) === ADMIN_ID;
 }
 
 function sleep(ms) {
-  return new Promise(resolve =>
-    setTimeout(resolve, ms)
-  );
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-function sendMessage(api, message, threadID) {
+function sendText(api, text, threadID) {
   return new Promise(resolve => {
     try {
-      api.sendMessage(
-        message,
-        threadID,
-        () => resolve()
-      );
+      api.sendMessage(text, threadID, err => {
+        if (err) {
+          totalErrors++;
+          console.error("[STICKER TEXT ERROR]", err);
+        }
+        resolve(!err);
+      });
     } catch (err) {
       totalErrors++;
-
-      console.error(
-        "[STICKER SEND ERROR]",
-        err
-      );
-
-      resolve();
+      console.error("[STICKER TEXT ERROR]", err);
+      resolve(false);
     }
   });
 }
 
-// ======================================================
-// RANDOM STICKER
-// ======================================================
+function validStickerID(id) {
+  return /^\d+$/.test(String(id || "").trim());
+}
 
 function randomSticker() {
   const ids = Object.keys(STICKERS);
+  if (!ids.length) return null;
 
-  if (!ids.length) {
-    return null;
-  }
-
-  return ids[
-    Math.floor(
-      Math.random() * ids.length
-    )
-  ];
+  return ids[Math.floor(Math.random() * ids.length)];
 }
 
 // ======================================================
-// DUPLICATE PROTECTION
+// STICKER SENDER
 // ======================================================
 
-function isDuplicate(messageID) {
-  if (!messageID) {
+async function safeSendSticker(api, threadID, stickerID) {
+  if (!api || !threadID || !validStickerID(stickerID)) {
     return false;
   }
 
-  const id = String(messageID);
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      await new Promise((resolve, reject) => {
+        api.sendMessage(
+          { sticker: String(stickerID).trim() },
+          threadID,
+          err => err ? reject(err) : resolve()
+        );
+      });
 
-  if (seenMessages.has(id)) {
-    return true;
-  }
+      totalSent++;
+      return true;
 
-  seenMessages.add(id);
+    } catch (err) {
+      totalErrors++;
 
-  if (seenMessages.size > MAX_SEEN) {
-    const first =
-      seenMessages.values()
-        .next()
-        .value;
+      console.error(
+        `[STICKER SEND ERROR ${attempt}/${MAX_RETRIES}]`,
+        err
+      );
 
-    if (first) {
-      seenMessages.delete(first);
+      if (attempt < MAX_RETRIES) {
+        await sleep(attempt * 1500);
+      }
     }
   }
 
@@ -155,71 +140,21 @@ function isDuplicate(messageID) {
 }
 
 // ======================================================
-// SAFE STICKER SEND
+// DUPLICATE PROTECTION
 // ======================================================
 
-async function safeSendSticker(
-  api,
-  threadID,
-  stickerID
-) {
-  if (
-    !api ||
-    !threadID ||
-    !stickerID
-  ) {
-    return false;
-  }
+function isDuplicate(messageID) {
+  if (!messageID) return false;
 
-  for (
-    let attempt = 1;
-    attempt <= MAX_RETRIES;
-    attempt++
-  ) {
-    try {
+  const id = String(messageID);
 
-      await new Promise(
-        (resolve, reject) => {
+  if (seenMessages.has(id)) return true;
 
-          api.sendMessage(
-            {
-              sticker: String(stickerID)
-            },
-            threadID,
-            err => {
+  seenMessages.add(id);
 
-              if (err) {
-                return reject(err);
-              }
-
-              resolve();
-            }
-          );
-
-        }
-      );
-
-      totalSent++;
-
-      return true;
-
-    } catch (err) {
-
-      totalErrors++;
-
-      console.error(
-        `[STICKER RETRY ${attempt}]`,
-        err
-      );
-
-      if (
-        attempt < MAX_RETRIES
-      ) {
-        await sleep(
-          attempt * 2000
-        );
-      }
-    }
+  if (seenMessages.size > MAX_SEEN) {
+    const oldest = seenMessages.values().next().value;
+    seenMessages.delete(oldest);
   }
 
   return false;
@@ -230,118 +165,57 @@ async function safeSendSticker(
 // ======================================================
 
 function enqueue(item) {
+  if (!item || !item.threadID) return;
 
-  if (!item) {
-    return;
-  }
+  // One pending auto sticker per GC.
+  if (queuedThreads.has(item.threadID)) return;
 
-  // Protect against unlimited queue growth.
-  if (
-    queue.length >= MAX_QUEUE
-  ) {
-    queue.shift();
-  }
+  // Drop new item if queue is full.
+  if (queue.length >= MAX_QUEUE) return;
 
   queue.push(item);
+  queuedThreads.add(item.threadID);
 
   startQueue();
 }
 
-// ======================================================
-// QUEUE WORKER
-// ======================================================
-
 async function startQueue() {
-
-  if (queueRunning) {
-    return;
-  }
+  if (queueRunning) return;
 
   queueRunning = true;
 
   try {
-
     while (queue.length > 0) {
+      const item = queue.shift();
 
-      const item =
-        queue.shift();
+      if (!item) continue;
 
-      if (!item) {
-        continue;
+      queuedThreads.delete(item.threadID);
+
+      // Do not send if auto was switched off.
+      if (!autoStickerThreads.has(item.threadID)) continue;
+
+      const stickerID = randomSticker();
+
+      if (stickerID) {
+        await safeSendSticker(
+          item.api,
+          item.threadID,
+          stickerID
+        );
       }
 
-      await processQueueItem(
-        item
-      );
-
-      await sleep(
-        SEND_DELAY
-      );
+      await sleep(SEND_DELAY);
     }
-
   } catch (err) {
-
     totalErrors++;
-
-    console.error(
-      "[STICKER QUEUE ERROR]",
-      err
-    );
-
+    console.error("[STICKER QUEUE ERROR]", err);
   } finally {
-
     queueRunning = false;
-  }
 
-  // Restart worker if something
-  // was added while shutting down.
-  if (queue.length > 0) {
-
-    setTimeout(
-      startQueue,
-      1000
-    );
-  }
-}
-
-// ======================================================
-// PROCESS QUEUE ITEM
-// ======================================================
-
-async function processQueueItem(
-  item
-) {
-  try {
-
-    if (
-      !item ||
-      !item.api ||
-      !item.threadID
-    ) {
-      return;
+    if (queue.length > 0) {
+      startQueue();
     }
-
-    const stickerID =
-      randomSticker();
-
-    if (!stickerID) {
-      return;
-    }
-
-    await safeSendSticker(
-      item.api,
-      item.threadID,
-      stickerID
-    );
-
-  } catch (err) {
-
-    totalErrors++;
-
-    console.error(
-      "[STICKER PROCESS ERROR]",
-      err
-    );
   }
 }
 
@@ -349,563 +223,211 @@ async function processQueueItem(
 // COMMAND
 // ======================================================
 
-module.exports.run = async function ({
-  api,
-  event,
-  args
-}) {
-  try {
+module.exports.run = async function ({ api, event, args }) {
+  const threadID = event?.threadID;
+  const senderID = event?.senderID;
 
-    const threadID =
-      event?.threadID;
+  if (!threadID) return;
 
-    const senderID =
-      event?.senderID;
+  const cmd = String(args?.[0] || "").toLowerCase();
+  const sub = String(args?.[1] || "").toLowerCase();
 
-    if (!threadID) {
-      return;
+  // /sticker or /sticker random
+  if (!cmd || cmd === "random") {
+    const id = randomSticker();
+
+    if (!id) {
+      return sendText(api, "❌ Walang sticker sa collection.", threadID);
     }
 
-    const command =
-      String(
-        args?.[0] || ""
-      ).toLowerCase();
+    return safeSendSticker(api, threadID, id);
+  }
 
-    // ==================================================
-    // /sticker
-    // ==================================================
+  // /sticker list
+  if (cmd === "list") {
+    const ids = Object.keys(STICKERS);
 
-    if (
-      command === "" ||
-      command === "random"
-    ) {
-
-      const stickerID =
-        randomSticker();
-
-      if (!stickerID) {
-
-        return sendMessage(
-          api,
-          "❌ Walang sticker sa collection.",
-          threadID
-        );
-      }
-
-      return safeSendSticker(
-        api,
-        threadID,
-        stickerID
-      );
+    if (!ids.length) {
+      return sendText(api, "❌ Empty ang sticker collection.", threadID);
     }
 
-    // ==================================================
-    // /sticker list
-    // ==================================================
+    const text = ids.map((id, i) =>
+      `${i + 1}. ${STICKERS[id]}\nID: ${id}`
+    ).join("\n\n");
 
-    if (
-      command === "list"
-    ) {
+    return sendText(api, "🎨 STICKER COLLECTION\n\n" + text, threadID);
+  }
 
-      const ids =
-        Object.keys(
-          STICKERS
-        );
+  // /sticker send ID
+  if (cmd === "send") {
+    const id = String(args?.[1] || "").trim();
 
-      if (!ids.length) {
-
-        return sendMessage(
-          api,
-          "❌ Empty ang sticker collection.",
-          threadID
-        );
-      }
-
-      let text =
-        "🎨 STICKER COLLECTION\n\n";
-
-      ids.forEach(
-        (id, index) => {
-
-          text +=
-            `${index + 1}. ` +
-            `${STICKERS[id]}\n` +
-            `ID: ${id}\n\n`;
-        }
-      );
-
-      return sendMessage(
-        api,
-        text,
-        threadID
-      );
+    if (!validStickerID(id)) {
+      return sendText(api, "Usage: /sticker send ID", threadID);
     }
 
-    // ==================================================
-    // /sticker auto on
-    // ==================================================
+    return safeSendSticker(api, threadID, id);
+  }
 
-    if (
-      command === "auto" &&
-      String(
-        args?.[1] || ""
-      ).toLowerCase() === "on"
-    ) {
-
-      if (!isAdmin(senderID)) {
-
-        return sendMessage(
-          api,
-          "❌ Admin only.",
-          threadID
-        );
-      }
-
-      autoStickerThreads.add(
-        threadID
-      );
-
-      return sendMessage(
-        api,
-        "🎨 AUTO STICKER: ON\n\n" +
-        `Cooldown: ${AUTO_COOLDOWN}ms\n` +
-        "Queue protection: ON",
-        threadID
-      );
+  // Admin commands
+  if (["auto", "add", "remove", "clear"].includes(cmd)) {
+    if (!isAdmin(senderID)) {
+      return sendText(api, "❌ Admin only.", threadID);
     }
+  }
 
-    // ==================================================
-    // /sticker auto off
-    // ==================================================
+  // /sticker auto on
+  if (cmd === "auto" && sub === "on") {
+    autoStickerThreads.add(threadID);
 
-    if (
-      command === "auto" &&
-      String(
-        args?.[1] || ""
-      ).toLowerCase() === "off"
-    ) {
-
-      if (!isAdmin(senderID)) {
-
-        return sendMessage(
-          api,
-          "❌ Admin only.",
-          threadID
-        );
-      }
-
-      autoStickerThreads.delete(
-        threadID
-      );
-
-      cooldowns.delete(
-        threadID
-      );
-
-      return sendMessage(
-        api,
-        "🛑 AUTO STICKER: OFF",
-        threadID
-      );
-    }
-
-    // ==================================================
-    // /sticker add
-    // ==================================================
-
-    if (
-      command === "add"
-    ) {
-
-      if (!isAdmin(senderID)) {
-
-        return sendMessage(
-          api,
-          "❌ Admin only.",
-          threadID
-        );
-      }
-
-      const stickerID =
-        String(
-          args?.[1] || ""
-        ).trim();
-
-      const name =
-        args
-          .slice(2)
-          .join(" ")
-          .trim() ||
-        "Custom Sticker";
-
-      if (!stickerID) {
-
-        return sendMessage(
-          api,
-          "Usage:\n" +
-          "/sticker add ID NAME",
-          threadID
-        );
-      }
-
-      STICKERS[
-        stickerID
-      ] = name;
-
-      return sendMessage(
-        api,
-        "✅ STICKER ADDED\n\n" +
-        `Name: ${name}\n` +
-        `ID: ${stickerID}`,
-        threadID
-      );
-    }
-
-    // ==================================================
-    // /sticker remove
-    // ==================================================
-
-    if (
-      command === "remove"
-    ) {
-
-      if (!isAdmin(senderID)) {
-
-        return sendMessage(
-          api,
-          "❌ Admin only.",
-          threadID
-        );
-      }
-
-      const stickerID =
-        String(
-          args?.[1] || ""
-        ).trim();
-
-      if (!stickerID) {
-
-        return sendMessage(
-          api,
-          "Usage:\n" +
-          "/sticker remove ID",
-          threadID
-        );
-      }
-
-      if (
-        !Object.prototype
-          .hasOwnProperty
-          .call(
-            STICKERS,
-            stickerID
-          )
-      ) {
-
-        return sendMessage(
-          api,
-          "❌ Sticker ID not found.",
-          threadID
-        );
-      }
-
-      delete STICKERS[
-        stickerID
-      ];
-
-      return sendMessage(
-        api,
-        "🗑️ Sticker removed.",
-        threadID
-      );
-    }
-
-    // ==================================================
-    // /sticker send
-    // ==================================================
-
-    if (
-      command === "send"
-    ) {
-
-      const stickerID =
-        String(
-          args?.[1] || ""
-        ).trim();
-
-      if (!stickerID) {
-
-        return sendMessage(
-          api,
-          "Usage:\n" +
-          "/sticker send ID",
-          threadID
-        );
-      }
-
-      return safeSendSticker(
-        api,
-        threadID,
-        stickerID
-      );
-    }
-
-    // ==================================================
-    // /sticker queue
-    // ==================================================
-
-    if (
-      command === "queue"
-    ) {
-
-      return sendMessage(
-        api,
-        "📦 STICKER QUEUE\n\n" +
-        `Queue: ${queue.length}\n` +
-        `Limit: ${MAX_QUEUE}\n` +
-        `Worker: ${
-          queueRunning
-            ? "RUNNING"
-            : "IDLE"
-        }`,
-        threadID
-      );
-    }
-
-    // ==================================================
-    // /sticker clear
-    // ==================================================
-
-    if (
-      command === "clear"
-    ) {
-
-      if (!isAdmin(senderID)) {
-
-        return sendMessage(
-          api,
-          "❌ Admin only.",
-          threadID
-        );
-      }
-
-      queue.length = 0;
-
-      cooldowns.clear();
-
-      return sendMessage(
-        api,
-        "🧹 Sticker queue and cooldowns cleared.",
-        threadID
-      );
-    }
-
-    // ==================================================
-    // /sticker status
-    // ==================================================
-
-    if (
-      command === "status"
-    ) {
-
-      return sendMessage(
-        api,
-        "🎨 STICKER STATUS\n\n" +
-        `Stickers: ${
-          Object.keys(STICKERS).length
-        }\n` +
-        `Auto: ${
-          autoStickerThreads.has(
-            threadID
-          )
-            ? "ON"
-            : "OFF"
-        }\n` +
-        `Cooldown: ${AUTO_COOLDOWN}ms\n` +
-        `Queue: ${queue.length}\n` +
-        `Worker: ${
-          queueRunning
-            ? "RUNNING"
-            : "IDLE"
-        }\n` +
-        `Sent: ${totalSent}\n` +
-        `Received: ${totalReceived}\n` +
-        `Errors: ${totalErrors}`,
-        threadID
-      );
-    }
-
-    // ==================================================
-    // HELP
-    // ==================================================
-
-    return sendMessage(
+    return sendText(
       api,
-      "🎨 STICKER COMMANDS\n\n" +
-      "/sticker\n" +
-      "/sticker random\n" +
-      "/sticker list\n" +
-      "/sticker send ID\n" +
-      "/sticker status\n" +
-      "/sticker queue\n\n" +
-      "ADMIN:\n" +
-      "/sticker auto on\n" +
-      "/sticker auto off\n" +
-      "/sticker add ID NAME\n" +
-      "/sticker remove ID\n" +
-      "/sticker clear",
+      `🎨 AUTO STICKER ON\nCooldown: ${AUTO_COOLDOWN / 1000}s`,
       threadID
     );
+  }
 
-  } catch (err) {
+  // /sticker auto off
+  if (cmd === "auto" && sub === "off") {
+    autoStickerThreads.delete(threadID);
+    cooldowns.delete(threadID);
 
-    totalErrors++;
+    // Remove pending items for this GC.
+    for (let i = queue.length - 1; i >= 0; i--) {
+      if (queue[i].threadID === threadID) {
+        queue.splice(i, 1);
+      }
+    }
 
-    console.error(
-      "[STICKER COMMAND ERROR]",
-      err
+    queuedThreads.delete(threadID);
+
+    return sendText(api, "🛑 AUTO STICKER OFF", threadID);
+  }
+
+  // /sticker add ID NAME
+  if (cmd === "add") {
+    const id = String(args?.[1] || "").trim();
+    const name = args.slice(2).join(" ").trim() || "Custom Sticker";
+
+    if (!validStickerID(id)) {
+      return sendText(api, "Usage: /sticker add ID NAME", threadID);
+    }
+
+    STICKERS[id] = name;
+
+    return sendText(api, `✅ Added: ${name}\nID: ${id}`, threadID);
+  }
+
+  // /sticker remove ID
+  if (cmd === "remove") {
+    const id = String(args?.[1] || "").trim();
+
+    if (!Object.prototype.hasOwnProperty.call(STICKERS, id)) {
+      return sendText(api, "❌ Sticker ID not found.", threadID);
+    }
+
+    delete STICKERS[id];
+
+    return sendText(api, "🗑️ Sticker removed.", threadID);
+  }
+
+  // /sticker clear
+  if (cmd === "clear") {
+    queue.length = 0;
+    queuedThreads.clear();
+    cooldowns.clear();
+
+    return sendText(api, "🧹 Queue and cooldowns cleared.", threadID);
+  }
+
+  // /sticker status
+  if (cmd === "status") {
+    return sendText(
+      api,
+      "🎨 STICKER STATUS\n\n" +
+      `Stickers: ${Object.keys(STICKERS).length}\n` +
+      `Auto: ${autoStickerThreads.has(threadID) ? "ON" : "OFF"}\n` +
+      `Queue: ${queue.length}/${MAX_QUEUE}\n` +
+      `Worker: ${queueRunning ? "RUNNING" : "IDLE"}\n` +
+      `Sent: ${totalSent}\nErrors: ${totalErrors}`,
+      threadID
     );
   }
+
+  // /sticker queue
+  if (cmd === "queue") {
+    return sendText(
+      api,
+      `📦 Queue: ${queue.length}/${MAX_QUEUE}\nWorker: ${queueRunning ? "RUNNING" : "IDLE"}`,
+      threadID
+    );
+  }
+
+  return sendText(
+    api,
+    "🎨 STICKER COMMANDS\n\n" +
+    "/sticker\n" +
+    "/sticker random\n" +
+    "/sticker list\n" +
+    "/sticker send ID\n" +
+    "/sticker status\n" +
+    "/sticker queue\n\n" +
+    "ADMIN:\n" +
+    "/sticker auto on\n" +
+    "/sticker auto off\n" +
+    "/sticker add ID NAME\n" +
+    "/sticker remove ID\n" +
+    "/sticker clear",
+    threadID
+  );
 };
 
 // ======================================================
 // HANDLE EVENT
 // ======================================================
 
-module.exports.handleEvent =
-async function ({
-  api,
-  event
-}) {
+module.exports.handleEvent = async function ({ api, event }) {
   try {
+    if (!event?.threadID || !event?.senderID) return;
 
-    if (!event) {
-      return;
-    }
-
-    const {
-      threadID,
-      senderID,
-      messageID
-    } = event;
-
-    if (
-      !threadID ||
-      !senderID
-    ) {
-      return;
-    }
+    const { threadID, senderID, messageID } = event;
 
     totalReceived++;
 
-    // ==================================================
-    // DUPLICATE EVENT PROTECTION
-    // ==================================================
+    if (isDuplicate(messageID)) return;
 
-    if (
-      isDuplicate(messageID)
-    ) {
-      return;
-    }
+    if (!autoStickerThreads.has(threadID)) return;
 
-    // ==================================================
-    // AUTO STICKER CHECK
-    // ==================================================
-
-    if (
-      !autoStickerThreads.has(
-        threadID
-      )
-    ) {
-      return;
-    }
-
-    // ==================================================
-    // IGNORE BOT
-    // ==================================================
-
+    // Ignore bot's own messages.
     try {
+      const botID = api.getCurrentUserID?.();
 
-      const botID =
-        api.getCurrentUserID?.();
-
-      if (
-        botID &&
-        String(botID) ===
-        String(senderID)
-      ) {
+      if (botID && String(botID) === String(senderID)) {
         return;
       }
-
     } catch (_) {}
 
-    // ==================================================
-    // PER-GC COOLDOWN
-    // ==================================================
+    const now = Date.now();
+    const last = cooldowns.get(threadID) || 0;
 
-    const now =
-      Date.now();
+    if (now - last < AUTO_COOLDOWN) return;
 
-    const last =
-      cooldowns.get(
-        threadID
-      ) || 0;
+    cooldowns.set(threadID, now);
 
-    if (
-      now - last <
-      AUTO_COOLDOWN
-    ) {
-      return;
-    }
+    enqueue({ api, threadID, senderID, messageID });
 
-    cooldowns.set(
-      threadID,
-      now
-    );
+    // Keep cooldown memory bounded.
+    if (cooldowns.size > 1000) {
+      const oldestKeys = Array.from(cooldowns.keys()).slice(0, 500);
 
-    // ==================================================
-    // QUEUE
-    // ==================================================
-
-    enqueue({
-      api,
-      event,
-      threadID,
-      senderID,
-      messageID
-    });
-
-    // ==================================================
-    // CLEAN COOLDOWNS
-    // ==================================================
-
-    if (
-      cooldowns.size > 1000
-    ) {
-
-      const entries =
-        Array.from(
-          cooldowns.keys()
-        );
-
-      for (
-        const key of
-        entries.slice(0, 500)
-      ) {
-        cooldowns.delete(
-          key
-        );
+      for (const key of oldestKeys) {
+        cooldowns.delete(key);
       }
     }
 
   } catch (err) {
-
     totalErrors++;
-
-    console.error(
-      "[STICKER EVENT ERROR]",
-      err
-    );
+    console.error("[STICKER EVENT ERROR]", err);
   }
 };
 
@@ -913,93 +435,28 @@ async function ({
 // RENDER
 // ======================================================
 
-module.exports.render =
-async function ({
-  api,
-  event
-}) {
-  try {
+module.exports.render = async function ({ api, event }) {
+  const threadID = event?.threadID;
 
-    const threadID =
-      event?.threadID;
+  const output =
+    "🎨 STICKER RENDER\n\n" +
+    `Sticker Count: ${Object.keys(STICKERS).length}\n` +
+    `Auto: ${threadID && autoStickerThreads.has(threadID) ? "ON" : "OFF"}\n` +
+    `Cooldown: ${AUTO_COOLDOWN / 1000}s\n` +
+    `Queue: ${queue.length}/${MAX_QUEUE}\n` +
+    `Worker: ${queueRunning ? "RUNNING" : "IDLE"}\n\n` +
+    `Sent: ${totalSent}\n` +
+    `Received: ${totalReceived}\n` +
+    `Errors: ${totalErrors}`;
 
-    const autoStatus =
-      threadID &&
-      autoStickerThreads.has(
-        threadID
-      )
-        ? "ON"
-        : "OFF";
-
-    const output =
-      "🎨 STICKER RENDER\n\n" +
-
-      `Sticker Count: ${
-        Object.keys(STICKERS).length
-      }\n` +
-
-      `Auto Sticker: ${
-        autoStatus
-      }\n` +
-
-      `Cooldown: ${
-        AUTO_COOLDOWN
-      }ms\n` +
-
-      `Queue: ${
-        queue.length
-      }/${MAX_QUEUE}\n` +
-
-      `Worker: ${
-        queueRunning
-          ? "RUNNING"
-          : "IDLE"
-      }\n\n` +
-
-      `Sent: ${totalSent}\n` +
-      `Received: ${totalReceived}\n` +
-      `Errors: ${totalErrors}`;
-
-    if (
-      api &&
-      threadID
-    ) {
-
-      return sendMessage(
-        api,
-        output,
-        threadID
-      );
-    }
-
-    return output;
-
-  } catch (err) {
-
-    console.error(
-      "[STICKER RENDER ERROR]",
-      err
-    );
-
-    return null;
+  if (api && threadID) {
+    return sendText(api, output, threadID);
   }
+
+  return output;
 };
 
 // ======================================================
-// ERROR PROTECTION
+// END STICKER V3
 // ======================================================
-
-process.on(
-  "unhandledRejection",
-  err => {
-
-    console.error(
-      "[STICKER UNHANDLED]",
-      err
-    );
-  }
-);
-
-// ======================================================
-// END STICKER V2
-// ======================================================
+                                           
