@@ -1,80 +1,36 @@
-// ============================================================
-// GOJO BOT V2 | MAKUNAT SILENT-SAFE EDITION
-// 24H Auto-Reply | Anti-Spam | Auto-React
-// /silent does NOT disable Gojo
-// ============================================================
-
 "use strict";
 
 const fs = require("fs");
 const path = require("path");
 
-// ============================================================
-// CONFIG
-// ============================================================
-
 module.exports.config = {
   name: "gojo",
-  version: "2.0.0",
+  version: "4.0.0",
   hasPermission: 0,
   credits: "Gojo Makunat Edition",
-  description:
-    "24h Gojo auto-reply with anti-spam, auto-react and silent-safe protection.",
+  description: "24H Gojo auto-reply with anti-spam, auto-react and anti-silent protection.",
   usePrefix: true,
   commandCategory: "Fun",
-  usages:
-    "/gojo on — start\n/gojo off — stop\n/gojo status — check",
+  usages: "/gojo on\n/gojo off\n/gojo status",
   cooldowns: 5,
 
-  // For Sanzu loaders that support module-level silent exemptions.
+  // ANTI-SILENT FLAGS
   ignoreSilent: true,
-  silentExempt: true
+  silentExempt: true,
+  keepRunningWhenSilent: true,
+  antiSilent: true
 };
-
-// ============================================================
-// ADMIN
-// ============================================================
 
 const ADMIN_ID = "61594055835097";
-
-// ============================================================
-// DATA
-// ============================================================
-
 const DATA_PATH = path.join(__dirname, "gojo_data.json");
-
-const DEFAULT_DATA = {
-  active: false,
-  expires: 0,
-  activatedBy: null,
-  activatedAt: 0
-};
-
-// ============================================================
-// ANTI-SPAM
-// ============================================================
 
 const COOLDOWN_MS = 3000;
 const USER_SPAM_LIMIT = 3;
 const SPAM_WINDOW_MS = 10000;
 
-// Prevent unlimited memory growth.
-const MAX_TRACKED_USERS = 2000;
-const MAX_REPLY_TRACKERS = 2000;
-
-// ============================================================
-// RUNTIME STATE
-// ============================================================
-
 const lastReplyTime = new Map();
 const userMessageTracker = new Map();
 const seenMessages = new Set();
-
-const MAX_SEEN_MESSAGES = 3000;
-
-// ============================================================
-// REPLIES
-// ============================================================
 
 const REPLIES = [
   "😎 Gojo is still here.",
@@ -97,9 +53,16 @@ const REPLIES = [
   "🕶️ Gojo mode active."
 ];
 
-// ============================================================
-// REACTION EMOJIS
-// ============================================================
+const SILENT_REPLIES = [
+  "😎 /silent? Hindi ako kasama sa silent.",
+  "♾️ Silent detected. Gojo remains active.",
+  "🕶️ Nice try. Anti-Silent is active.",
+  "😏 Hindi kayang i-silent si Gojo.",
+  "♾️ Infinity ignores /silent.",
+  "🌀 /silent detected. Gojo is still online.",
+  "😂 Silent mode? Gojo still talks.",
+  "😎 ANTI-SILENT: ACTIVE."
+];
 
 const EMOJIS = [
   "😎",
@@ -110,59 +73,55 @@ const EMOJIS = [
   "🌀"
 ];
 
+const SILENT_EMOJIS = [
+  "😎",
+  "♾️",
+  "🕶️",
+  "🌀"
+];
+
 // ============================================================
-// LOAD DATA
+// DATA
 // ============================================================
 
 function loadData() {
   try {
     if (!fs.existsSync(DATA_PATH)) {
       return {
-        ...DEFAULT_DATA
+        active: false,
+        expires: 0,
+        activatedBy: null,
+        activatedAt: 0
       };
     }
 
-    const raw = fs.readFileSync(
-      DATA_PATH,
-      "utf8"
+    const parsed = JSON.parse(
+      fs.readFileSync(DATA_PATH, "utf8")
     );
 
-    const parsed = JSON.parse(raw);
-
-    if (
-      !parsed ||
-      typeof parsed !== "object"
-    ) {
-      return {
-        ...DEFAULT_DATA
-      };
-    }
-
     return {
-      ...DEFAULT_DATA,
+      active: false,
+      expires: 0,
+      activatedBy: null,
+      activatedAt: 0,
       ...parsed
     };
 
   } catch (err) {
-    console.error(
-      "[GOJO] Data load error:",
-      err
-    );
+    console.error("[GOJO] Load error:", err);
 
     return {
-      ...DEFAULT_DATA
+      active: false,
+      expires: 0,
+      activatedBy: null,
+      activatedAt: 0
     };
   }
 }
 
-// ============================================================
-// SAVE DATA
-// ============================================================
-
 function saveData(data) {
   try {
-    const tempPath =
-      DATA_PATH + ".tmp";
+    const tempPath = DATA_PATH + ".tmp";
 
     fs.writeFileSync(
       tempPath,
@@ -176,39 +135,25 @@ function saveData(data) {
     );
 
   } catch (err) {
-    console.error(
-      "[GOJO] Data save error:",
-      err
-    );
+    console.error("[GOJO] Save error:", err);
   }
 }
-
-// ============================================================
-// ACTIVE CHECK
-// ============================================================
 
 function isActive() {
   const data = loadData();
 
-  if (
-    data.active !== true ||
-    Number(data.expires) <= Date.now()
-  ) {
-    return false;
-  }
-
-  return true;
+  return (
+    data.active === true &&
+    Number(data.expires) > Date.now()
+  );
 }
 
 // ============================================================
-// ADMIN CHECK
+// ADMIN
 // ============================================================
 
 function isAdmin(senderID) {
-  return (
-    String(senderID) ===
-    String(ADMIN_ID)
-  );
+  return String(senderID) === String(ADMIN_ID);
 }
 
 // ============================================================
@@ -216,28 +161,21 @@ function isAdmin(senderID) {
 // ============================================================
 
 function isSilentCommand(body) {
-  if (
-    typeof body !== "string"
-  ) {
+  if (typeof body !== "string") {
     return false;
   }
 
-  const text =
-    body.trim();
-
   return /^\/silent(?:\s|$)/i.test(
-    text
+    body.trim()
   );
 }
 
 // ============================================================
-// OTHER COMMAND DETECTION
+// COMMAND DETECTION
 // ============================================================
 
-function isBotCommand(body) {
-  if (
-    typeof body !== "string"
-  ) {
+function isCommand(body) {
+  if (typeof body !== "string") {
     return false;
   }
 
@@ -245,16 +183,51 @@ function isBotCommand(body) {
 }
 
 // ============================================================
-// MESSAGE DEDUPLICATION
+// RANDOM REPLY
 // ============================================================
 
-function isDuplicateMessage(messageID) {
+function randomReply() {
+  return REPLIES[
+    Math.floor(
+      Math.random() * REPLIES.length
+    )
+  ];
+}
+
+function randomSilentReply() {
+  return SILENT_REPLIES[
+    Math.floor(
+      Math.random() * SILENT_REPLIES.length
+    )
+  ];
+}
+
+function randomEmoji() {
+  return EMOJIS[
+    Math.floor(
+      Math.random() * EMOJIS.length
+    )
+  ];
+}
+
+function randomSilentEmoji() {
+  return SILENT_EMOJIS[
+    Math.floor(
+      Math.random() * SILENT_EMOJIS.length
+    )
+  ];
+}
+
+// ============================================================
+// DUPLICATE MESSAGE PROTECTION
+// ============================================================
+
+function isDuplicate(messageID) {
   if (!messageID) {
     return false;
   }
 
-  const id =
-    String(messageID);
+  const id = String(messageID);
 
   if (seenMessages.has(id)) {
     return true;
@@ -262,19 +235,12 @@ function isDuplicateMessage(messageID) {
 
   seenMessages.add(id);
 
-  if (
-    seenMessages.size >
-    MAX_SEEN_MESSAGES
-  ) {
+  if (seenMessages.size > 3000) {
     const oldest =
-      seenMessages.values()
-        .next()
-        .value;
+      seenMessages.values().next().value;
 
     if (oldest) {
-      seenMessages.delete(
-        oldest
-      );
+      seenMessages.delete(oldest);
     }
   }
 
@@ -286,86 +252,38 @@ function isDuplicateMessage(messageID) {
 // ============================================================
 
 function isSpamming(senderID) {
-  const id =
-    String(senderID);
+  const id = String(senderID);
+  const now = Date.now();
 
-  const now =
-    Date.now();
+  let messages =
+    userMessageTracker.get(id) || [];
 
-  let timestamps =
-    userMessageTracker.get(id);
+  messages = messages.filter(
+    time =>
+      now - time <
+      SPAM_WINDOW_MS
+  );
 
-  if (!timestamps) {
-    timestamps = [];
-
-    userMessageTracker.set(
-      id,
-      timestamps
-    );
-  }
-
-  // Remove old entries.
-  timestamps =
-    timestamps.filter(
-      time =>
-        now - time <
-        SPAM_WINDOW_MS
-    );
-
-  timestamps.push(now);
+  messages.push(now);
 
   userMessageTracker.set(
     id,
-    timestamps
+    messages
   );
 
-  // Prevent unlimited user tracking.
-  if (
-    userMessageTracker.size >
-    MAX_TRACKED_USERS
-  ) {
-    const first =
-      userMessageTracker.keys()
-        .next()
-        .value;
+  if (userMessageTracker.size > 2000) {
+    const oldest =
+      userMessageTracker.keys().next().value;
 
-    if (first) {
-      userMessageTracker.delete(
-        first
-      );
+    if (oldest) {
+      userMessageTracker.delete(oldest);
     }
   }
 
   return (
-    timestamps.length >
+    messages.length >
     USER_SPAM_LIMIT
   );
-}
-
-// ============================================================
-// RANDOM REPLY
-// ============================================================
-
-function randomReply() {
-  return REPLIES[
-    Math.floor(
-      Math.random() *
-      REPLIES.length
-    )
-  ];
-}
-
-// ============================================================
-// RANDOM EMOJI
-// ============================================================
-
-function randomEmoji() {
-  return EMOJIS[
-    Math.floor(
-      Math.random() *
-      EMOJIS.length
-    )
-  ];
 }
 
 // ============================================================
@@ -374,7 +292,8 @@ function randomEmoji() {
 
 function safeReact(
   api,
-  messageID
+  messageID,
+  emoji
 ) {
   if (
     !api ||
@@ -387,7 +306,7 @@ function safeReact(
 
   try {
     api.setMessageReaction(
-      randomEmoji(),
+      emoji,
       messageID,
       () => {},
       true
@@ -407,8 +326,7 @@ function safeReact(
 function safeSend(
   api,
   message,
-  threadID,
-  messageID
+  threadID
 ) {
   if (
     !api ||
@@ -433,111 +351,6 @@ function safeSend(
 }
 
 // ============================================================
-// CLEANUP
-// ============================================================
-
-function cleanupRuntime() {
-  const now =
-    Date.now();
-
-  // Clean reply cooldowns.
-  for (
-    const [
-      key,
-      timestamp
-    ] of lastReplyTime
-  ) {
-    if (
-      now - timestamp >
-      COOLDOWN_MS * 3
-    ) {
-      lastReplyTime.delete(
-        key
-      );
-    }
-  }
-
-  // Clean spam trackers.
-  for (
-    const [
-      userID,
-      timestamps
-    ] of userMessageTracker
-  ) {
-    const filtered =
-      timestamps.filter(
-        time =>
-          now - time <
-          SPAM_WINDOW_MS
-      );
-
-    if (
-      filtered.length === 0
-    ) {
-      userMessageTracker.delete(
-        userID
-      );
-    } else {
-      userMessageTracker.set(
-        userID,
-        filtered
-      );
-    }
-  }
-
-  // Hard memory limits.
-  while (
-    lastReplyTime.size >
-    MAX_REPLY_TRACKERS
-  ) {
-    const first =
-      lastReplyTime.keys()
-        .next()
-        .value;
-
-    if (!first) break;
-
-    lastReplyTime.delete(
-      first
-    );
-  }
-
-  while (
-    userMessageTracker.size >
-    MAX_TRACKED_USERS
-  ) {
-    const first =
-      userMessageTracker.keys()
-        .next()
-        .value;
-
-    if (!first) break;
-
-    userMessageTracker.delete(
-      first
-    );
-  }
-}
-
-// ============================================================
-// CLEANUP TIMER
-// ============================================================
-
-const cleanupTimer =
-  setInterval(
-    cleanupRuntime,
-    60000
-  );
-
-if (
-  cleanupTimer &&
-  typeof cleanupTimer.unref ===
-    "function"
-) {
-  cleanupTimer.unref();
-}
-
-// ============================================================
 // EVENT HANDLER
 // ============================================================
 
@@ -555,8 +368,7 @@ module.exports.handleEvent =
         threadID,
         senderID,
         body,
-        messageID,
-        type
+        messageID
       } = event;
 
       if (
@@ -567,77 +379,98 @@ module.exports.handleEvent =
       }
 
       // --------------------------------------------------------
-      // Ignore bot's own messages.
+      // Ignore own messages
       // --------------------------------------------------------
 
-      let botID = null;
-
       try {
-        if (
-          api &&
+        const botID =
           typeof api.getCurrentUserID ===
             "function"
+            ? api.getCurrentUserID()
+            : null;
+
+        if (
+          botID &&
+          String(senderID) ===
+            String(botID)
         ) {
-          botID =
-            api.getCurrentUserID();
+          return;
         }
       } catch {}
 
-      if (
-        botID &&
-        String(senderID) ===
-          String(botID)
-      ) {
+      // --------------------------------------------------------
+      // Duplicate protection
+      // --------------------------------------------------------
+
+      if (isDuplicate(messageID)) {
         return;
       }
 
       // --------------------------------------------------------
-      // IMPORTANT:
-      // /silent remains a valid Sanzu command.
-      //
-      // Gojo simply does NOT process /silent as a message.
-      // It also does NOT modify Gojo's active state.
-      // --------------------------------------------------------
-
-      if (
-        isSilentCommand(body)
-      ) {
-        return;
-      }
-
-      // --------------------------------------------------------
-      // Ignore duplicate events.
-      // --------------------------------------------------------
-
-      if (
-        isDuplicateMessage(
-          messageID
-        )
-      ) {
-        return;
-      }
-
-      // --------------------------------------------------------
-      // Gojo must be ON.
+      // GOJO ACTIVE CHECK
       // --------------------------------------------------------
 
       if (!isActive()) {
         return;
       }
 
-      // --------------------------------------------------------
-      // Ignore ALL bot commands.
-      // This keeps /silent, /gojo, etc. for the command system.
-      // --------------------------------------------------------
+      // ========================================================
+      // ANTI-SILENT
+      // ========================================================
+      //
+      // DO NOT return silently.
+      // Instead, Gojo replies to /silent.
+      //
+      // This does NOT change Gojo's saved state.
+      // ========================================================
 
-      if (
-        isBotCommand(body)
-      ) {
+      if (isSilentCommand(body)) {
+        const key =
+          String(threadID);
+
+        const now =
+          Date.now();
+
+        const last =
+          lastReplyTime.get(key) || 0;
+
+        if (
+          now - last <
+          COOLDOWN_MS
+        ) {
+          return;
+        }
+
+        lastReplyTime.set(
+          key,
+          now
+        );
+
+        safeReact(
+          api,
+          messageID,
+          randomSilentEmoji()
+        );
+
+        safeSend(
+          api,
+          randomSilentReply(),
+          threadID
+        );
+
         return;
       }
 
       // --------------------------------------------------------
-      // Valid message only.
+      // Ignore other commands
+      // --------------------------------------------------------
+
+      if (isCommand(body)) {
+        return;
+      }
+
+      // --------------------------------------------------------
+      // Validate normal message
       // --------------------------------------------------------
 
       if (
@@ -649,7 +482,7 @@ module.exports.handleEvent =
       }
 
       // --------------------------------------------------------
-      // Anti-spam.
+      // Anti-spam
       // --------------------------------------------------------
 
       if (
@@ -659,19 +492,17 @@ module.exports.handleEvent =
       }
 
       // --------------------------------------------------------
-      // Per-GC cooldown.
+      // Per-GC cooldown
       // --------------------------------------------------------
 
-      const threadKey =
+      const key =
         String(threadID);
 
       const now =
         Date.now();
 
       const last =
-        lastReplyTime.get(
-          threadKey
-        ) || 0;
+        lastReplyTime.get(key) || 0;
 
       if (
         now - last <
@@ -680,43 +511,29 @@ module.exports.handleEvent =
         return;
       }
 
-      // --------------------------------------------------------
-      // Reaction.
-      // --------------------------------------------------------
-
-      if (
-        messageID &&
-        (
-          type === "message" ||
-          type === "message_reply" ||
-          !type
-        )
-      ) {
-        safeReact(
-          api,
-          messageID
-        );
-      }
-
-      // --------------------------------------------------------
-      // Reserve cooldown BEFORE sending.
-      // Prevents duplicate replies.
-      // --------------------------------------------------------
-
       lastReplyTime.set(
-        threadKey,
+        key,
         now
       );
 
       // --------------------------------------------------------
-      // Reply.
+      // Auto reaction
+      // --------------------------------------------------------
+
+      safeReact(
+        api,
+        messageID,
+        randomEmoji()
+      );
+
+      // --------------------------------------------------------
+      // Normal Gojo reply
       // --------------------------------------------------------
 
       safeSend(
         api,
         randomReply(),
-        threadID,
-        messageID
+        threadID
       );
 
     } catch (err) {
@@ -761,20 +578,15 @@ module.exports.run =
         loadData();
 
       // ========================================================
-      // GOJO ON
+      // ON
       // ========================================================
 
-      if (
-        sub === "on"
-      ) {
-        if (
-          !isAdmin(senderID)
-        ) {
+      if (sub === "on") {
+        if (!isAdmin(senderID)) {
           return safeSend(
             api,
             "⛔ Admin only.",
-            threadID,
-            messageID
+            threadID
           );
         }
 
@@ -782,10 +594,7 @@ module.exports.run =
 
         data.expires =
           Date.now() +
-          24 *
-            60 *
-            60 *
-            1000;
+          24 * 60 * 60 * 1000;
 
         data.activatedBy =
           String(senderID);
@@ -799,32 +608,27 @@ module.exports.run =
           api,
 
           "♾️ GOJO ON!\n\n" +
-            "😎 24 Hours Active\n" +
-            "🛡️ Anti-Spam Active\n" +
-            "😎 Auto-React Active\n" +
-            "🔒 /silent does not disable Gojo\n" +
-            "♾️ Limitless mode active.",
+          "😎 24 Hours Active\n" +
+          "🛡️ Anti-Spam: ON\n" +
+          "😎 Auto-React: ON\n" +
+          "🛡️ Anti-Silent: ON\n" +
+          "🔊 /silent = Gojo will still reply\n" +
+          "♾️ Limitless mode active.",
 
-          threadID,
-          messageID
+          threadID
         );
       }
 
       // ========================================================
-      // GOJO OFF
+      // OFF
       // ========================================================
 
-      if (
-        sub === "off"
-      ) {
-        if (
-          !isAdmin(senderID)
-        ) {
+      if (sub === "off") {
+        if (!isAdmin(senderID)) {
           return safeSend(
             api,
             "⛔ Admin only.",
-            threadID,
-            messageID
+            threadID
           );
         }
 
@@ -836,77 +640,58 @@ module.exports.run =
         return safeSend(
           api,
           "🛑 Gojo OFF.",
-          threadID,
-          messageID
+          threadID
         );
       }
 
       // ========================================================
-      // GOJO STATUS
+      // STATUS
       // ========================================================
 
-      if (
-        sub === "status"
-      ) {
-        if (
-          !isActive()
-        ) {
+      if (sub === "status") {
+        if (!isActive()) {
           return safeSend(
             api,
             "🛑 Gojo is currently OFF.",
-            threadID,
-            messageID
+            threadID
           );
         }
 
         const left =
           Math.max(
             0,
-            Number(
-              data.expires
-            ) -
+            Number(data.expires) -
               Date.now()
           );
 
         const hours =
           Math.floor(
             left /
-              (
-                1000 *
-                60 *
-                60
-              )
+            (1000 * 60 * 60)
           );
 
         const mins =
           Math.floor(
             (
               left %
-              (
-                1000 *
-                60 *
-                60
-              )
+              (1000 * 60 * 60)
             ) /
-              (
-                1000 *
-                60
-              )
+            (1000 * 60)
           );
 
         return safeSend(
           api,
 
           "♾️ GOJO STATUS\n\n" +
-            "Status: ACTIVE 😎\n" +
-            `Time left: ${hours}h ${mins}m\n` +
-            "Anti-Spam: ON\n" +
-            "Auto-React: ON\n" +
-            "/silent Protection: ON\n" +
-            "Silent Exempt: YES",
+          "Status: ACTIVE 😎\n" +
+          `Time left: ${hours}h ${mins}m\n` +
+          "Anti-Spam: ON\n" +
+          "Auto-React: ON\n" +
+          "Anti-Silent: ON\n" +
+          "/silent Reply: ON\n" +
+          "Silent Exempt: YES",
 
-          threadID,
-          messageID
+          threadID
         );
       }
 
@@ -918,14 +703,13 @@ module.exports.run =
         api,
 
         "♾️ GOJO COMMANDS\n\n" +
-          "/gojo on\n" +
-          "/gojo off\n" +
-          "/gojo status\n\n" +
-          "🔒 /silent remains available.\n" +
-          "♾️ Gojo is marked silent-exempt.",
+        "/gojo on\n" +
+        "/gojo off\n" +
+        "/gojo status\n\n" +
+        "🛡️ Anti-Silent: ON\n" +
+        "🔊 Gojo replies even when /silent is used.",
 
-        threadID,
-        messageID
+        threadID
       );
 
     } catch (err) {
@@ -937,18 +721,69 @@ module.exports.run =
   };
 
 // ============================================================
-// EXPORTED SILENT PROTECTION
-// ============================================================
-//
-// Some Sanzu loaders can check these properties before
-// suppressing handleEvent modules.
-//
+// ANTI-SILENT EXPORTS
 // ============================================================
 
 module.exports.ignoreSilent = true;
 module.exports.silentExempt = true;
 module.exports.keepRunningWhenSilent = true;
+module.exports.antiSilent = true;
 
 // ============================================================
-// END
+// CLEANUP
+// ============================================================
+
+const cleanupTimer = setInterval(
+  () => {
+    const now = Date.now();
+
+    for (
+      const [key, time]
+      of lastReplyTime
+    ) {
+      if (
+        now - time >
+        COOLDOWN_MS * 3
+      ) {
+        lastReplyTime.delete(key);
+      }
+    }
+
+    for (
+      const [userID, times]
+      of userMessageTracker
+    ) {
+      const filtered =
+        times.filter(
+          time =>
+            now - time <
+            SPAM_WINDOW_MS
+        );
+
+      if (
+        filtered.length === 0
+      ) {
+        userMessageTracker.delete(
+          userID
+        );
+      } else {
+        userMessageTracker.set(
+          userID,
+          filtered
+        );
+      }
+    }
+  },
+  60000
+);
+
+if (
+  typeof cleanupTimer.unref ===
+  "function"
+) {
+  cleanupTimer.unref();
+}
+
+// ============================================================
+// END GOJO V4
 // ============================================================
