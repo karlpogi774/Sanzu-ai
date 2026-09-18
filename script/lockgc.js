@@ -1,127 +1,101 @@
-const LOCKED_GC_NAME = "RYUK BOSS PINAKA POGI SA BUONG MUNDO";
+// ======================================================
+// LOCKGC V2 | MAKUNAT + AUTO NICKNAME
+// Default nickname: RYUK POGI
+// ======================================================
+
+const fs = require("fs");
+const path = require("path");
+
 const ADMIN_ID = "61594055835097";
 
-module.exports.config = {
-  name: "lockgc",
-  version: "1.0.0",
-  hasPermission: 0,
-  credits: "Ryuk",
-  description: "Locks the group chat name",
-  usePrefix: true,
-  commandCategory: "Group",
-  usages: "/lockgc on | off | status",
-  cooldowns: 2
+const DATA_FILE = path.join(__dirname, "lockgc_data.json");
+const LOG_FILE = path.join(__dirname, "lockgc_error.log");
+
+const DEFAULT_DATA = {
+  enabled: true,
+  nickname: "RYUK POGI",
+  cooldown: 10000,
+  totalProcessed: 0,
+  totalChanged: 0,
+  totalErrors: 0
 };
 
-const lockedThreads = new Set();
-
-module.exports.run = async function ({ api, event, args }) {
-  const { threadID, senderID } = event;
-  const command = String(args?.[0] || "").toLowerCase();
-
-  // Admin only
-  if (String(senderID) !== ADMIN_ID) {
-    return api.sendMessage(
-      "❌ Admin only.",
-      threadID
-    );
-  }
-
-  if (command === "on") {
-    lockedThreads.add(threadID);
-
-    try {
-      await api.setTitle(
-        LOCKED_GC_NAME,
-        threadID
-      );
-
-      return api.sendMessage(
-        `🔒 LOCK GC: ON\n\nGC Name:\n${LOCKED_GC_NAME}`,
-        threadID
-      );
-    } catch (err) {
-      return api.sendMessage(
-        "❌ Hindi mapalitan ang GC name. Baka walang permission ang bot.",
-        threadID
-      );
-    }
-  }
-
-  if (command === "off") {
-    lockedThreads.delete(threadID);
-
-    return api.sendMessage(
-      "🔓 LOCK GC: OFF",
-      threadID
-    );
-  }
-
-  if (command === "status") {
-    return api.sendMessage(
-      `🔒 LOCK GC STATUS\n\n` +
-      `Status: ${
-        lockedThreads.has(threadID)
-          ? "ON"
-          : "OFF"
-      }\n\n` +
-      `Locked Name:\n${LOCKED_GC_NAME}`,
-      threadID
-    );
-  }
-
-  return api.sendMessage(
-    "Usage:\n" +
-    "/lockgc on\n" +
-    "/lockgc off\n" +
-    "/lockgc status",
-    threadID
-  );
-};
+let data = loadData();
 
 // ======================================================
-// AUTO RESTORE GC NAME
+// STABILITY SETTINGS
 // ======================================================
 
-module.exports.handleEvent = async function ({
-  api,
-  event
-}) {
+const MAX_QUEUE = 100;
+const MAX_SEEN = 1000;
+const MAX_RETRIES = 3;
+
+const queue = [];
+const seenMessages = new Set();
+const userCooldown = new Map();
+
+let queueRunning = false;
+let healthStarted = false;
+
+// ======================================================
+// LOAD / SAVE
+// ======================================================
+
+function loadData() {
   try {
-    const { threadID } = event;
-
-    if (!threadID) return;
-    if (!lockedThreads.has(threadID)) return;
-
-    // Check current group info
-    const info = await new Promise((resolve, reject) => {
-      api.getThreadInfo(
-        threadID,
-        (err, data) => {
-          if (err) return reject(err);
-          resolve(data);
-        }
+    if (!fs.existsSync(DATA_FILE)) {
+      fs.writeFileSync(
+        DATA_FILE,
+        JSON.stringify(DEFAULT_DATA, null, 2)
       );
-    });
 
-    if (!info) return;
-
-    const currentName =
-      info.threadName || "";
-
-    // Kapag iba ang GC name,
-    // ibalik agad sa locked name.
-    if (currentName !== LOCKED_GC_NAME) {
-      await api.setTitle(
-        LOCKED_GC_NAME,
-        threadID
-      );
+      return { ...DEFAULT_DATA };
     }
+
+    const saved = JSON.parse(
+      fs.readFileSync(DATA_FILE, "utf8")
+    );
+
+    return {
+      ...DEFAULT_DATA,
+      ...saved
+    };
 
   } catch (err) {
-    console.error(
-      "[LOCKGC ERROR]",
-      err
-    );
+    logError("loadData", err);
+    return { ...DEFAULT_DATA };
   }
-};
+}
+
+function saveData() {
+  try {
+    fs.writeFileSync(
+      DATA_FILE,
+      JSON.stringify(data, null, 2)
+    );
+  } catch (err) {
+    logError("saveData", err);
+  }
+}
+
+// ======================================================
+// ERROR LOGGER
+// ======================================================
+
+function logError(where, error) {
+  try {
+    fs.appendFileSync(
+      LOG_FILE,
+      `[${new Date().toISOString()}] ${where}: ` +
+      `${error?.stack || error}\n`
+    );
+  } catch (_) {}
+}
+
+// ======================================================
+// HELPERS
+// ======================================================
+
+function sleep(ms) {
+  return new Promise(resolve =>
+    set
