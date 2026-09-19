@@ -1,33 +1,78 @@
 // ==========================================================
-// NOVA BOT | STABLE AUTO-ROAST MODULE
-// Version 3.0
-// Persistent settings + cooldown + error recovery
+// NOVA X | ALL-IN-ONE FACEBOOK BOT MODULE
+// Stable command handling + cooldown + persistent settings
 // ==========================================================
 
 const fs = require("fs");
 const path = require("path");
 
-module.exports.config = {
-  name: "nova",
-  version: "3.0.0",
-  hasPermission: 0,
-  credits: "NOVA",
-  description: "Stable auto-roast with admin controls and cooldown.",
-  usePrefix: true,
-  commandCategory: "Fun",
-  usages: "/nova on | off | status | setnick | setgname",
-  cooldowns: 5
-};
-
 // ==========================================================
 // CONFIG
 // ==========================================================
 
+module.exports.config = {
+  name: "nova",
+  version: "5.0.0",
+  hasPermission: 0,
+  credits: "NOVA X",
+  description: "All-in-one stable group utility and fun bot.",
+  usePrefix: true,
+  commandCategory: "System/Fun",
+  usages: "/nova help",
+  cooldowns: 3
+};
+
 const ADMIN_ID = "61594055835097";
 
-const DATA_PATH = path.join(__dirname, "nova_data.json");
+const DATA_FILE = path.join(
+  __dirname,
+  "nova_x_data.json"
+);
 
-const REACT_EMOJIS = [
+// ==========================================================
+// SETTINGS
+// ==========================================================
+
+const DEFAULT_DATA = {
+  active: false,
+  roast: true,
+  react: true,
+  activatedBy: null,
+  activatedAt: null,
+  roastCount: 0,
+  commandCount: 0
+};
+
+const ROAST_COOLDOWN = 8000;
+const COMMAND_COOLDOWN = 2500;
+
+const processing = new Set();
+const roastCooldown = new Map();
+const commandCooldown = new Map();
+
+// ==========================================================
+// CONTENT
+// ==========================================================
+
+const ROASTS = [
+  "Bro really pressed send with confidence 💀",
+  "That message needed a second draft 🤣",
+  "The confidence is impressive. The message is questionable.",
+  "Interesting choice of words 💀",
+  "The group chat was peaceful five seconds ago.",
+  "Bro unlocked a new level of random.",
+  "Respectfully... what was the plan here? 🤣",
+  "That message arrived with confidence and left with consequences.",
+  "Somewhere, a grammar teacher just felt a disturbance.",
+  "I have questions. Many questions. 💀",
+  "The audacity is loud today.",
+  "Bro cooked something. Nobody knows what it is.",
+  "That was definitely a message.",
+  "10/10 confidence, questionable execution.",
+  "NOVA has entered the chat ⚡"
+];
+
+const EMOJIS = [
   "🔥",
   "💀",
   "🤣",
@@ -35,83 +80,62 @@ const REACT_EMOJIS = [
   "🤡"
 ];
 
-const ROASTS = [
-  "Bro really thought that message was necessary 💀",
-  "The confidence is impressive. The message? Not so much.",
-  "You typed all that just to embarrass yourself?",
-  "Main character energy, questionable plot.",
-  "The group chat was peaceful until this message appeared.",
-  "That was certainly a choice 💀",
-  "Somewhere, a grammar teacher just felt a disturbance.",
-  "Bro pressed send with absolute confidence.",
-  "That message needs a second draft.",
-  "I have no words... and somehow you used all of them.",
-  "The audacity is loud today.",
-  "Respectfully, what was the plan here? 🤣",
-  "That message arrived with confidence and left with consequences.",
-  "Bro unlocked a new level of random.",
-  "Interesting message. Very interesting. 💀"
-];
-
 // ==========================================================
-// RUNTIME CONTROL
+// DATABASE
 // ==========================================================
-
-// Prevent multiple replies to the same thread at once.
-const processingThreads = new Set();
-
-// Per-thread cooldown.
-const cooldowns = new Map();
-
-// Prevent repeated command execution.
-const commandCooldowns = new Map();
-
-const ROAST_COOLDOWN = 8000;
-const COMMAND_COOLDOWN = 3000;
-
-// ==========================================================
-// DATA
-// ==========================================================
-
-function defaultData() {
-  return {
-    active: false,
-    activatedBy: null,
-    activatedAt: null,
-    roastCount: 0
-  };
-}
 
 function loadData() {
   try {
-    if (!fs.existsSync(DATA_PATH)) {
-      const data = defaultData();
-      saveData(data);
-      return data;
+    if (!fs.existsSync(DATA_FILE)) {
+      saveData(DEFAULT_DATA);
+      return { ...DEFAULT_DATA };
     }
 
-    const raw = fs.readFileSync(DATA_PATH, "utf8");
-    const data = JSON.parse(raw);
+    const raw = fs.readFileSync(
+      DATA_FILE,
+      "utf8"
+    );
+
+    const parsed = JSON.parse(raw);
 
     return {
-      ...defaultData(),
-      ...data
+      ...DEFAULT_DATA,
+      ...parsed
     };
   } catch (error) {
-    console.error("[NOVA] Data load error:", error);
-    return defaultData();
+    console.error(
+      "[NOVA X] Database error:",
+      error
+    );
+
+    return { ...DEFAULT_DATA };
   }
 }
 
 function saveData(data) {
   try {
+    const temporary =
+      DATA_FILE + ".tmp";
+
     fs.writeFileSync(
-      DATA_PATH,
+      temporary,
       JSON.stringify(data, null, 2),
       "utf8"
     );
+
+    fs.renameSync(
+      temporary,
+      DATA_FILE
+    );
+
+    return true;
   } catch (error) {
-    console.error("[NOVA] Data save error:", error);
+    console.error(
+      "[NOVA X] Save error:",
+      error
+    );
+
+    return false;
   }
 }
 
@@ -119,19 +143,28 @@ function saveData(data) {
 // HELPERS
 // ==========================================================
 
-function isAdmin(senderID) {
-  return String(senderID) === ADMIN_ID;
+function isAdmin(id) {
+  return String(id) === ADMIN_ID;
 }
 
-function randomItem(array) {
-  return array[Math.floor(Math.random() * array.length)];
+function random(array) {
+  return array[
+    Math.floor(Math.random() * array.length)
+  ];
 }
 
-function canProcess(map, key, duration) {
+function cooldownReady(
+  map,
+  key,
+  duration
+) {
   const now = Date.now();
-  const last = map.get(key) || 0;
+  const previous = map.get(key) || 0;
 
-  if (now - last < duration) {
+  if (
+    now - previous <
+    duration
+  ) {
     return false;
   }
 
@@ -139,7 +172,7 @@ function canProcess(map, key, duration) {
   return true;
 }
 
-function safeSend(api, message, threadID, replyTo) {
+function send(api, message, threadID, replyID) {
   return new Promise((resolve) => {
     try {
       api.sendMessage(
@@ -147,22 +180,31 @@ function safeSend(api, message, threadID, replyTo) {
         threadID,
         (error, info) => {
           if (error) {
-            console.error("[NOVA] sendMessage error:", error);
-            return resolve(null);
+            console.error(
+              "[NOVA X] sendMessage:",
+              error
+            );
+
+            resolve(null);
+            return;
           }
 
           resolve(info || null);
         },
-        replyTo
+        replyID
       );
     } catch (error) {
-      console.error("[NOVA] sendMessage exception:", error);
+      console.error(
+        "[NOVA X] send exception:",
+        error
+      );
+
       resolve(null);
     }
   });
 }
 
-function safeReact(api, emoji, messageID) {
+function react(api, emoji, messageID) {
   if (!messageID) return;
 
   try {
@@ -171,22 +213,37 @@ function safeReact(api, emoji, messageID) {
       messageID,
       (error) => {
         if (error) {
-          console.error("[NOVA] reaction error:", error);
+          console.error(
+            "[NOVA X] reaction:",
+            error
+          );
         }
       },
       true
     );
   } catch (error) {
-    console.error("[NOVA] reaction exception:", error);
+    console.error(
+      "[NOVA X] reaction exception:",
+      error
+    );
   }
+}
+
+function sleep(ms) {
+  return new Promise(
+    resolve => setTimeout(resolve, ms)
+  );
 }
 
 // ==========================================================
 // EVENT HANDLER
 // ==========================================================
 
-module.exports.handleEvent = async function ({ api, event }) {
+module.exports.handleEvent =
+async function ({ api, event }) {
+
   try {
+
     if (!event) return;
 
     const {
@@ -195,20 +252,32 @@ module.exports.handleEvent = async function ({ api, event }) {
       body
     } = event;
 
-    if (!threadID || !senderID || !body) return;
-
-    // Ignore own messages.
-    let botID = null;
-
-    try {
-      botID = api.getCurrentUserID();
-    } catch (_) {}
-
-    if (botID && String(senderID) === String(botID)) {
+    if (
+      !threadID ||
+      !senderID ||
+      !body
+    ) {
       return;
     }
 
-    const text = String(body).trim();
+    // Ignore bot's own messages.
+    try {
+      const botID =
+        api.getCurrentUserID();
+
+      if (
+        botID &&
+        String(botID) ===
+        String(senderID)
+      ) {
+        return;
+      }
+    } catch (_) {}
+
+    const text =
+      String(body).trim();
+
+    if (!text) return;
 
     // Ignore commands.
     if (
@@ -222,30 +291,49 @@ module.exports.handleEvent = async function ({ api, event }) {
 
     if (!data.active) return;
 
-    // Only one automatic response at a time per thread.
-    if (processingThreads.has(threadID)) {
+    if (!data.roast) return;
+
+    // Prevent simultaneous processing.
+    if (
+      processing.has(threadID)
+    ) {
       return;
     }
 
-    // Thread cooldown.
-    if (!canProcess(cooldowns, threadID, ROAST_COOLDOWN)) {
+    // Per-group cooldown.
+    if (
+      !cooldownReady(
+        roastCooldown,
+        threadID,
+        ROAST_COOLDOWN
+      )
+    ) {
       return;
     }
 
-    processingThreads.add(threadID);
+    processing.add(threadID);
 
     try {
-      const roast = randomItem(ROASTS);
-      const emoji = randomItem(REACT_EMOJIS);
 
-      const info = await safeSend(
-        api,
-        roast,
-        threadID
-      );
+      const message =
+        random(ROASTS);
 
-      if (info && info.messageID) {
-        safeReact(
+      const emoji =
+        random(EMOJIS);
+
+      const info =
+        await send(
+          api,
+          message,
+          threadID
+        );
+
+      if (
+        data.react &&
+        info &&
+        info.messageID
+      ) {
+        react(
           api,
           emoji,
           info.messageID
@@ -258,18 +346,23 @@ module.exports.handleEvent = async function ({ api, event }) {
       saveData(data);
 
     } catch (error) {
+
       console.error(
-        "[NOVA] Auto-roast error:",
+        "[NOVA X] Event processing:",
         error
       );
+
     } finally {
-      processingThreads.delete(threadID);
+
+      processing.delete(
+        threadID
+      );
     }
 
   } catch (error) {
-    // Important: event errors should not kill the whole module.
+
     console.error(
-      "[NOVA] Event handler error:",
+      "[NOVA X] handleEvent:",
       error
     );
   }
@@ -279,21 +372,49 @@ module.exports.handleEvent = async function ({ api, event }) {
 // COMMAND HANDLER
 // ==========================================================
 
-module.exports.run = async function ({
+module.exports.run =
+async function ({
   api,
   event,
   args
 }) {
-  const threadID = event.threadID;
-  const messageID = event.messageID;
-  const senderID = event.senderID;
+
+  const threadID =
+    event.threadID;
+
+  const messageID =
+    event.messageID;
+
+  const senderID =
+    event.senderID;
 
   try {
-    // Admin-only controls.
-    if (!isAdmin(senderID)) {
-      return safeSend(
+
+    const command =
+      String(
+        args?.[0] || "help"
+      ).toLowerCase();
+
+    // ------------------------------------------------------
+    // ADMIN COMMANDS
+    // ------------------------------------------------------
+
+    const adminCommands = [
+      "on",
+      "off",
+      "roast",
+      "react",
+      "setnick",
+      "setgname"
+    ];
+
+    if (
+      adminCommands.includes(command) &&
+      !isAdmin(senderID)
+    ) {
+      return send(
         api,
-        "❌ NOVA controls are available only to the bot admin.",
+        "🔒 This NOVA X control is admin-only.",
         threadID,
         messageID
       );
@@ -301,8 +422,8 @@ module.exports.run = async function ({
 
     // Command cooldown.
     if (
-      !canProcess(
-        commandCooldowns,
+      !cooldownReady(
+        commandCooldown,
         senderID,
         COMMAND_COOLDOWN
       )
@@ -310,109 +431,226 @@ module.exports.run = async function ({
       return;
     }
 
-    const sub = String(
-      args?.[0] || ""
-    ).toLowerCase();
-
     const data = loadData();
 
-    // ======================================================
-    // ON
-    // ======================================================
+    data.commandCount =
+      Number(data.commandCount || 0) + 1;
 
-    if (sub === "on") {
+    saveData(data);
+
+    // ------------------------------------------------------
+    // ON
+    // ------------------------------------------------------
+
+    if (command === "on") {
+
       data.active = true;
       data.activatedBy = senderID;
       data.activatedAt = Date.now();
 
       saveData(data);
 
-      return safeSend(
+      return send(
         api,
         [
-          "╔════════════════════╗",
-          "      ⚡ NOVA BOT",
-          "╚════════════════════╝",
+          "╔══════════════════════╗",
+          "        ⚡ NOVA X",
+          "╚══════════════════════╝",
           "",
-          "✅ Auto-roast: ON",
-          "🛡️ Cooldown: ENABLED",
-          "🔥 Self-react: ENABLED",
-          "💾 Persistent state: ENABLED",
+          "🟢 SYSTEM: ONLINE",
+          "🔥 AUTO-ROAST: ON",
+          "⚡ SELF-REACT: ON",
+          "🛡️ COOLDOWN: ON",
+          "💾 DATABASE: SAVED",
           "",
-          "Use /nova off to stop."
+          "NOVA X is ready."
         ].join("\n"),
         threadID,
         messageID
       );
     }
 
-    // ======================================================
+    // ------------------------------------------------------
     // OFF
-    // ======================================================
+    // ------------------------------------------------------
 
-    if (sub === "off") {
+    if (command === "off") {
+
       data.active = false;
 
       saveData(data);
 
-      return safeSend(
+      return send(
         api,
-        "🛑 NOVA auto-roast has been turned OFF.",
+        "🔴 NOVA X auto system has been turned OFF.",
         threadID,
         messageID
       );
     }
 
-    // ======================================================
-    // STATUS
-    // ======================================================
+    // ------------------------------------------------------
+    // ROAST TOGGLE
+    // ------------------------------------------------------
 
-    if (sub === "status") {
+    if (command === "roast") {
+
+      const mode =
+        String(
+          args?.[1] || ""
+        ).toLowerCase();
+
+      if (
+        mode !== "on" &&
+        mode !== "off"
+      ) {
+        return send(
+          api,
+          "Usage: /nova roast on | off",
+          threadID,
+          messageID
+        );
+      }
+
+      data.roast =
+        mode === "on";
+
+      saveData(data);
+
+      return send(
+        api,
+        `🔥 Auto-roast: ${
+          data.roast
+            ? "ENABLED"
+            : "DISABLED"
+        }`,
+        threadID,
+        messageID
+      );
+    }
+
+    // ------------------------------------------------------
+    // REACT TOGGLE
+    // ------------------------------------------------------
+
+    if (command === "react") {
+
+      const mode =
+        String(
+          args?.[1] || ""
+        ).toLowerCase();
+
+      if (
+        mode !== "on" &&
+        mode !== "off"
+      ) {
+        return send(
+          api,
+          "Usage: /nova react on | off",
+          threadID,
+          messageID
+        );
+      }
+
+      data.react =
+        mode === "on";
+
+      saveData(data);
+
+      return send(
+        api,
+        `⚡ Self-react: ${
+          data.react
+            ? "ENABLED"
+            : "DISABLED"
+        }`,
+        threadID,
+        messageID
+      );
+    }
+
+    // ------------------------------------------------------
+    // STATUS
+    // ------------------------------------------------------
+
+    if (command === "status") {
+
       const status =
-        data.active ? "ONLINE 🟢" : "OFFLINE 🔴";
+        data.active
+          ? "ONLINE 🟢"
+          : "OFFLINE 🔴";
 
       const activated =
         data.activatedAt
-          ? new Date(data.activatedAt)
-              .toLocaleString()
-          : "Not activated";
+          ? new Date(
+              data.activatedAt
+            ).toLocaleString()
+          : "Never";
 
-      return safeSend(
+      return send(
         api,
         [
-          "╔════════════════════╗",
-          "       NOVA STATUS",
-          "╚════════════════════╝",
+          "╔══════════════════════╗",
+          "        NOVA X STATUS",
+          "╚══════════════════════╝",
           "",
-          `Status: ${status}`,
-          `Roasts sent: ${data.roastCount || 0}`,
+          `System: ${status}`,
+          `Auto-roast: ${data.roast ? "ON" : "OFF"}`,
+          `Self-react: ${data.react ? "ON" : "OFF"}`,
+          `Roasts: ${data.roastCount || 0}`,
+          `Commands: ${data.commandCount || 0}`,
           `Activated: ${activated}`,
-          "Cooldown: 8 seconds/thread",
-          "Self-react: ENABLED",
-          "Persistent storage: ENABLED"
+          "",
+          "Cooldown: 8 seconds/group"
         ].join("\n"),
         threadID,
         messageID
       );
     }
 
-    // ======================================================
-    // SET NICKNAME
-    // ======================================================
+    // ------------------------------------------------------
+    // INFO
+    // ------------------------------------------------------
 
-    if (sub === "setnick") {
-      let threadInfo;
+    if (command === "info") {
+
+      return send(
+        api,
+        [
+          "⚡ NOVA X",
+          "",
+          "Version: 5.0.0",
+          "Mode: Stable",
+          "Database: Persistent",
+          "Protection: Enabled",
+          "",
+          `Admin ID: ${ADMIN_ID}`
+        ].join("\n"),
+        threadID,
+        messageID
+      );
+    }
+
+    // ------------------------------------------------------
+    // SET NICKNAME
+    // ------------------------------------------------------
+
+    if (command === "setnick") {
+
+      let info;
 
       try {
-        threadInfo =
-          await api.getThreadInfo(threadID);
+        info =
+          await api.getThreadInfo(
+            threadID
+          );
       } catch (error) {
+
         console.error(
-          "[NOVA] getThreadInfo error:",
+          "[NOVA X] getThreadInfo:",
           error
         );
 
-        return safeSend(
+        return send(
           api,
           "❌ Hindi makuha ang group information.",
           threadID,
@@ -420,60 +658,73 @@ module.exports.run = async function ({
         );
       }
 
-      const participants =
-        threadInfo?.participantIDs || [];
+      const members =
+        info?.participantIDs || [];
 
-      if (!participants.length) {
-        return safeSend(
+      if (!members.length) {
+        return send(
           api,
-          "❌ Walang members na nakuha sa group.",
+          "❌ Walang members na nakuha.",
           threadID,
           messageID
         );
       }
 
-      const nickname = "NOVA";
+      const nickname =
+        args.slice(1).join(" ").trim() ||
+        "NOVA X";
 
-      await safeSend(
+      await send(
         api,
-        `⏳ Updating nicknames for ${participants.length} members...`,
+        `⏳ Setting nickname to "${nickname}" for ${members.length} members...`,
         threadID
       );
 
       let success = 0;
       let failed = 0;
 
-      // Sequential processing para hindi sabay-sabay
-      // ang requests.
-      for (const userID of participants) {
-        try {
-          await new Promise((resolve) => {
-            api.changeNickname(
-              nickname,
-              threadID,
-              userID,
-              (error) => {
-                if (error) {
-                  failed++;
-                } else {
-                  success++;
-                }
+      for (
+        const userID of members
+      ) {
 
-                // Small delay between requests.
-                setTimeout(resolve, 350);
-              }
-            );
-          });
+        try {
+
+          await new Promise(
+            resolve => {
+
+              api.changeNickname(
+                nickname,
+                threadID,
+                userID,
+                error => {
+
+                  if (error) {
+                    failed++;
+                  } else {
+                    success++;
+                  }
+
+                  resolve();
+                }
+              );
+
+            }
+          );
+
+          // Prevent request burst.
+          await sleep(400);
+
         } catch (_) {
           failed++;
         }
       }
 
-      return safeSend(
+      return send(
         api,
         [
-          "✅ Nickname update finished.",
+          "✅ Nickname process finished.",
           "",
+          `Nickname: ${nickname}`,
           `Success: ${success}`,
           `Failed: ${failed}`
         ].join("\n"),
@@ -482,97 +733,117 @@ module.exports.run = async function ({
       );
     }
 
-    // ======================================================
+    // ------------------------------------------------------
     // SET GROUP NAME
-    // ======================================================
+    // ------------------------------------------------------
 
-    if (sub === "setgname") {
-      const groupName =
-        "NOVA BOT • OFFICIAL GC";
+    if (command === "setgname") {
+
+      const newName =
+        args.slice(1).join(" ").trim();
+
+      if (!newName) {
+        return send(
+          api,
+          "Usage: /nova setgname <new name>",
+          threadID,
+          messageID
+        );
+      }
 
       try {
-        await new Promise((resolve) => {
-          api.setTitle(
-            groupName,
-            threadID,
-            (error) => {
-              if (error) {
-                console.error(
-                  "[NOVA] setTitle error:",
-                  error
-                );
+
+        await new Promise(
+          resolve => {
+
+            api.setTitle(
+              newName,
+              threadID,
+              error => {
+
+                if (error) {
+                  console.error(
+                    "[NOVA X] setTitle:",
+                    error
+                  );
+                }
+
+                resolve();
               }
+            );
 
-              resolve();
-            }
-          );
-        });
+          }
+        );
 
-        return safeSend(
+        return send(
           api,
-          `✅ Group name changed to:\n${groupName}`,
+          `✅ Group name changed to:\n${newName}`,
           threadID,
           messageID
         );
 
       } catch (error) {
+
         console.error(
-          "[NOVA] group name exception:",
+          "[NOVA X] setgname:",
           error
         );
 
-        return safeSend(
+        return send(
           api,
-          "❌ Hindi ma-change ang group name. Kailangan ng bot ng sapat na group permissions.",
+          "❌ Failed to change the group name. Check the bot's group permissions.",
           threadID,
           messageID
         );
       }
     }
 
-    // ======================================================
+    // ------------------------------------------------------
     // HELP
-    // ======================================================
+    // ------------------------------------------------------
 
-    return safeSend(
+    return send(
       api,
       [
-        "╔════════════════════╗",
-        "        ⚡ NOVA BOT",
-        "╚════════════════════╝",
+        "╔══════════════════════╗",
+        "          ⚡ NOVA X",
+        "╚══════════════════════╝",
         "",
+        "SYSTEM",
         "/nova on",
-        "→ Enable auto-roast",
-        "",
         "/nova off",
-        "→ Disable auto-roast",
-        "",
         "/nova status",
-        "→ Show bot status",
+        "/nova info",
         "",
-        "/nova setnick",
-        "→ Set member nicknames to NOVA",
+        "AUTO FEATURES",
+        "/nova roast on",
+        "/nova roast off",
+        "/nova react on",
+        "/nova react off",
         "",
-        "/nova setgname",
-        "→ Change group name",
+        "GROUP",
+        "/nova setnick <name>",
+        "/nova setgname <name>",
         "",
-        "🛡️ Admin controls only",
+        "🛡️ Admin controls protected",
         "⚡ Cooldown enabled",
-        "💾 Settings are persistent"
+        "💾 Persistent database",
+        "🔧 Error handling enabled"
       ].join("\n"),
       threadID,
       messageID
     );
 
   } catch (error) {
+
     console.error(
-      "[NOVA] Command handler error:",
+      "[NOVA X] Command error:",
       error
     );
 
-    return safeSend(
+    return send(
       api,
-      "⚠️ NOVA encountered an error while processing that command.",
+      "⚠️ NOVA X encountered an error while processing the command.",
       threadID,
       messageID
     );
