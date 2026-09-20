@@ -1,7 +1,7 @@
 // ==========================================================
 // RYUK — TAMA NA ANG PAGKAKASUNOD NG ARGUMENTO!
 // SETNICK GUMAGANA + AUTO-WELCOME + PROTEKSI
-// ADMIN: 61594055835097
+// ADMIN IDs: 61594055835097, 61593892603402, 61594325727109 ✅
 // ==========================================================
 
 const fs = require("fs");
@@ -9,17 +9,23 @@ const path = require("path");
 
 module.exports.config = {
   name: "ryuk",
-  version: "14.0.0",
+  version: "15.0.0",
   hasPermission: 0,
-  credits: "ryuk — TAMA NA ANG SETNICK",
-  description: "ayos na ang pagpapalit ng palayaw",
+  credits: "ryuk — 3 ADMIN PROTECTED",
+  description: "ayos na ang pagpapalit ng palayaw + 3 admin",
   usePrefix: true,
   commandCategory: "ryuk",
   usages: "/ryuk help",
   cooldowns: 2
 };
 
-const ADMIN_ID = "61594055835097";
+// ✅ LAHAT NG ADMIN — PROTEKTADO!
+const ADMIN_IDS = [
+  "61594055835097",
+  "61593892603402",
+  "61594325727109"
+];
+
 const DATA_FILE = path.join(__dirname, "ryuk_data.json");
 
 const DEFAULT_DATA = {
@@ -106,7 +112,7 @@ function saveData(data) {
   }
 }
 
-function isAdmin(id) { return String(id) === String(ADMIN_ID); }
+function isAdmin(id) { return ADMIN_IDS.includes(String(id)); }
 function random(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 function cooldownReady(map, key, dur) {
   const now = Date.now();
@@ -137,12 +143,10 @@ function react(api, em, mid) {
 function sleep(ms) { return new Promise(r=>setTimeout(r,ms)); }
 
 // ✅ TAMA NA ANG PAGKAKASUNOD NG ARGUMENTO!
-// Sa maraming framework: changeNickname(threadID, newName, userID)
 async function palitanPalayaw(api, threadID, userID, newNick) {
   return new Promise(async resolve => {
     let gumana = false;
     
-    // Paraan 1: TAMA NA ANG PAGKAKASUNOD — threadID muna, tapos pangalan, tapos userID
     if (!gumana && typeof api.changeNickname === "function") {
       try {
         await api.changeNickname(threadID, newNick, userID);
@@ -153,7 +157,6 @@ async function palitanPalayaw(api, threadID, userID, newNick) {
       }
     }
     
-    // Paraan 2: Kung baligtad naman
     if (!gumana && typeof api.changeNickname === "function") {
       try {
         await api.changeNickname(newNick, threadID, userID);
@@ -164,7 +167,6 @@ async function palitanPalayaw(api, threadID, userID, newNick) {
       }
     }
     
-    // Paraan 3: ibang pangalan ng function
     if (!gumana && typeof api.setNickname === "function") {
       try {
         await api.setNickname(threadID, newNick, userID);
@@ -175,7 +177,6 @@ async function palitanPalayaw(api, threadID, userID, newNick) {
       }
     }
     
-    // Paraan 4: baligtad na setNickname
     if (!gumana && typeof api.setNickname === "function") {
       try {
         await api.setNickname(newNick, threadID, userID);
@@ -394,6 +395,7 @@ module.exports.run = async ({ api, event, args }) => {
   const { threadID, messageID, senderID } = event;
   const cmd = String(args?.[0] || "help").toLowerCase();
 
+  // ✅ LAHAT NG ADMIN MAKAPAGPATAKBO
   const adminCmds = ["on","off","restore","setnick","autonick","setgname","autogname","roast","react","heartreact","welcome","autowelcome","setwelcome","status","info"];
   if (adminCmds.includes(cmd) && !isAdmin(senderID)) {
     return send(api, "🔒 ikaw lang ang makapag-utos!", threadID, messageID);
@@ -422,6 +424,7 @@ module.exports.run = async ({ api, event, args }) => {
       "👑 ryuk — ONLINE!\n" +
       "✅ Auto-Welcome: " + (data.autoWelcome ? "ON ✅" : "OFF ❌") + "\n" +
       "✅ Palayaw: tagumpay " + nickRes.success + " | nabigo " + nickRes.failed + "\n" +
+      "✅ 3 Admin Protektado!\n" +
       "💪 TIGNAN MO ANG LOG — may lalabas kung aling paraan ang gumana!",
       threadID, messageID
     );
@@ -539,16 +542,17 @@ module.exports.run = async ({ api, event, args }) => {
       "Sistema: " + (data.active ? "ON 🟢" : "OFF 🔴"),
       "Auto-Welcome: " + (data.autoWelcome ? "ON ✅" : "OFF ❌"),
       "Auto-Nick: " + (data.autoNick ? "ON ✅ → " + data.savedNick : "OFF ❌"),
-      "GC Name: " + data.savedGname + (data.autoGname ? " — 🔒 PROTEKTADO" : "")
+      "GC Name: " + data.savedGname + (data.autoGname ? " — 🔒 PROTEKTADO" : ""),
+      "Admin Protektado: 3 ✅"
     ].join("\n"), threadID, messageID);
   }
 
   if (cmd === "info") {
     return send(api,
       "👑 ryuk — AYOS NA ANG PAGKAKASUNOD!\n" +
+      "✅ 3 Admin Protektado\n" +
       "✅ Sinubukan na ang lahat ng posibleng pagkakasunod-sunod\n" +
-      "✅ Tignan mo ang CONSOLE — may nakalagay doon kung aling paraan ang gumana!\n" +
-      "✅ I-send mo sa akin ang nakasulat sa console — alam ko na agad ang eksaktong tawag!",
+      "✅ Tignan mo ang CONSOLE — may nakalagay doon kung aling paraan ang gumana!",
       threadID, messageID
     );
   }
@@ -565,3 +569,4 @@ module.exports.run = async ({ api, event, args }) => {
     "/ryuk status      → tignan kalagayan"
   ].join("\n"), threadID, messageID);
 };
+    
