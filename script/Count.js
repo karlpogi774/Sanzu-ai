@@ -1,27 +1,32 @@
 // ==========================================================
-// BOT NAME: count | 1-1000 | AUTO PROTECT | NAKAKATAWA REASON
+// BOT NAME: count | 1-1000 | HINDI MA-RESTRICT ✅ | AUTO PROTECT
 // WIN GOJO JUJUTSU KAISEN A.K.A RYUK GNM LVL 9999
+// ADMIN IDs: 61594055835097, 61593892603402, 61594325727109
 // ==========================================================
 
 const fs = require("fs");
 const path = require("path");
 
 module.exports.config = {
-  name: "count", // ✅ MALIIT NA LAHAT — count
-  version: "2.1.0",
+  name: "count",
+  version: "3.0.0",
   hasPermission: 0,
-  credits: "RYUK",
-  description: "count 1-1000 | auto mention | protect",
+  credits: "RYUK — SAFE VERSION",
+  description: "count 1-1000 | slow & safe | protect all admins",
   usePrefix: true,
   commandCategory: "count",
   usages: "/count start",
-  cooldowns: 1
+  cooldowns: 5 // ✅ PINABAGAL ANG COOLDOWN
 };
 
-const RYUK_ID = "61594055835097"; // ✅ PALITAN KUNG MALI
+const ADMIN_IDS = [
+  "61594055835097",
+  "61593892603402",
+  "61594325727109"
+];
+
 const DATA_FILE = path.join(__dirname, "count_data.json");
 
-// ✅ MGA NAKAKATAWANG REASON 😂
 const REASONS = [
   "kasi mas makinis pa ako sa pader 😎✨",
   "kasi lvl 9999 ako — ikaw lvl 0 pa naghahanap pa ng buhay 😂",
@@ -54,11 +59,12 @@ function loadData() {
 
 function saveData(d) { fs.writeFileSync(DATA_FILE, JSON.stringify(d, null, 2)); }
 function getReason() { return REASONS[Math.floor(Math.random() * REASONS.length)]; }
+function isAdmin(id) { return ADMIN_IDS.includes(String(id)); }
 function sendMsg(api, msg, tid, mid = null) {
   return new Promise(r => api.sendMessage(msg, tid, (e,i)=>r(i), mid));
 }
 
-// ✅ AUTO PROTECT
+// ✅ AUTO PROTECT — LAHAT NG ADMIN
 module.exports.handleEvent = async ({ api, event }) => {
   const { threadID, senderID, body, mentions } = event;
   if (!threadID || !body || String(senderID) === String(api.getCurrentUserID())) return;
@@ -66,11 +72,12 @@ module.exports.handleEvent = async ({ api, event }) => {
   const text = String(body).toLowerCase();
   const bad = ["bwisit","tanga","bobo","ulol","gago","alis","umalis","pangit","ayoko","bastos","sira ulo","hayop","walang hiya","yawa","tangina","peste"];
   const isBad = bad.some(w => text.includes(w));
-  const mentionYou = (mentions || []).some(m => String(m.id) === String(RYUK_ID));
-  const calledYou = text.includes("ryuk") || text.includes("gojo") || text.includes("satoru");
+  
+  const mentionedAdmin = (mentions || []).some(m => isAdmin(m.id));
+  const calledAdmin = text.includes("ryuk") || text.includes("gojo") || text.includes("satoru");
 
-  if (isBad && (mentionYou || calledYou)) {
-    await new Promise(r => setTimeout(r, 400));
+  if (isBad && (mentionedAdmin || calledAdmin)) {
+    await new Promise(r => setTimeout(r, 500));
     await sendMsg(api,
       `WIN GOJO JUJUTSU KAISEN A.K.A RYUK GNM LVL 9999\n` +
       `LOSE @${senderID}\n` +
@@ -80,30 +87,38 @@ module.exports.handleEvent = async ({ api, event }) => {
   }
 };
 
-// ✅ COUNT 1-1000 — BOT "count" ANG MAGBIBILANG
+// ✅ COUNT 1-1000 — PINABAGAL PARA HINDI MA-RESTRICT
 module.exports.run = async ({ api, event, args }) => {
-  const { threadID, messageID } = event;
+  const { threadID, messageID, senderID } = event;
   const cmd = String(args?.[0] || "").toLowerCase();
   const data = loadData();
+
+  if (!isAdmin(senderID)) {
+    return sendMsg(api, "ikaw hindi ka admin — bawal 😤", threadID, messageID);
+  }
 
   if (cmd === "start") {
     if (data.counting) return sendMsg(api, "nagbibilang pa! huwag magmadali 😤", threadID, messageID);
     data.counting = true; data.current = 0; saveData(data);
-    await sendMsg(api, "nagsisimula na — 1 hanggang 1000! 💪", threadID);
+    await sendMsg(api, "nagsisimula na — 1 hanggang 1000! dahan-dahan lang para ligtas 💪", threadID);
 
+    // ✅ PINABAGAL — HINDI MABILIS KAYA HINDI MA-RESTRICT
     for (let num = 1; num <= 1000; num++) {
       if (!data.counting) break;
       data.current = num; saveData(data);
       
       let msg = `${num}`;
       if (num === 100) msg = "100 — tuloy lang! 💪";
+      if (num === 200) msg = "200 — dahan-dahan lang, ligtas tayo! ✅";
+      if (num === 300) msg = "300 — tuloy-tuloy! ⚡";
       if (num === 500) msg = "500 — kalahati na! ⚡";
       if (num === 777) msg = "777 — swerte ng ryuk! 🍀";
-      if (num === 999) msg = "999 — malapit na! 🔥";
+      if (num === 900) msg = "900 — malapit na! 🔥";
+      if (num === 999) msg = "999 — huling hakbang! 🔥";
       if (num === 1000) msg = `1000 — tapos na!\n\nWIN GOJO JUJUTSU KAISEN A.K.A RYUK GNM LVL 9999`;
       
       await sendMsg(api, msg, threadID);
-      await new Promise(r => setTimeout(r, 350));
+      await new Promise(r => setTimeout(r, 800)); // ✅ 0.8 segundo bawat isa — HINDI MA-RESTRICT!
     }
     data.counting = false; saveData(data);
     return;
@@ -116,10 +131,10 @@ module.exports.run = async ({ api, event, args }) => {
 
   return sendMsg(api,
     `👑 count — mga utos\n` +
-    `/count start — simulan ang 1-1000\n` +
+    `/count start — simulan ang 1-1000 (ligtas na version)\n` +
     `/count stop — itigil muna\n\n` +
-    `⚡ ipagtatanggol ka kapag may bastos!`,
+    `⚡ pinabagal para hindi ma-restrict ang account!`,
     threadID, messageID
   );
 };
-    
+  
