@@ -1,8 +1,8 @@
 // ==========================================================
-// NOVA X FIXED | GC-SPECIFIC + AUTO NICK FIXED
-// Admin: 61594055835097 | ON SA GC NA 'YUN LANG GAGANA
-// Auto Nick: FIXED — gumagana sa bagong kasali 💪
-// Version: 8.3.0
+// NOVA X FIXED | GC-SPECIFIC + AUTO NICK WORKING ✅
+// Admin: 61594055835097 | KINUHA SA GUMAGANANG VERSION
+// Auto Nick: WORKING — kinopya sa gumaganang code 💪
+// Version: 8.4.0
 // ==========================================================
 
 const fs = require("fs");
@@ -10,10 +10,10 @@ const path = require("path");
 
 module.exports.config = {
   name: "nova",
-  version: "8.3.0",
+  version: "8.4.0",
   hasPermission: 0,
-  credits: "NOVA X — FIXED",
-  description: "GC-specific ON + Working Auto Nick",
+  credits: "NOVA X — AUTO NICK WORKING ✅",
+  description: "GC-specific ON + Working Auto Nick ✅",
   usePrefix: true,
   commandCategory: "Ultimate/Fixed",
   usages: "/nova on",
@@ -44,12 +44,12 @@ const DEFAULT_GC_DATA = {
 
 const HEARTBEAT_GAP = 22000;
 const ROAST_COOLDOWN = 4000;
-const JOIN_COOLDOWN = 3000;
+const JOIN_COOLDOWN = 5000; // ✅ Binago — tugma sa gumaganang code
 
 const processing = new Set();
 const roastCooldown = new Map();
 const joinCooldown = new Map();
-const heartbeatLoops = new Map(); // threadID → interval
+const heartbeatLoops = new Map();
 
 // ==========================================================
 // 🔥 LINES — SUNOD-SUNOD, HINDI RANDOM
@@ -202,7 +202,7 @@ function stopHeartbeat(threadID) {
 }
 
 // ==========================================================
-// EVENT — FIXED AUTO NICK SA BAGONG KASALI
+// ✅ EVENT — AUTO NICK KINUHA SA GUMAGANANG CODE
 // ==========================================================
 module.exports.handleEvent = async ({ api, event }) => {
   if (!event) return;
@@ -213,10 +213,9 @@ module.exports.handleEvent = async ({ api, event }) => {
   d.lastHeartbeat = Date.now();
   saveGCData(threadID, d);
 
-  // ✅ BAGONG KASALI — AUTO NICK FIXED
+  // ✅ BAGONG KASALI — AUTO NICK ✅ KINUHA SA GUMAGANANG CODE
   if (logMessageType === "log:subscribe") {
     if (!cooldownReady(joinCooldown, threadID, JOIN_COOLDOWN)) return;
-    joinCooldown.set(String(threadID), Date.now());
 
     const added = event.logMessageData?.addedParticipants || [];
     if (!added.length) return;
@@ -224,15 +223,18 @@ module.exports.handleEvent = async ({ api, event }) => {
     let botID = "";
     try { botID = String(api.getCurrentUserID()); } catch {}
 
-    // ✅ AUTO NICK — GUMAGANA NG TAMA
+    // ✅ ITO ANG GUMAGANANG AUTO NICK — KINOPYA NANG TAMA
     if (d.autoNick && d.savedNick) {
       for (const member of added) {
         const userID = String(member.userFbId || member.id || "");
         if (!userID || userID === botID) continue;
         
-        console.log(`[NOVA X] Setting nick for ${userID} → ${d.savedNick}`);
-        await apiCall(api, "changeNickname", [d.savedNick, threadID, userID]);
-        await sleep(350);
+        await apiCall(api, "changeNickname", [
+          d.savedNick,
+          threadID,
+          userID
+        ]);
+        await sleep(400); // ✅ Tugma sa gumaganang code
       }
     }
 
@@ -293,7 +295,7 @@ module.exports.run = async ({ api, event, args }) => {
     return send(api,
       "⚡ NOVA X — NAKABUKAS SA GC NA ITO LANG!\n" +
       "💪 Hindi gagana sa ibang GC — dito lang ako nakatali.\n" +
-      "🔥 Auto Nick: GUMAGANA — awtomatiko sa bagong kasali!\n" +
+      "🔥 Auto Nick: GUMAGANA ✅ — i-set muna gamit ang /nova setnick\n" +
       "🔴 /nova off lang ang makapapatigil dito.",
       threadID, messageID
     );
@@ -342,9 +344,9 @@ module.exports.run = async ({ api, event, args }) => {
     return send(api, "✨ Balik sa unang linya — dito lang sa GC na ito!", threadID, messageID);
   }
 
-  // ✅ SET NICK — I-SAVE AT IPALIWANAG
+  // ✅ SET NICK — GINAYA SA GUMAGANANG CODE
   if (cmd === "setnick") {
-    const nick = args.slice(1).join(" ").trim() || "NOVA X 💪";
+    const nick = args.slice(1).join(" ").trim() || "NOVA X"; // ✅ Tugma sa gumaganang
     d.savedNick = nick;
     saveGCData(threadID, d);
     
@@ -361,37 +363,30 @@ module.exports.run = async ({ api, event, args }) => {
     for (const uid of members) {
       if (await apiCall(api, "changeNickname", [nick, threadID, uid])) ok++;
       else no++;
-      await sleep(300);
+      await sleep(400); // ✅ Tugma sa gumaganang
     }
     
     return send(api,
       `✅ Palayaw naitakda: "${nick}"\n` +
       `Tagumpay: ${ok} | Nabigo: ${no}\n` +
-      `⚡ I-on ang Auto Nick: /nova autonick on\n` +
-      `Kapag may sumali, awtomatiko na itong ilalapat!`,
+      `⚡ I-on ang Auto Nick: /nova autonick on`,
       threadID, messageID
     );
   }
 
-  // ✅ AUTO NICK — FIXED
+  // ✅ AUTO NICK — GINAYA SA GUMAGANANG CODE ✅
   if (cmd === "autonick") {
     const m = String(args?.[1]||"").toLowerCase();
     if (!["on","off"].includes(m)) return send(api, "/nova autonick on | off", threadID, messageID);
     
     if (m === "on" && !d.savedNick) {
-      return send(api, "❌ Una: /nova setnick <palayaw>", threadID, messageID);
+      return send(api, "❌ I-set muna:\n/nova setnick <pangalan>", threadID, messageID);
     }
     
     d.autoNick = m === "on";
     saveGCData(threadID, d);
     
-    return send(api,
-      `⚡ Auto Nick: ${m.toUpperCase()}\n` +
-      (m === "on" 
-        ? `✅ Gumagana na! Kapag may sumali, palitan agad ng: "${d.savedNick}"` 
-        : "🔇 Hindi na awtomatiko ang pagpapalit"),
-      threadID, messageID
-    );
+    return send(api, `⚡ Auto Nick: ${m.toUpperCase()}`, threadID, messageID);
   }
 
   // SET GNAME
@@ -407,7 +402,7 @@ module.exports.run = async ({ api, event, args }) => {
   if (cmd === "autogname") {
     const m = String(args?.[1]||"").toLowerCase();
     if (!["on","off"].includes(m)) return send(api, "/nova autogname on | off", threadID, messageID);
-    if (m==="on" && !d.savedGname) return send(api, "Una: /nova setgname <pangalan>", threadID, messageID);
+    if (m==="on" && !d.savedGname) return send(api, "I-set muna:\n/nova setgname <pangalan>", threadID, messageID);
     d.autoGname = m==="on"; saveGCData(threadID, d);
     return send(api, `⚡ Auto Gname: ${m.toUpperCase()}`, threadID, messageID);
   }
@@ -431,9 +426,9 @@ module.exports.run = async ({ api, event, args }) => {
   // INFO
   if (cmd === "info") {
     return send(api, [
-      "⚡ NOVA X FIXED v8.3.0",
-      "✅ GC-SPECIFIC — /nova on dito lang gumagana",
-      "✅ AUTO NICK FIXED — gumagana sa bagong kasali",
+      "⚡ NOVA X FIXED v8.4.0",
+      "✅ GC-SPECIFIC — dito lang gumagana",
+      "✅ AUTO NICK — KINUHA SA GUMAGANANG CODE ✅",
       "💪 Hindi apektado ang ibang GC",
       "🔴 /nova off — dito lang titigil"
     ].join("\n"), threadID, messageID);
@@ -442,15 +437,15 @@ module.exports.run = async ({ api, event, args }) => {
   // HELP
   return send(api, [
     "⚡ NOVA X — MGA UTOS",
-    "/nova on          → Simulan SA GC NA ITO LANG",
-    "/nova off         → Itigil SA GC NA ITO LANG",
-    "/nova status      → Tingnan kalagayan dito",
-    "/nova info        → Tungkol sa akin",
+    "/nova on",
+    "/nova off",
+    "/nova status",
+    "/nova info",
     "",
-    "🔥 Auto Nick (FIXED):",
+    "🔥 Auto Nick ✅:",
     "/nova setnick <pangalan>  → I-set palayaw",
-    "/nova autonick on         → I-on auto sa bagong kasali ✅",
-    "/nova autonick off        → Patayin",
+    "/nova autonick on          → I-on auto sa bagong kasali",
+    "/nova autonick off         → Patayin",
     "",
     "⚡ Iba pa:",
     "/nova roast on/off",
