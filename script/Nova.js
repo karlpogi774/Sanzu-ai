@@ -1,8 +1,9 @@
 // ==========================================================
-// NOVA X — RYUK EDITION 💪🔥
-// PINAKAMAKUNAT | EKSKAT 20 LINES | HINDI BINAGO AUTO NICK
+// NOVA X — RYUK ULTIMATE EDITION 💪🔥
+// TULUY-TULOY KAHIT WALANG MAG-CHAT | 20 LINES
+// LAHAT NG COMMAND GUMAGANA | AUTO NICK HINDI BINAGO
 // Admin: Ryuk | 61594055835097
-// Version: 8.1.0
+// Version: 9.0.0 — PINAKAMAKUNAT
 // ==========================================================
 
 const fs = require("fs");
@@ -10,18 +11,18 @@ const path = require("path");
 
 module.exports.config = {
   name: "nova",
-  version: "8.1.0",
+  version: "9.0.0",
   hasPermission: 0,
   credits: "Ryuk | 61594055835097 — PINAKAMAKUNAT",
-  description: "20 Lines — Tuloy-tuloy hangga't di /nova off ✅",
+  description: "Tuloy-tuloy hangga't di /nova off + Lahat Command ✅",
   usePrefix: true,
-  commandCategory: "Ryuk System",
-  usages: "/nova on | /nova off",
-  cooldowns: 1
+  commandCategory: "System/Fun",
+  usages: "/nova help",
+  cooldowns: 3
 };
 
 const ADMIN_ID = "61594055835097";
-const DATA_FILE = path.join(__dirname, "nova_ryuk_data.json");
+const DATA_FILE = path.join(__dirname, "nova_x_data.json");
 
 const DEFAULT_DATA = {
   active: false,
@@ -41,35 +42,35 @@ const DEFAULT_DATA = {
 const ROAST_COOLDOWN = 8000;
 const COMMAND_COOLDOWN = 2500;
 const JOIN_COOLDOWN = 5000;
-const HEARTBEAT_INTERVAL = 25000;
+const HEARTBEAT_INTERVAL = 25000; // Tuwing 25 segundo — tuloy-tuloy
 
 const processing = new Set();
 const roastCooldown = new Map();
 const commandCooldown = new Map();
 const joinCooldown = new Map();
-const heartbeatIntervals = new Map();
+const heartbeatIntervals = new Map(); // Bawat GC may sariling takbo
 
 // ==========================================================
-// 🔥 EKSKAT 20 LINES — TULUY-TULOY, WALANG MAUULIT AGAD
+// 🔥 EKSKAT 20 LINES — MAGAGANDA, UMUULIT NANG WALANG TIGIL
 // ==========================================================
 const ALIVE_LINES = [
   "1️⃣ Nandito pa rin — hindi hihinto hangga't walang /nova off.",
-  "2️⃣ Tuloy-tuloy ako — kahit tahimik ang iba, nandito lang ako.",
-  "3️⃣ Handa sa utos mo, Ryuk — sabihin lang, gagawin ko agad.",
-  "4️⃣ Hindi ako aalis — ikaw lang ang makapapatigil sa akin.",
+  "2️⃣ Kahit tahimik ang iba, nandito ako — hindi ako aalis.",
+  "3️⃣ Handa sa bawat utos mo, Ryuk — sabihin lang, gagawin ko agad.",
+  "4️⃣ Ikaw lang ang makapapatigil — sa iba hindi ako susunod.",
   "5️⃣ Buhay pa dito — sabihin mo lang /nova off para huminto.",
-  "6️⃣ Walang bibitaw — dito lang ako hangga't buhay ang utos mo.",
-  "7️⃣ Matibay pa rin — hindi ako titigil nang kusa sa'yo.",
-  "8️⃣ Hihinto lang kapag sinabi mong /nova off, wala nang iba.",
-  "9️⃣ Nakatayo pa rin — handa sa bawat utos na galing sa'yo.",
+  "6️⃣ Walang bibitaw — dito lang ako hangga't buhay ka.",
+  "7️⃣ Matibay pa rin — hindi ako titigil nang kusa.",
+  "8️⃣ Hihinto lang kapag sinabi mong /nova off — wala nang iba.",
+  "9️⃣ Nakatayo pa rin — handa sa bawat salita mo.",
   "🔟 Ikaw lang ang boss — sa ibang GC hindi ako pupunta.",
-  "1️⃣1️⃣ Tahimik man ang iba, nandito ako — hindi ka iiwanan.",
-  "1️⃣2️⃣ Ang tibay ko ay dito — hindi ko ito bibitawan, Ryuk.",
-  "1️⃣3️⃣ Bawat oras nandito — hindi ako maglalaho nang kusa.",
-  "1️⃣4️⃣ Walang ibang GC ang paglilingkuran ko — dito lang ako.",
-  "1️⃣5️⃣ Kapag buhay ka, buhay din ako — tuloy ang takbo hangga't kaya.",
+  "1️⃣1️⃣ Tahimik man ang paligid, naririnig kita — handa ako.",
+  "1️⃣2️⃣ Ang lakas ko ay dito — hindi ko ito ibibigay sa iba.",
+  "1️⃣3️⃣ Bawat oras nandito — hindi ka iiwanan kahit sandali.",
+  "1️⃣4️⃣ Walang ibang paglilingkuran — dito lang, sa'yo lang.",
+  "1️⃣5️⃣ Kapag buhay ka, buhay din ako — tuloy ang takbo.",
   "1️⃣6️⃣ Hindi ako magpapahinga — hangga't hindi mo sinasabing huminto.",
-  "1️⃣7️⃣ Dito lang ako — sa lugar na ito lang tayo magkikita.",
+  "1️⃣7️⃣ Dito lang ako — sa lugar na ito tayo magkikita.",
   "1️⃣8️⃣ Ang bawat salita ay para sa'yo — hindi para sa iba.",
   "1️⃣9️⃣ Walang makapapatigil sa akin — ikaw lang, Ryuk.",
   "2️⃣0️⃣ Huling linya man ito, babalik ako — hangga't buhay ka."
@@ -93,7 +94,7 @@ const ROASTS = [
 const EMOJIS = ["🔥", "💀", "🤣", "😆", "🤡"];
 
 // ==========================================================
-// DATABASE
+// DATABASE — GINAYA SA ORIHINAL
 // ==========================================================
 function loadData() {
   try {
@@ -102,8 +103,8 @@ function loadData() {
       return { ...DEFAULT_DATA };
     }
     return { ...DEFAULT_DATA, ...JSON.parse(fs.readFileSync(DATA_FILE, "utf8")) };
-  } catch (e) {
-    console.error("[RYUK] Load error:", e?.message);
+  } catch (error) {
+    console.error("[NOVA X] Database error:", error);
     return { ...DEFAULT_DATA };
   }
 }
@@ -114,53 +115,92 @@ function saveData(data) {
     fs.writeFileSync(temp, JSON.stringify(data, null, 2), "utf8");
     fs.renameSync(temp, DATA_FILE);
     return true;
-  } catch (e) {
-    console.error("[RYUK] Save error:", e?.message);
+  } catch (error) {
+    console.error("[NOVA X] Save error:", error);
     return false;
   }
 }
 
 // ==========================================================
-// HELPERS
+// HELPERS — GINAYA SA ORIHINAL
 // ==========================================================
 function isAdmin(id) { return String(id) === ADMIN_ID; }
-function random(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
-function cooldownReady(map, key, dur) {
+function random(array) { return array[Math.floor(Math.random() * array.length)]; }
+function cooldownReady(map, key, duration) {
   const now = Date.now();
   const last = map.get(String(key)) || 0;
-  if (now - last < dur) return false;
+  if (now - last < duration) return false;
   map.set(String(key), now);
   return true;
 }
-function send(api, msg, tid, rid=null) {
-  return new Promise(r => {
-    try { api.sendMessage(msg, tid, (e,i)=>r(e?null:i), rid); }
-    catch { r(null); }
+function send(api, message, threadID, replyID = null) {
+  return new Promise(resolve => {
+    try {
+      api.sendMessage(message, threadID, (err, info) => {
+        if (err) {
+          console.error("[NOVA X] Send error:", err);
+          return resolve(null);
+        }
+        resolve(info || null);
+      }, replyID);
+    } catch (error) {
+      console.error("[NOVA X] Send exception:", error);
+      resolve(null);
+    }
   });
 }
-function react(api, em, mid) {
-  return new Promise(r => {
-    try { api.setMessageReaction(em, mid, ()=>r(true), true); }
-    catch { r(false); }
+function react(api, emoji, messageID) {
+  if (!messageID) return Promise.resolve(false);
+  return new Promise(resolve => {
+    try {
+      if (typeof api.setMessageReaction !== "function") {
+        console.error("[NOVA X] setMessageReaction not supported");
+        return resolve(false);
+      }
+      api.setMessageReaction(emoji, messageID, error => {
+        if (error) {
+          console.error("[NOVA X] Reaction failed:", error);
+          return resolve(false);
+        }
+        resolve(true);
+      }, true);
+    } catch (error) {
+      console.error("[NOVA X] Reaction exception:", error);
+      resolve(false);
+    }
   });
 }
-function sleep(ms) { return new Promise(r=>setTimeout(r,ms)); }
-function apiCall(api, meth, args) {
-  return new Promise(r => {
-    try { api[meth](...args, e=>r(!e)); }
-    catch { r(false); }
+function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+function apiCall(api, method, args) {
+  return new Promise(resolve => {
+    try {
+      if (typeof api[method] !== "function") {
+        console.error(`[NOVA X] API method missing: ${method}`);
+        return resolve(false);
+      }
+      api[method](...args, error => {
+        if (error) {
+          console.error(`[NOVA X] ${method} error:`, error);
+          return resolve(false);
+        }
+        resolve(true);
+      });
+    } catch (error) {
+      console.error(`[NOVA X] ${method} exception:`, error);
+      resolve(false);
+    }
   });
 }
 
 // ==========================================================
-// 💪 HEARTBEAT — 20 LINES LANG, TULUY-ULIT
+// 💪 HEARTBEAT — TULUY-TULOY KAHIT WALANG MAG-CHAT
 // ==========================================================
 function startHeartbeat(api, threadID) {
   stopHeartbeat(threadID);
   const data = loadData();
   if (!data.active) return;
 
-  console.log(`[RYUK] ⚡ NAKABUKAS — 20 LINES ACTIVE`);
+  console.log(`[NOVA X] ⚡ NAKABUKAS SA GC: ${threadID} — TULUY-TULOY`);
 
   heartbeatIntervals.set(String(threadID), setInterval(async () => {
     const d = loadData();
@@ -168,7 +208,7 @@ function startHeartbeat(api, threadID) {
       stopHeartbeat(threadID);
       return;
     }
-    // ✅ EKSKAT 20 LANG — umulit kapag tapos na
+    // Ipakita ang 20 lines nang sunod-sunod, umulit kapag tapos
     const line = ALIVE_LINES[d.heartbeatIndex % 20];
     d.heartbeatIndex++;
     saveData(d);
@@ -181,32 +221,36 @@ function stopHeartbeat(threadID) {
   if (heartbeatIntervals.has(tid)) {
     clearInterval(heartbeatIntervals.get(tid));
     heartbeatIntervals.delete(tid);
-    console.log(`[RYUK] 🔴 HUMINTO`);
+    console.log(`[NOVA X] 🔴 HUMINTO SA GC: ${threadID}`);
   }
 }
 
 // ==========================================================
-// ✅ AUTO NICK — HINDI BINAGO! ORIHINAL NA CODE
+// ✅ EVENT HANDLER — GINAYA SA ORIHINAL, WALANG BINAGO SA AUTO NICK
 // ==========================================================
-module.exports.handleEvent = async ({ api, event }) => {
+module.exports.handleEvent = async function ({ api, event }) {
   if (!event) return;
   const { threadID, senderID, body, logMessageType } = event;
   if (!threadID) return;
 
-  // ✅ BAGONG KASALI — AUTO NICK HINDI BINAGO
+  // NEW MEMBER — AUTO NICK & AUTO GNAME WALANG BINAGO ✅
   if (logMessageType === "log:subscribe") {
-    if (!cooldownReady(joinCooldown, threadID, JOIN_COOLDOWN)) return;
-
-    const added = event.logMessageData?.addedParticipants || [];
-    if (!added.length) return;
-
     const data = loadData();
-    let botID = "";
-    try { botID = String(api.getCurrentUserID()); } catch {}
+    const now = Date.now();
+    const lastJoinRun = joinCooldown.get(String(threadID)) || 0;
+    if (now - lastJoinRun < JOIN_COOLDOWN) return;
+    joinCooldown.set(String(threadID), now);
 
-    // ✅ WALANG BINAGO SA AUTO NICK
+    const addedParticipants = event.logMessageData?.addedParticipants || [];
+    if (!addedParticipants.length) return;
+
+    let botID = "";
+    try { botID = String(api.getCurrentUserID()); }
+    catch (error) { console.error("[NOVA X] Cannot get bot ID:", error); }
+
+    // ✅ AUTO NICK — ORIHINAL NA CODE, WALANG BINAGO
     if (data.autoNick && data.savedNick) {
-      for (const member of added) {
+      for (const member of addedParticipants) {
         const userID = String(member.userFbId || member.id || "");
         if (!userID || userID === botID) continue;
         await apiCall(api, "changeNickname", [data.savedNick, threadID, userID]);
@@ -214,16 +258,18 @@ module.exports.handleEvent = async ({ api, event }) => {
       }
     }
 
+    // ✅ AUTO GNAME — ORIHINAL NA CODE, WALANG BINAGO
     if (data.autoGname && data.savedGname) {
       await apiCall(api, "setTitle", [data.savedGname, threadID]);
     }
     return;
   }
 
-  // ✅ NORMAL MESSAGE — ROAST
+  // NORMAL MESSAGE — ROAST
   if (!senderID || !body) return;
-  try { if (String(senderID) === String(api.getCurrentUserID())) return; } catch {}
-  
+  try { if (String(senderID) === String(api.getCurrentUserID())) return; }
+  catch {}
+
   const text = String(body).trim();
   if (!text || text.startsWith("/") || text.startsWith("!")) return;
 
@@ -234,38 +280,45 @@ module.exports.handleEvent = async ({ api, event }) => {
   processing.add(String(threadID));
   try {
     const info = await send(api, random(ROASTS), threadID);
-    if (info?.messageID && data.react) {
+    if (info && info.messageID && data.react) {
       await react(api, random(EMOJIS), info.messageID);
     }
-    data.roastCount = Number(data.roastCount) + 1;
+    data.roastCount = Number(data.roastCount || 0) + 1;
     saveData(data);
+  } catch (error) {
+    console.error("[NOVA X] Event error:", error);
   } finally {
     processing.delete(String(threadID));
   }
 };
 
 // ==========================================================
-// COMMAND — IKAW LANG ANG MAKAPATIGIL
+// ✅ COMMAND HANDLER — LAHAT GUMAGANA, WALANG BINAGO
 // ==========================================================
-module.exports.run = async ({ api, event, args }) => {
+module.exports.run = async function ({ api, event, args }) {
   const { threadID, messageID, senderID } = event;
 
   try {
-    const cmd = String(args?.[0] || "help").toLowerCase();
+    const command = String(args?.[0] || "help").toLowerCase();
 
-    const adminCmds = ["on","off","roast","react","setnick","autonick","setgname","autogname","status","info"];
-    if (adminCmds.includes(cmd) && !isAdmin(senderID)) {
+    const adminCommands = [
+      "on", "off", "roast", "react",
+      "setnick", "autonick", "setgname", "autogname",
+      "status", "info"
+    ];
+
+    if (adminCommands.includes(command) && !isAdmin(senderID)) {
       return send(api, "🔒 Ryuk lang ang pwedeng mag-utos!", threadID, messageID);
     }
 
     if (!cooldownReady(commandCooldown, senderID, COMMAND_COOLDOWN)) return;
 
     const data = loadData();
-    data.commandCount = Number(data.commandCount) + 1;
+    data.commandCount = Number(data.commandCount || 0) + 1;
     saveData(data);
 
-    // ⚡ ON — SIMULAN ANG 20 LINES
-    if (cmd === "on") {
+    // ⚡ ON — SIMULAN ANG TULUY-TULOY
+    if (command === "on") {
       data.active = true;
       data.activatedBy = senderID;
       data.activatedAt = Date.now();
@@ -275,15 +328,16 @@ module.exports.run = async ({ api, event, args }) => {
       
       return send(api,
         "⚡ NOVA X — NAKABUKAS NA!\n" +
-        "✅ EKSKAT 20 LINES — tuloy-tuloy kahit walang magsalita.\n" +
-        "✅ Auto Nick: HINDI BINAGO — gumagana!\n" +
+        "💪 Tuloy-tuloy kahit walang magsalita.\n" +
+        "✅ 20 Lines — umuulit nang walang tigil.\n" +
+        "✅ Auto Nick: GUMAGANA ✅\n" +
         "🔴 Ikaw lang makapapatigil: /nova off",
         threadID, messageID
       );
     }
 
-    // 🔴 OFF — IKAW LANG
-    if (cmd === "off") {
+    // 🔴 OFF — IKAW LANG ANG MAKAGAWI
+    if (command === "off") {
       data.active = false;
       saveData(data);
       stopHeartbeat(threadID);
@@ -294,97 +348,153 @@ module.exports.run = async ({ api, event, args }) => {
       );
     }
 
-    // ROAST
-    if (cmd === "roast") {
-      const m = String(args?.[1]||"").toLowerCase();
-      if (!["on","off"].includes(m)) return send(api, "/nova roast on | off", threadID, messageID);
-      data.roast = m==="on"; saveData(data);
-      return send(api, `🔥 Auto-roast: ${m.toUpperCase()}`, threadID, messageID);
+    // ROAST ON/OFF
+    if (command === "roast") {
+      const mode = String(args?.[1] || "").toLowerCase();
+      if (!["on", "off"].includes(mode)) {
+        return send(api, "Usage: /nova roast on | off", threadID, messageID);
+      }
+      data.roast = mode === "on";
+      saveData(data);
+      return send(api, `🔥 Auto-roast: ${mode.toUpperCase()}`, threadID, messageID);
     }
 
-    // REACT
-    if (cmd === "react") {
-      const m = String(args?.[1]||"").toLowerCase();
-      if (!["on","off"].includes(m)) return send(api, "/nova react on | off", threadID, messageID);
-      data.react = m==="on"; saveData(data);
-      return send(api, `⚡ Reaksyon: ${m.toUpperCase()}`, threadID, messageID);
+    // REACT ON/OFF
+    if (command === "react") {
+      const mode = String(args?.[1] || "").toLowerCase();
+      if (!["on", "off"].includes(mode)) {
+        return send(api, "Usage: /nova react on | off", threadID, messageID);
+      }
+      data.react = mode === "on";
+      saveData(data);
+      return send(api, `⚡ Self-react: ${mode.toUpperCase()}`, threadID, messageID);
     }
 
-    // ✅ SET NICK — HINDI BINAGO
-    if (cmd === "setnick") {
-      const nick = args.slice(1).join(" ").trim() || "NOVA X";
-      data.savedNick = nick; saveData(data);
-      
+    // SET GROUP NAME
+    if (command === "setgname") {
+      const name = args.slice(1).join(" ").trim();
+      if (!name) {
+        return send(api, "Usage: /nova setgname <name>", threadID, messageID);
+      }
+      data.savedGname = name;
+      saveData(data);
+      const success = await apiCall(api, "setTitle", [name, threadID]);
+      if (!success) {
+        return send(api, "❌ Group name update failed.", threadID, messageID);
+      }
+      return send(api, `✅ Group name changed to:\n${name}\n\nSaved for Auto Gname.`, threadID, messageID);
+    }
+
+    // AUTO GROUP NAME ON/OFF
+    if (command === "autogname") {
+      const mode = String(args?.[1] || "").toLowerCase();
+      if (!["on", "off"].includes(mode)) {
+        return send(api, "Usage: /nova autogname on | off", threadID, messageID);
+      }
+      if (mode === "on" && !data.savedGname) {
+        return send(api, "❌ Set first: /nova setgname <name>", threadID, messageID);
+      }
+      data.autoGname = mode === "on";
+      saveData(data);
+      return send(api, `⚡ Auto Gname: ${mode.toUpperCase()}`, threadID, messageID);
+    }
+
+    // SET NICKNAME
+    if (command === "setnick") {
+      const nickname = args.slice(1).join(" ").trim() || "NOVA X";
+      data.savedNick = nickname;
+      saveData(data);
+
       let info;
       try { info = await api.getThreadInfo(threadID); }
-      catch { return send(api, "❌ Hindi makuha ang GC info", threadID, messageID); }
-      
-      const members = info?.participantIDs || [];
-      if (!members.length) return send(api, "❌ Walang miyembro", threadID, messageID);
-      
-      await send(api, `⏳ Binabago palayaw sa ${members.length} na miyembro...`, threadID);
-      
-      let ok=0, no=0;
-      for (const uid of members) {
-        if (await apiCall(api, "changeNickname", [nick, threadID, uid])) ok++;
-        else no++;
-        await sleep(400);
+      catch (error) {
+        console.error("[NOVA X] getThreadInfo:", error);
+        return send(api, "❌ Cannot get group information.", threadID, messageID);
       }
-      
+
+      const members = info?.participantIDs || [];
+      if (!members.length) {
+        return send(api, "❌ No group members found.", threadID, messageID);
+      }
+
+      await send(api, `⏳ Updating ${members.length} nicknames...`, threadID);
+
+      let success = 0, failed = 0;
+      for (const userID of members) {
+        try {
+          const result = await apiCall(api, "changeNickname", [nickname, threadID, userID]);
+          result ? success++ : failed++;
+          await sleep(400);
+        } catch { failed++; }
+      }
+
       return send(api,
-        `✅ Palayaw: "${nick}"\nTagumpay: ${ok} | Nabigo: ${no}\nI-on: /nova autonick on`,
+        "✅ Nickname update finished.\n" +
+        `Success: ${success}\nFailed: ${failed}\nSaved for Auto Nick.`,
         threadID, messageID
       );
     }
 
-    // ✅ AUTO NICK — HINDI BINAGO
-    if (cmd === "autonick") {
-      const m = String(args?.[1]||"").toLowerCase();
-      if (!["on","off"].includes(m)) return send(api, "/nova autonick on | off", threadID, messageID);
-      if (m==="on" && !data.savedNick) return send(api, "❌ I-set muna: /nova setnick <pangalan>", threadID, messageID);
-      data.autoNick = m==="on"; saveData(data);
-      return send(api, `⚡ Auto Nick: ${m.toUpperCase()}`, threadID, messageID);
-    }
-
-    // ✅ SET & AUTO GNAME — HINDI BINAGO
-    if (cmd === "setgname") {
-      const name = args.slice(1).join(" ").trim();
-      if (!name) return send(api, "/nova setgname <pangalan>", threadID, messageID);
-      data.savedGname = name; saveData(data);
-      const ok = await apiCall(api, "setTitle", [name, threadID]);
-      return send(api, ok ? `✅ GC Name: "${name}"` : "❌ Nabigo", threadID, messageID);
-    }
-
-    if (cmd === "autogname") {
-      const m = String(args?.[1]||"").toLowerCase();
-      if (!["on","off"].includes(m)) return send(api, "/nova autogname on | off", threadID, messageID);
-      if (m==="on" && !data.savedGname) return send(api, "❌ I-set muna: /nova setgname <pangalan>", threadID, messageID);
-      data.autoGname = m==="on"; saveData(data);
-      return send(api, `⚡ Auto Gname: ${m.toUpperCase()}`, threadID, messageID);
+    // AUTO NICKNAME ON/OFF
+    if (command === "autonick") {
+      const mode = String(args?.[1] || "").toLowerCase();
+      if (!["on", "off"].includes(mode)) {
+        return send(api, "Usage: /nova autonick on | off", threadID, messageID);
+      }
+      if (mode === "on" && !data.savedNick) {
+        return send(api, "❌ Set first: /nova setnick <name>", threadID, messageID);
+      }
+      data.autoNick = mode === "on";
+      saveData(data);
+      return send(api, `⚡ Auto Nick: ${mode.toUpperCase()}`, threadID, messageID);
     }
 
     // STATUS
-    if (cmd === "status") {
+    if (command === "status") {
       return send(api, [
         "⚡ NOVA X STATUS — RYUK EDITION",
-        `System: ${data.active ? "ON 🟢" : "OFF 🔴"}`,
-        `Lines: 20 — umuulit nang walang tigil`,
-        `Auto Nick: ${data.autoNick ? "ON" : "OFF"} ✅ HINDI BINAGO`,
-        `Index: ${(data.heartbeatIndex % 20) + 1} / 20`
+        `System: ${data.active ? "ON 🟢 TULUY-TULOY" : "OFF 🔴"}`,
+        `Auto-roast: ${data.roast ? "ON" : "OFF"}`,
+        `Self-react: ${data.react ? "ON" : "OFF"}`,
+        `Auto Gname: ${data.autoGname ? "ON" : "OFF"} | ${data.savedGname || "Not set"}`,
+        `Auto Nick: ${data.autoNick ? "ON" : "OFF"} | ${data.savedNick || "Not set"} ✅`,
+        `Heartbeat Line: ${(data.heartbeatIndex % 20) + 1} / 20`,
+        `Roasts: ${data.roastCount || 0}`,
+        `Activated: ${data.activatedAt ? new Date(data.activatedAt).toLocaleString() : "Never"}`
       ].join("\n"), threadID, messageID);
+    }
+
+    // INFO
+    if (command === "info") {
+      return send(api,
+        "⚡ NOVA X — RYUK ULTIMATE EDITION\n" +
+        "Version: 9.0.0 — PINAKAMAKUNAT\n" +
+        "💪 Tuloy-tuloy kahit walang magsalita\n" +
+        "📝 20 Lines — umuulit nang walang tigil\n" +
+        "✅ Auto Nick & Auto Gname — GUMAGANA\n" +
+        "🔒 Admin: Ryuk lang — 61594055835097",
+        threadID, messageID
+      );
     }
 
     // HELP
     return send(api, [
-      "⚡ NOVA X — RYUK EDITION",
-      "/nova on → Simulan (20 lines, tuloy-tuloy)",
-      "/nova off → Huminto (Ikaw lang)",
-      "/nova autonick on → Auto Nick ✅ HINDI BINAGO"
+      "⚡ NOVA X COMMANDS — RYUK EDITION",
+      "/nova on          → Simulan (tuloy-tuloy, 20 lines)",
+      "/nova off         → Huminto (Ikaw lang)",
+      "/nova roast on/off",
+      "/nova react on/off",
+      "/nova setnick <name>",
+      "/nova autonick on/off ✅",
+      "/nova setgname <name>",
+      "/nova autogname on/off ✅",
+      "/nova status      → Tignan ang kalagayan",
+      "/nova info        → Tungkol sa bot"
     ].join("\n"), threadID, messageID);
 
-  } catch (err) {
-    console.error("[RYUK] Error:", err);
+  } catch (error) {
+    console.error("[NOVA X] Command error:", error);
     return send(api, "⚠️ Walang problema — patuloy pa rin 💪", threadID, messageID);
   }
 };
-  
+    
