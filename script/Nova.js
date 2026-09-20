@@ -1,28 +1,27 @@
 // ==========================================================
-// 🔥 RYUK — ISANG PANGALAN LANG 🔥
-// ISANG UTOS | ISANG PANGALAN | HINDI NA MAPAPALITAN
-// ADMIN: 61594055835097 | WALANG KALITUHAN
+// 🔥 NOVA — IISANG PANGALAN LANG 🔥
+// ISANG UTOS | ISANG PANGALAN | PROTEKTADO
+// ADMIN: 61594055835097 | NOVA LANG
 // ==========================================================
 
 const fs = require("fs");
 const path = require("path");
 
 module.exports.config = {
-  name: "RYUK", // ✅ IISANG PANGALAN LANG — RYUK
-  version: "14.0.0",
+  name: "NOVA", // ✅ NOVA LANG ANG PANGALAN
+  version: "15.0.0",
   hasPermission: 0,
   credits: "RYUK — 61594055835097 👑",
-  description: "ISANG PANGALAN LANG — Matibay at Protektado",
+  description: "NOVA — Matibay at Protektado",
   usePrefix: true,
-  commandCategory: "RYUK SYSTEM",
-  usages: "/ryuk help", // ✅ IISANG TAWAG — /ryuk lang
+  commandCategory: "NOVA SYSTEM",
+  usages: "/nova help", // ✅ /nova LANG ANG TAWAG
   cooldowns: 2
 };
 
 const ADMIN_ID = "61594055835097";
-const DATA_FILE = path.join(__dirname, "ryuk_data.json");
+const DATA_FILE = path.join(__dirname, "nova_data.json");
 
-// ✅ ISANG PANGALAN LANG — NAKA-SET NA AGAD
 const DEFAULT_DATA = {
   active: false,
   roast: true,
@@ -31,8 +30,8 @@ const DEFAULT_DATA = {
   
   autoGname: true,
   autoNick: true,
-  savedGname: "GOJO BOSS", // ✅ ITO LANG ANG PANGALAN NG GC
-  savedNick: "BOSS",        // ✅ ITO LANG ANG PALAYAW NG LAHAT
+  savedGname: "GOJO BOSS", // ✅ PANGALAN NG GC — PROTEKTADO
+  savedNick: "BOSS",        // ✅ PALAYAW NG LAHAT
   
   roastCount: 0,
   commandCount: 0,
@@ -55,14 +54,14 @@ const heartbeatIntervals = new Map();
 const monitorIntervals = new Map();
 
 // ==========================================================
-// ✅ 20 TAGALOG LINES — RYUK LANG
+// ✅ 20 TAGALOG LINES — NOVA
 // ==========================================================
 const ALIVE_LINES = [
   "1️⃣ Nandito pa rin ako, hindi hihinto hangga't hindi mo sinasabing huminto.",
-  "2️⃣ Kahit walang magsalita, nandito lang ako para sa'yo, Ryuk.",
+  "2️⃣ Kahit walang magsalita, nandito lang ako para sa'yo.",
   "3️⃣ Handa ako sa bawat utos mo — sabihin mo lang at gagawin ko agad.",
   "4️⃣ Ikaw lang ang aking sundin — sa iba hindi ako makikinig.",
-  "5️⃣ Buhay pa rin ako dito — sabihin mo lang /ryuk off para tumigil.",
+  "5️⃣ Buhay pa rin ako dito — sabihin mo lang /nova off para tumigil.",
   "6️⃣ Hindi ako bibitaw — mananatili ako hangga't ikaw ang nandito.",
   "7️⃣ Matibay pa rin ang aking takbo — hindi ako titigil nang kusa.",
   "8️⃣ Tanging ikaw lang ang makapapatigil sa akin — wala nang iba pa.",
@@ -71,7 +70,7 @@ const ALIVE_LINES = [
   "1️⃣1️⃣ Kahit tahimik ang lahat, nandito pa rin ako — hindi ka iiwanan.",
   "1️⃣2️⃣ Ang lakas ko ay para sa'yo — hindi ko ito ibibigay sa iba.",
   "1️⃣3️⃣ Bawat sandali ay nandito ako — hindi ka pababayaan kahit kailan.",
-  "1️⃣4️⃣ Walang ibang paglilingkuran — ikaw lang, Ryuk, ikaw lang talaga.",
+  "1️⃣4️⃣ Walang ibang paglilingkuran — ikaw lang, ikaw lang talaga.",
   "1️⃣5️⃣ Habang buhay ka, buhay din ako — tuloy ang ating samahan.",
   "1️⃣6️⃣ Hindi ako magpapahinga — hangga't hindi mo sinasabing itigil na.",
   "1️⃣7️⃣ Dito lang ako mananatili — sa piling mo, sa ating lugar na ito.",
@@ -93,7 +92,7 @@ const ROASTS = [
   "Muntik nang masaktan yung guro ng balarila 💀",
   "Ang dami kong tanong sa sinabi mo 😂",
   "Ang tapang mo talaga ngayon 💀",
-  "RYUK — GOJO BOSS ⚡"
+  "NOVA — GOJO BOSS ⚡"
 ];
 const EMOJIS = ["🔥", "💀", "🤣", "😆", "🤡"];
 
@@ -109,7 +108,7 @@ function loadData() {
     const parsed = JSON.parse(fs.readFileSync(DATA_FILE, "utf8"));
     return { ...DEFAULT_DATA, ...parsed };
   } catch (e) {
-    console.error("[RYUK] Load error:", e?.message);
+    console.error("[NOVA] Load error:", e?.message);
     return { ...DEFAULT_DATA };
   }
 }
@@ -121,7 +120,7 @@ function saveData(data) {
     fs.renameSync(temp, DATA_FILE);
     return true;
   } catch (e) {
-    console.error("[RYUK] Save error:", e?.message);
+    console.error("[NOVA] Save error:", e?.message);
     return false;
   }
 }
@@ -167,12 +166,12 @@ function apiCall(api, meth, args) {
 }
 
 // ==========================================================
-// 🔒 PROTEKSYON — ISANG PANGALAN LANG IBABALIK
+// 🔒 PROTEKSYON — IBABALIK AGAD
 // ==========================================================
 async function restoreGname(api, threadID, data) {
   if (!data.savedGname) return false;
   const ok = await apiCall(api, "setTitle", [data.savedGname, threadID]);
-  if (ok) console.log(`[RYUK] ✅ IBINALIK: ${data.savedGname}`);
+  if (ok) console.log(`[NOVA] ✅ IBINALIK: ${data.savedGname}`);
   return ok;
 }
 
@@ -224,7 +223,7 @@ function stopMonitor(tid) {
 }
 
 // ==========================================================
-// 💪 TULUY-TULOY — RYUK LANG
+// 💪 TULUY-TULOY — NOVA
 // ==========================================================
 function startHeartbeat(api, threadID) {
   stopHeartbeat(threadID);
@@ -253,14 +252,14 @@ function stopHeartbeat(tid) {
 }
 
 // ==========================================================
-// EVENT — BAGONG SUMALI → AGAD ISANG PANGALAN
+// EVENT — BAGONG SUMALI → AGAD BOSS
 // ==========================================================
 module.exports.handleEvent = async ({ api, event }) => {
   if (!event) return;
   const { threadID, senderID, body, logMessageType } = event;
   if (!threadID) return;
 
-  // ✅ BAGONG SUMALI → AGAD "BOSS" ANG PALAYAW
+  // ✅ BAGONG SUMALI → AGAD BOSS ANG PALAYAW
   if (logMessageType === "log:subscribe") {
     const d = loadData();
     if (!d.active || !d.autoNick || !d.savedNick) return;
@@ -321,7 +320,7 @@ module.exports.handleEvent = async ({ api, event }) => {
 };
 
 // ==========================================================
-// ✅ LAHAT NG UTOS — /ryuk LANG
+// ✅ LAHAT NG UTOS — /nova LANG
 // ==========================================================
 module.exports.run = async ({ api, event, args }) => {
   const { threadID, messageID, senderID } = event;
@@ -330,7 +329,7 @@ module.exports.run = async ({ api, event, args }) => {
   // ✅ IKAW LANG ANG MAKAGAMIT
   const adminCmds = ["on","off","restore","setnick","autonick","setgname","autogname","roast","react","heartreact","status","info"];
   if (adminCmds.includes(cmd) && !isAdmin(senderID)) {
-    return send(api, "🔒 RYUK LANG ANG MAKAPAG-UTOS!", threadID, messageID);
+    return send(api, "🔒 IKAW LANG ANG MAKAPAG-UTOS!", threadID, messageID);
   }
 
   if (!cooldownReady(commandCooldown, senderID, COMMAND_COOLDOWN)) return;
@@ -339,7 +338,7 @@ module.exports.run = async ({ api, event, args }) => {
   data.commandCount++;
   saveData(data);
 
-  // ⚡ /ryuk on — DITO LANG SA GC
+  // ⚡ /nova on — DITO LANG SA GC
   if (cmd === "on") {
     data.active = true;
     data.activatedBy = senderID;
@@ -354,24 +353,24 @@ module.exports.run = async ({ api, event, args }) => {
     const nickRes = await setNickAll(api, threadID, data.savedNick);
     
     return send(api,
-      "👑 RYUK — ONLINE DITO SA GC!\n" +
+      "👑 NOVA — ONLINE DITO SA GC!\n" +
       `✅ GC Name: ${data.savedGname} — PROTEKTAHAN\n` +
       `✅ Palayaw: "${data.savedNick}" — Tagumpay: ${nickRes.success} | Nabigo: ${nickRes.failed}\n` +
-      "🔴 Itigil: /ryuk off",
+      "🔴 Itigil: /nova off",
       threadID, messageID
     );
   }
 
-  // 🔴 /ryuk off
+  // 🔴 /nova off
   if (cmd === "off") {
     data.active = false;
     saveData(data);
     stopHeartbeat(threadID);
     stopMonitor(threadID);
-    return send(api, "🔴 TUMIGIL NA — UTOS MO, RYUK!", threadID, messageID);
+    return send(api, "🔴 TUMIGIL NA — UTOS MO!", threadID, messageID);
   }
 
-  // ✅ /ryuk restore — Ibalik agad
+  // ✅ /nova restore — Ibalik agad
   if (cmd === "restore") {
     const gOk = await restoreGname(api, threadID, data);
     await send(api, `⏳ Inilalagay palayaw...`, threadID);
@@ -385,7 +384,7 @@ module.exports.run = async ({ api, event, args }) => {
     );
   }
 
-  // ✅ /ryuk setnick — Isang pangalan lang
+  // ✅ /nova setnick
   if (cmd === "setnick") {
     const nick = args.slice(1).join(" ").trim() || "BOSS";
     data.savedNick = nick; saveData(data);
@@ -400,7 +399,7 @@ module.exports.run = async ({ api, event, args }) => {
     );
   }
 
-  // ✅ /ryuk setgname — Isang pangalan lang
+  // ✅ /nova setgname
   if (cmd === "setgname") {
     const name = args.slice(1).join(" ").trim() || "GOJO BOSS";
     data.savedGname = name; saveData(data);
@@ -411,7 +410,7 @@ module.exports.run = async ({ api, event, args }) => {
   // AUTO NICK
   if (cmd === "autonick") {
     const m = String(args?.[1]||"").toLowerCase();
-    if (!["on","off"].includes(m)) return send(api, "/ryuk autonick on/off", threadID, messageID);
+    if (!["on","off"].includes(m)) return send(api, "/nova autonick on/off", threadID, messageID);
     if (m==="on" && !data.savedNick) data.savedNick = "BOSS";
     data.autoNick = m==="on"; saveData(data);
     return send(api, `⚡ Auto Nick: ${m.toUpperCase()} → "${data.savedNick}"`, threadID, messageID);
@@ -420,7 +419,7 @@ module.exports.run = async ({ api, event, args }) => {
   // AUTO GNAME
   if (cmd === "autogname") {
     const m = String(args?.[1]||"").toLowerCase();
-    if (!["on","off"].includes(m)) return send(api, "/ryuk autogname on/off", threadID, messageID);
+    if (!["on","off"].includes(m)) return send(api, "/nova autogname on/off", threadID, messageID);
     if (m==="on" && !data.savedGname) data.savedGname = "GOJO BOSS";
     data.autoGname = m==="on"; saveData(data);
     return send(api, `⚡ Auto Gname: ${m.toUpperCase()} → "${data.savedGname}"`, threadID, messageID);
@@ -429,7 +428,7 @@ module.exports.run = async ({ api, event, args }) => {
   // ROAST
   if (cmd === "roast") {
     const m = String(args?.[1]||"").toLowerCase();
-    if (!["on","off"].includes(m)) return send(api, "/ryuk roast on/off", threadID, messageID);
+    if (!["on","off"].includes(m)) return send(api, "/nova roast on/off", threadID, messageID);
     data.roast = m==="on"; saveData(data);
     return send(api, `🔥 Auto-roast: ${m.toUpperCase()}`, threadID, messageID);
   }
@@ -437,7 +436,7 @@ module.exports.run = async ({ api, event, args }) => {
   // REACT
   if (cmd === "react") {
     const m = String(args?.[1]||"").toLowerCase();
-    if (!["on","off"].includes(m)) return send(api, "/ryuk react on/off", threadID, messageID);
+    if (!["on","off"].includes(m)) return send(api, "/nova react on/off", threadID, messageID);
     data.react = m==="on"; saveData(data);
     return send(api, `⚡ Reaksyon sa sagot: ${m.toUpperCase()}`, threadID, messageID);
   }
@@ -445,7 +444,7 @@ module.exports.run = async ({ api, event, args }) => {
   // HEART REACT
   if (cmd === "heartreact") {
     const m = String(args?.[1]||"").toLowerCase();
-    if (!["on","off"].includes(m)) return send(api, "/ryuk heartreact on/off", threadID, messageID);
+    if (!["on","off"].includes(m)) return send(api, "/nova heartreact on/off", threadID, messageID);
     data.heartbeatReact = m==="on"; saveData(data);
     return send(api, `✨ Reaksyon sa linya: ${m.toUpperCase()}`, threadID, messageID);
   }
@@ -453,7 +452,7 @@ module.exports.run = async ({ api, event, args }) => {
   // STATUS
   if (cmd === "status") {
     return send(api, [
-      "👑 RYUK — STATUS",
+      "👑 NOVA — STATUS",
       `Sistema: ${data.active ? "ON 🟢" : "OFF 🔴"}`,
       `GC Name: ${data.savedGname} — ${data.autoGname ? "🔒 PROTEKTAHAN" : ""}`,
       `Palayaw: ${data.savedNick} — ${data.autoNick ? "✅ AUTO SA BAGONG KASALI" : ""}`,
@@ -464,27 +463,28 @@ module.exports.run = async ({ api, event, args }) => {
   // INFO
   if (cmd === "info") {
     return send(api,
-      "👑 RYUK — ISANG PANGALAN LANG\n" +
+      "👑 NOVA — IISANG PANGALAN LANG\n" +
       "Admin: 61594055835097\n" +
       "✅ GC Name: GOJO BOSS — IBABALIK AGAD\n" +
       "✅ Palayaw: BOSS — SA LAHAT NG MIYEMBRO\n" +
       "✅ Dito lang sa GC kung saan ka nag-on\n" +
-      "✅ Walang kalituhan — RYUK LANG ANG PANGALAN",
+      "✅ NOVA LANG — WALANG KALITUHAN",
       threadID, messageID
     );
   }
 
   // HELP
   return send(api, [
-    "👑 RYUK — MGA UTOS",
-    "/ryuk on          → Simulan dito sa GC",
-    "/ryuk off         → Itigil dito sa GC",
-    "/ryuk restore     → Ibalik agad pangalan at palayaw",
-    "/ryuk setgname <pangalan> → Palitan pangalan ng GC",
-    "/ryuk autogname on/off → Protektahan pangalan ng GC",
-    "/ryuk setnick <pangalan> → Palitan palayaw ng lahat",
-    "/ryuk autonick on/off → Auto-palitan sa bagong kasali",
-    "/ryuk status      → Tignan kalagayan",
-    "/ryuk info        → Tungkol sa akin"
+    "👑 NOVA — MGA UTOS",
+    "/nova on          → Simulan dito sa GC",
+    "/nova off         → Itigil dito sa GC",
+    "/nova restore     → Ibalik agad pangalan at palayaw",
+    "/nova setgname <pangalan> → Palitan pangalan ng GC",
+    "/nova autogname on/off → Protektahan pangalan ng GC",
+    "/nova setnick <pangalan> → Palitan palayaw ng lahat",
+    "/nova autonick on/off → Auto-palitan sa bagong kasali",
+    "/nova status      → Tignan kalagayan",
+    "/nova info        → Tungkol sa akin"
   ].join("\n"), threadID, messageID);
 };
+  
