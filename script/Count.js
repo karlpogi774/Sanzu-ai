@@ -1,7 +1,8 @@
 // ==========================================================
-// BOT NAME: count | 1-1000 | HINDI MA-RESTRICT ✅ | AUTO PROTECT
+// BOT NAME: count | 1-50 | KAPAG STOP AGAD HIHINTO ✅
+// 4 ADMIN PROTECT ✅ | HINDI MA-RESTRICT
 // WIN GOJO JUJUTSU KAISEN A.K.A RYUK GNM LVL 9999
-// ADMIN IDs: 61594055835097, 61593892603402, 61594325727109
+// ADMIN IDs: 61594055835097, 61593892603402, 61594325727109, 61594022290817 ✅
 // ==========================================================
 
 const fs = require("fs");
@@ -9,20 +10,22 @@ const path = require("path");
 
 module.exports.config = {
   name: "count",
-  version: "3.0.0",
+  version: "4.0.0",
   hasPermission: 0,
-  credits: "RYUK — SAFE VERSION",
-  description: "count 1-1000 | slow & safe | protect all admins",
+  credits: "RYUK — 1-50 + 4 ADMIN",
+  description: "count 1-50 | kapag stop agad hihinto",
   usePrefix: true,
   commandCategory: "count",
   usages: "/count start",
-  cooldowns: 5 // ✅ PINABAGAL ANG COOLDOWN
+  cooldowns: 5
 };
 
+// ✅ LAHAT NG 4 ADMIN — PROTEKTADO!
 const ADMIN_IDS = [
   "61594055835097",
   "61593892603402",
-  "61594325727109"
+  "61594325727109",
+  "61594022290817"
 ];
 
 const DATA_FILE = path.join(__dirname, "count_data.json");
@@ -64,7 +67,7 @@ function sendMsg(api, msg, tid, mid = null) {
   return new Promise(r => api.sendMessage(msg, tid, (e,i)=>r(i), mid));
 }
 
-// ✅ AUTO PROTECT — LAHAT NG ADMIN
+// ✅ AUTO PROTECT — LAHAT NG 4 ADMIN
 module.exports.handleEvent = async ({ api, event }) => {
   const { threadID, senderID, body, mentions } = event;
   if (!threadID || !body || String(senderID) === String(api.getCurrentUserID())) return;
@@ -87,53 +90,57 @@ module.exports.handleEvent = async ({ api, event }) => {
   }
 };
 
-// ✅ COUNT 1-1000 — PINABAGAL PARA HINDI MA-RESTRICT
+// ✅ COUNT 1-50 — KAPAG STOP AGAD HIHINTO!
 module.exports.run = async ({ api, event, args }) => {
   const { threadID, messageID, senderID } = event;
   const cmd = String(args?.[0] || "").toLowerCase();
   const data = loadData();
 
   if (!isAdmin(senderID)) {
-    return sendMsg(api, "ikaw hindi ka admin — bawal 😤", threadID, messageID);
+    return sendMsg(api, "🔒 ikaw hindi ka admin — bawal 😤", threadID, messageID);
   }
 
   if (cmd === "start") {
     if (data.counting) return sendMsg(api, "nagbibilang pa! huwag magmadali 😤", threadID, messageID);
     data.counting = true; data.current = 0; saveData(data);
-    await sendMsg(api, "nagsisimula na — 1 hanggang 1000! dahan-dahan lang para ligtas 💪", threadID);
+    await sendMsg(api, "nagsisimula na — 1 hanggang 50! dahan-dahan lang 💪\n/i-stop para tumigil agad!", threadID);
 
-    // ✅ PINABAGAL — HINDI MABILIS KAYA HINDI MA-RESTRICT
-    for (let num = 1; num <= 1000; num++) {
-      if (!data.counting) break;
+    // ✅ 1-50 LANG — KAPAG STOP AGAD TITIGIL!
+    for (let num = 1; num <= 50; num++) {
+      // ✅ KAPAG IN-STOP — AGAD NA HIHINTO!
+      if (!loadData().counting) {
+        await sendMsg(api, `⏸️ tumigil sa ${num - 1} — utos mo! 💪`, threadID);
+        return;
+      }
+      
       data.current = num; saveData(data);
       
       let msg = `${num}`;
-      if (num === 100) msg = "100 — tuloy lang! 💪";
-      if (num === 200) msg = "200 — dahan-dahan lang, ligtas tayo! ✅";
-      if (num === 300) msg = "300 — tuloy-tuloy! ⚡";
-      if (num === 500) msg = "500 — kalahati na! ⚡";
-      if (num === 777) msg = "777 — swerte ng ryuk! 🍀";
-      if (num === 900) msg = "900 — malapit na! 🔥";
-      if (num === 999) msg = "999 — huling hakbang! 🔥";
-      if (num === 1000) msg = `1000 — tapos na!\n\nWIN GOJO JUJUTSU KAISEN A.K.A RYUK GNM LVL 9999`;
+      if (num === 10) msg = "10 — tuloy lang! 💪";
+      if (num === 25) msg = "25 — kalahati na! ⚡";
+      if (num === 40) msg = "40 — malapit na! 🔥";
+      if (num === 50) msg = `50 — TAPOS NA! ✅\n\nWIN GOJO JUJUTSU KAISEN A.K.A RYUK GNM LVL 9999`;
       
       await sendMsg(api, msg, threadID);
-      await new Promise(r => setTimeout(r, 800)); // ✅ 0.8 segundo bawat isa — HINDI MA-RESTRICT!
+      await new Promise(r => setTimeout(r, 800)); // ligtas na bilis
     }
+    
     data.counting = false; saveData(data);
     return;
   }
 
   if (cmd === "stop") {
+    const last = data.current;
     data.counting = false; saveData(data);
-    return sendMsg(api, `tumigil sa ${data.current} — babalik ako! 💪`, threadID, messageID);
+    return sendMsg(api, `⏸️ tumigil sa ${last} — utos mo! babalik ako! 💪`, threadID, messageID);
   }
 
   return sendMsg(api,
     `👑 count — mga utos\n` +
-    `/count start — simulan ang 1-1000 (ligtas na version)\n` +
-    `/count stop — itigil muna\n\n` +
-    `⚡ pinabagal para hindi ma-restrict ang account!`,
+    `/count start — simulan ang 1-50\n` +
+    `/count stop — itigil AGAD kung saan man nandoon\n\n` +
+    `✅ 4 Admin Protektado\n` +
+    `✅ Kapag stop — hindi na magpapadala pa`,
     threadID, messageID
   );
 };
