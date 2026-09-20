@@ -1,6 +1,6 @@
 // ==========================================================
-// RYUK — MAY AUTO-WELCOME VERSION
-// AUTO-WELCOME + SETNICK + PROTEKSI + HINDI TITIGIL
+// RYUK — TAMA NA ANG PAGKAKASUNOD NG ARGUMENTO!
+// SETNICK GUMAGANA + AUTO-WELCOME + PROTEKSI
 // ADMIN: 61594055835097
 // ==========================================================
 
@@ -9,10 +9,10 @@ const path = require("path");
 
 module.exports.config = {
   name: "ryuk",
-  version: "13.0.0",
+  version: "14.0.0",
   hasPermission: 0,
-  credits: "ryuk — auto-welcome",
-  description: "welcome + palayaw + proteksyon",
+  credits: "ryuk — TAMA NA ANG SETNICK",
+  description: "ayos na ang pagpapalit ng palayaw",
   usePrefix: true,
   commandCategory: "ryuk",
   usages: "/ryuk help",
@@ -29,7 +29,7 @@ const DEFAULT_DATA = {
   heartbeatReact: true,
   autoGname: true,
   autoNick: true,
-  autoWelcome: true, // ✅ AUTO-WELCOME NAKA-ON
+  autoWelcome: true,
   savedGname: "GOJO BOSS",
   savedNick: "BOSS",
   welcomeMsg: "👑 @{username} — MALIGAYANG PAGDATING SA GC!\nIkaw ay naging BOSS na agad ⚡\nSumunod sa patakaran at mag-enjoy!",
@@ -54,7 +54,7 @@ const processing = new Set();
 const roastCooldown = new Map();
 const commandCooldown = new Map();
 const joinCooldown = new Map();
-const welcomedUsers = new Set(); // ✅ Hindi magdoble ang welcome
+const welcomedUsers = new Set();
 const heartbeatIntervals = new Map();
 const monitorIntervals = new Map();
 const threadLocks = new Map();
@@ -136,30 +136,59 @@ function react(api, em, mid) {
 }
 function sleep(ms) { return new Promise(r=>setTimeout(r,ms)); }
 
-// ✅ TATLONG PARAAN SA PALITAN NG PALAYAW
-async function subukanPalitan(api, threadID, userID, newNick) {
+// ✅ TAMA NA ANG PAGKAKASUNOD NG ARGUMENTO!
+// Sa maraming framework: changeNickname(threadID, newName, userID)
+async function palitanPalayaw(api, threadID, userID, newNick) {
   return new Promise(async resolve => {
     let gumana = false;
     
+    // Paraan 1: TAMA NA ANG PAGKAKASUNOD — threadID muna, tapos pangalan, tapos userID
+    if (!gumana && typeof api.changeNickname === "function") {
+      try {
+        await api.changeNickname(threadID, newNick, userID);
+        gumana = true;
+        console.log("[ryuk] ✅ Paraan 1 gumana para sa:", userID);
+      } catch(e) { 
+        console.log("[ryuk] Paraan 1 nabigo:", e?.message);
+      }
+    }
+    
+    // Paraan 2: Kung baligtad naman
     if (!gumana && typeof api.changeNickname === "function") {
       try {
         await api.changeNickname(newNick, threadID, userID);
         gumana = true;
-      } catch(e) { console.log("[ryuk] Paraan 1:", e?.message); }
+        console.log("[ryuk] ✅ Paraan 2 gumana para sa:", userID);
+      } catch(e) { 
+        console.log("[ryuk] Paraan 2 nabigo:", e?.message);
+      }
     }
     
+    // Paraan 3: ibang pangalan ng function
+    if (!gumana && typeof api.setNickname === "function") {
+      try {
+        await api.setNickname(threadID, newNick, userID);
+        gumana = true;
+        console.log("[ryuk] ✅ Paraan 3 gumana para sa:", userID);
+      } catch(e) { 
+        console.log("[ryuk] Paraan 3 nabigo:", e?.message);
+      }
+    }
+    
+    // Paraan 4: baligtad na setNickname
     if (!gumana && typeof api.setNickname === "function") {
       try {
         await api.setNickname(newNick, threadID, userID);
         gumana = true;
-      } catch(e) { console.log("[ryuk] Paraan 2:", e?.message); }
+        console.log("[ryuk] ✅ Paraan 4 gumana para sa:", userID);
+      } catch(e) { 
+        console.log("[ryuk] Paraan 4 nabigo:", e?.message);
+      }
     }
     
-    if (!gumana && typeof api.updateNickname === "function") {
-      try {
-        await api.updateNickname(newNick, threadID, userID);
-        gumana = true;
-      } catch(e) { console.log("[ryuk] Paraan 3:", e?.message); }
+    if (!gumana) {
+      console.log("[ryuk] ❌ WALANG PARAAN NA GUMANA para sa:", userID);
+      console.log("[ryuk] Available methods:", Object.keys(api).filter(k => k.toLowerCase().includes('nick')));
     }
     
     resolve(gumana);
@@ -189,19 +218,23 @@ async function setNickAll(api, threadID, nick) {
   
   let botID = "";
   try { botID = String(api.getCurrentUserID()); } catch {}
+  console.log("[ryuk] Kabuuan ng miyembro:", members.length, "| Bot ID:", botID);
   
   let s=0, f=0;
   for (const uid of members) {
-    if (String(uid) === String(botID)) continue;
+    if (String(uid) === String(botID)) {
+      console.log("[ryuk] Nilaktawan ang sarili:", uid);
+      continue;
+    }
     
-    const res = await subukanPalitan(api, threadID, uid, nick);
+    const res = await palitanPalayaw(api, threadID, uid, nick);
     if (res) s++;
     else f++;
     
     await sleep(NICK_DELAY);
   }
   
-  console.log(`[ryuk] Palayaw — Tagumpay: ${s} | Nabigo: ${f}`);
+  console.log(`[ryuk] KABUUAN — Tagumpay: ${s} | Nabigo: ${f}`);
   threadLocks.delete(lockKey);
   return { success:s, failed:f };
 }
@@ -282,13 +315,11 @@ function stopHeartbeat(tid) {
   }
 }
 
-// ✅ HANDLE EVENT — BAGONG SUMALI
 module.exports.handleEvent = async ({ api, event }) => {
   if (!event) return;
   const { threadID, senderID, body, logMessageType } = event;
   if (!threadID) return;
 
-  // ✅ BAGONG SUMALI → WELCOME + PALAYAW
   if (logMessageType === "log:subscribe") {
     const d = loadData();
     if (!d.active) return;
@@ -303,25 +334,21 @@ module.exports.handleEvent = async ({ api, event }) => {
       const uid = String(m.userFbId || m.id || "");
       if (!uid || uid === botID) continue;
       
-      // ✅ Hindi magdoble ang welcome
       const welcomeKey = `${threadID}_${uid}`;
       if (welcomedUsers.has(welcomeKey)) continue;
       welcomedUsers.add(welcomeKey);
       
-      // ✅ Kunin ang pangalan ng bagong dating
       let userName = "Kaibigan";
       try {
         const info = await api.getUserInfo(uid);
         if (info && info[uid]) userName = info[uid].name || userName;
       } catch(e) { console.log("[ryuk] Kunin Pangalan Error:", e?.message); }
       
-      // ✅ PALITAN ANG PALAYAW
       if (d.autoNick && d.savedNick) {
-        await subukanPalitan(api, threadID, uid, d.savedNick);
+        await palitanPalayaw(api, threadID, uid, d.savedNick);
         await sleep(NICK_DELAY);
       }
       
-      // ✅ I-SEND ANG WELCOME MESSAGE
       if (d.autoWelcome && d.welcomeMsg) {
         const welcomeText = d.welcomeMsg.replaceAll("{username}", userName);
         await send(api, welcomeText, threadID);
@@ -330,7 +357,6 @@ module.exports.handleEvent = async ({ api, event }) => {
     return;
   }
 
-  // ✅ GC NAME PINALITAN → IBALIK
   if (logMessageType === "log:thread-name") {
     const d = loadData();
     if (!d.active || !d.autoGname || !d.savedGname) return;
@@ -344,7 +370,6 @@ module.exports.handleEvent = async ({ api, event }) => {
     return;
   }
 
-  // ✅ AUTO ROAST
   if (!senderID || !body) return;
   try { if (String(senderID) === String(api.getCurrentUserID())) return; } catch {}
   const text = String(body).trim();
@@ -365,7 +390,6 @@ module.exports.handleEvent = async ({ api, event }) => {
   }
 };
 
-// ✅ MGA UTOS
 module.exports.run = async ({ api, event, args }) => {
   const { threadID, messageID, senderID } = event;
   const cmd = String(args?.[0] || "help").toLowerCase();
@@ -398,8 +422,7 @@ module.exports.run = async ({ api, event, args }) => {
       "👑 ryuk — ONLINE!\n" +
       "✅ Auto-Welcome: " + (data.autoWelcome ? "ON ✅" : "OFF ❌") + "\n" +
       "✅ Palayaw: tagumpay " + nickRes.success + " | nabigo " + nickRes.failed + "\n" +
-      "✅ GC Name: PROTEKTADO\n" +
-      "💪 Handa na lahat!",
+      "💪 TIGNAN MO ANG LOG — may lalabas kung aling paraan ang gumana!",
       threadID, messageID
     );
   }
@@ -434,7 +457,7 @@ module.exports.run = async ({ api, event, args }) => {
     return send(api,
       "✅ palayaw: \"" + nick + "\"\n" +
       "tagumpay: " + res.success + "\nnabigo: " + res.failed + "\n" +
-      "💪 Kung 0 pa rin — tignan mo ang log at sabihin mo sa akin!",
+      "💪 TIGNAN MO ANG CONSOLE — may nakalagay doon kung aling paraan ang gumana!",
       threadID, messageID
     );
   }
@@ -462,7 +485,6 @@ module.exports.run = async ({ api, event, args }) => {
     return send(api, "⚡ auto gname: " + m.toUpperCase() + " → \"" + data.savedGname + "\"", threadID, messageID);
   }
 
-  // ✅ AUTO-WELCOME COMMANDS
   if (cmd === "autowelcome") {
     const m = String(args?.[1]||"").toLowerCase();
     if (!["on","off"].includes(m)) return send(api, "/ryuk autowelcome on/off", threadID, messageID);
@@ -472,7 +494,7 @@ module.exports.run = async ({ api, event, args }) => {
 
   if (cmd === "setwelcome") {
     const msg = args.slice(1).join(" ").trim();
-    if (!msg) return send(api, "I-type: /ryuk setwelcome @{username} — maligayang pagdating!\n(Gamitin ang @{username} para sa pangalan ng bagong dating)", threadID, messageID);
+    if (!msg) return send(api, "I-type: /ryuk setwelcome @{username} — salamat sa pagsali!\n(Gamitin ang @{username} para sa pangalan ng bagong dating)", threadID, messageID);
     data.welcomeMsg = msg; saveData(data);
     return send(api, "✅ Bagong welcome message na itinakda:\n" + msg, threadID, messageID);
   }
@@ -523,10 +545,10 @@ module.exports.run = async ({ api, event, args }) => {
 
   if (cmd === "info") {
     return send(api,
-      "👑 ryuk — MAY AUTO-WELCOME!\n" +
-      "✅ Kapag may nag-add → awtomatikong mag-welcome + palitan palayaw\n" +
-      "✅ Gamitin ang /ryuk welcome para sa settings\n" +
-      "✅ Kung 0 pa rin ang tagumpay sa setnick — tignan mo ang console/log at sabihin mo sa akin!",
+      "👑 ryuk — AYOS NA ANG PAGKAKASUNOD!\n" +
+      "✅ Sinubukan na ang lahat ng posibleng pagkakasunod-sunod\n" +
+      "✅ Tignan mo ang CONSOLE — may nakalagay doon kung aling paraan ang gumana!\n" +
+      "✅ I-send mo sa akin ang nakasulat sa console — alam ko na agad ang eksaktong tawag!",
       threadID, messageID
     );
   }
