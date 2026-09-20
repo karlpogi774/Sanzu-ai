@@ -1,9 +1,7 @@
 // ==========================================================
-// 👑 RYUK BOSS — GC-SPECIFIC + SILENT FIXED V19.2 ✨
-// ✅ /silent = TAHIMIK LANG — HINDI TUMITIGIL! BANTAY PA RIN!
-// ✅ SA GC NA IN-ON KA LANG GAGANA — HINDI SA LAHAT!
-// AUTO-NICK: RYUK BOSS | AUTO-WELCOME | GC PROTECTION
-// 🔒 4 ADMIN PROTECTED — WALANG MAKAKAGAMBALA!
+// 👑 RYUK BOSS — LUMALAPAG PA RIN KAHIT WALANG BAGO! V20 ✨
+// ✅ KAHIT WALANG SUMASALI — LUMALAPAG PA RIN SA LAHAT!
+// ✅ SILENT = TAHIMIK LANG — HINDI PATAY, HINDI TITIGIL!
 // ADMIN IDs: 61594055835097, 61593892603402, 61594325727109, 61594022290817 ✅
 // ==========================================================
 
@@ -12,9 +10,9 @@ const path = require("path");
 
 module.exports.config = {
   name: "ryuk",
-  version: "19.2.0",
+  version: "20.0.0",
   hasPermission: 0,
-  credits: "👑 RYUK BOSS — SILENT = TAHIMIK HINDI PATAY",
+  credits: "👑 RYUK BOSS — LUMALAPAG KAHIT WALANG BAGO",
   description: "/silent = tahimik lang / /unsilent = magsalita ulit",
   usePrefix: true,
   commandCategory: "👑 RYUK BOSS",
@@ -22,7 +20,7 @@ module.exports.config = {
   cooldowns: 2
 };
 
-// ============== 🔒 MGA PINAGKATIWALAAN — WALANG TATAPAT 🔒 ==============
+// ============== 🔒 MGA PINAGKATIWALAAN 🔒 ==============
 const ADMIN_IDS = Object.freeze([
   "61594055835097",
   "61593892603402",
@@ -32,16 +30,16 @@ const ADMIN_IDS = Object.freeze([
 
 const DATA_FILE = path.join(__dirname, "ryuk_king_data.json");
 
-// ============== ⚡ DEFAULT — BAWAT GC MAY SARILING ESTADO ==============
+// ============== ⚡ DEFAULT DATA ==============
 const DEFAULT_GC_DATA = Object.freeze({
   active: false,
-  silent: false, // ✅ SILENT = TAHIMIK LANG — HINDI PATAY!
+  silent: false,
   roast: true,
   react: true,
   heartbeatReact: true,
   autoGname: true,
   autoNick: true,
-  autoWelcome: true,
+  autoRefreshNick: true,
   savedGname: "👑 GOJO BOSS 👑",
   savedNick: "RYUK BOSS",
   welcomeMsg: `
@@ -61,10 +59,11 @@ const DEFAULT_GC_DATA = Object.freeze({
   activatedAt: null,
   heartbeatIndex: 0,
   lastRestoreGname: 0,
-  lastNickUpdate: 0
+  lastNickUpdate: 0,
+  lastFullRefresh: 0
 });
 
-// ============== ⚡ MGA PAGKAKATINIG NG ORAS ==============
+// ============== ⚡ ORAS NG PAGKAKATAON ==============
 const COOLDOWNS = Object.freeze({
   ROAST: 8000,
   COMMAND: 2500,
@@ -72,26 +71,27 @@ const COOLDOWNS = Object.freeze({
   HEARTBEAT: 20000,
   MONITOR: 5000,
   NICK_DELAY: 1000,
-  RESTORE_GNAME: 10000
+  RESTORE_GNAME: 10000,
+  FULL_REFRESH: 45000
 });
-
-// ============== 🔄 MGA TAGAPAG-INGAT — BAWAT GC MAY SARILING ==============
+// ============== 🔄 MGA TAGAPAG-INGAT ==============
 const processing = new Set();
 const roastCooldown = new Map();
 const commandCooldown = new Map();
 const welcomedUsers = new Set();
 const heartbeatIntervals = new Map();
 const monitorIntervals = new Map();
+const refreshIntervals = new Map();
 const threadLocks = new Map();
 
-// ============== ✨ MGA SALITA NG PAGPAPAKILALA ==============
+// ============== ✨ MGA SALITA ==============
 const ALIVE_LINES = Object.freeze([
   "⚡ Nandito pa rin ako — hindi hihinto hangga't hindi mo sinasabing huminto.",
-  "🔥 Kahit tahimik, nandito lang ako — nagbabantay pa rin.",
-  "👑 Handa ako sa bawat utos mo — dito sa GC na ito lang ako sumusunod.",
+  "🔥 Kahit tahimik, nandito lang ako — nagbabantay at lumalapag pa rin.",
+  "👑 Handa ako sa bawat utos mo — palitan ko palagi ang palayaw ninyo.",
   "✨ Ikaw lang ang aking sundin — sabihin mo lang /unsilent para magsalita.",
-  "💪 Nagbabantay pa rin ako — /unsilent para bumalik.",
-  "👑 Dito lang ako — kahit tahimik, hindi aalis."
+  "💪 Kahit walang bago — pinapanatili ko ang RYUK BOSS sa lahat!",
+  "👑 Dito lang ako — hindi titigil sa paglalagay ng palayaw!"
 ]);
 
 const HEARTBEAT_EMOJIS = ["🔥", "⚡", "💪", "👑", "✨"];
@@ -104,7 +104,7 @@ const ROASTS = Object.freeze([
 ]);
 const EMOJIS = ["🔥", "💀", "🤣", "😆", "👑", "✨"];
 
-// ============== 📂 TALAAN — BAWAT GC MAY SARILING DATA ==============
+// ============== 📂 TALAAN ==============
 function loadAllData() {
   try {
     if (!fs.existsSync(DATA_FILE)) {
@@ -143,7 +143,7 @@ function saveGCData(threadID, gcData) {
   return saveAllData(allData);
 }
 
-// ============== 🛡️ MGA TULONG NA GAWAIN ==============
+// ============== 🛡️ MGA TULONG ==============
 const isAdmin = (id) => ADMIN_IDS.includes(String(id));
 const pickRandom = (arr) => arr[Math.floor(Math.random() * arr.length)];
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
@@ -174,9 +174,8 @@ function react(api, emoji, messageID) {
       } else { resolve(false); }
     } catch { resolve(false); }
   });
-}
-
-// ============== ✨ PALIT NG PALAYAW — LAHAT NG PARAAN ==============
+    }
+// ============== ✨ PALIT NG PALAYAW ==============
 async function setNickname(api, threadID, userID, newNick) {
   const methods = [
     async () => { await api.changeNickname?.(threadID, newNick, userID); },
@@ -191,7 +190,7 @@ async function setNickname(api, threadID, userID, newNick) {
   return false;
 }
 
-// ============== 👑 ILAGAY ANG RYUK BOSS — DITO SA GC LANG ==============
+// ============== 👑 ILAGAY SA LAHAT ==============
 async function applyNickToAll(api, threadID, nickname = "RYUK BOSS") {
   const lockKey = `nick_${threadID}`;
   if (threadLocks.get(lockKey)) return { success: 0, failed: 0 };
@@ -226,7 +225,45 @@ async function restoreGroupName(api, threadID, gcData) {
   return ok;
 }
 
-// ============== 👁️ BANTAY — TULUY-TULOY KAHIT SILENT! ✅ ==============
+// ============== 🔄 BAGONG — LUMALAPAG SA LAHAT KAHIT WALANG BAGO! ✅ ==============
+function startNickRefresh(api, threadID) {
+  stopNickRefresh(threadID);
+  const gcData = loadGCData(threadID);
+  if (!gcData.active || !gcData.autoRefreshNick) return;
+  const tid = String(threadID);
+  
+  (async () => {
+    const data = loadGCData(threadID);
+    if (!data.active || !data.autoRefreshNick) return;
+    await applyNickToAll(api, threadID, data.savedNick);
+    data.lastFullRefresh = Date.now();
+    saveGCData(threadID, data);
+  })();
+  
+  refreshIntervals.set(tid, setInterval(async () => {
+    const data = loadGCData(threadID);
+    if (!data.active || !data.autoRefreshNick) { stopNickRefresh(tid); return; }
+    
+    const now = Date.now();
+    if (now - (data.lastFullRefresh || 0) < COOLDOWNS.FULL_REFRESH) return;
+    
+    await applyNickToAll(api, threadID, data.savedNick);
+    data.lastFullRefresh = now;
+    saveGCData(threadID, data);
+    
+    if (!data.silent) {
+      if ((data.lastFullRefresh / COOLDOWNS.FULL_REFRESH) % 3 === 0) {
+        await send(api, "⚡ Napanatili ang「RYUK BOSS」sa lahat!", threadID);
+      }
+    }
+  }, COOLDOWNS.FULL_REFRESH));
+}
+
+function stopNickRefresh(threadID) {
+  const key = String(threadID);
+  if (refreshIntervals.has(key)) { clearInterval(refreshIntervals.get(key)); refreshIntervals.delete(key); }
+                                                      }
+               // ============== 👁️ BANTAY NG GC ==============
 function startGroupMonitor(api, threadID) {
   stopGroupMonitor(threadID);
   const gcData = loadGCData(threadID);
@@ -256,7 +293,7 @@ function stopGroupMonitor(threadID) {
   if (monitorIntervals.has(key)) { clearInterval(monitorIntervals.get(key)); monitorIntervals.delete(key); }
 }
 
-// ============== 💪 HEARTBEAT — TUMITIGIL LANG NG PAGPAPADALA KAPAG SILENT ==============
+// ============== 💪 HEARTBEAT ==============
 function startHeartbeat(api, threadID) {
   stopHeartbeat(threadID);
   const gcData = loadGCData(threadID);
@@ -265,7 +302,7 @@ function startHeartbeat(api, threadID) {
   heartbeatIntervals.set(tid, setInterval(async () => {
     const data = loadGCData(threadID);
     if (!data.active) { stopHeartbeat(tid); return; }
-    if (data.silent) return; // ✅ HINDI MAGPAPADALA PERO HINDI TUMITIGIL
+    if (data.silent) return;
     const message = ALIVE_LINES[data.heartbeatIndex % ALIVE_LINES.length];
     data.heartbeatIndex++;
     saveGCData(threadID, data);
@@ -281,7 +318,7 @@ function stopHeartbeat(threadID) {
   if (heartbeatIntervals.has(key)) { clearInterval(heartbeatIntervals.get(key)); heartbeatIntervals.delete(key); }
 }
 
-// ============== 📩 PAGTUGON — SILENT = TAHIMIK LANG ==============
+// ============== 📩 PAGTUGON SA MENSAHE ==============
 module.exports.handleEvent = async ({ api, event }) => {
   if (!event) return;
   const { threadID, senderID, body, logMessageType } = event;
@@ -289,7 +326,6 @@ module.exports.handleEvent = async ({ api, event }) => {
   const gcData = loadGCData(threadID);
   if (!gcData.active) return;
 
-  // ✨ BAGONG SUMALI — IBABALIK ANG NICKNAME KAHIT SILENT!
   if (logMessageType === "log:subscribe") {
     const newMembers = event.logMessageData?.addedParticipants || [];
     if (!newMembers.length) return;
@@ -306,13 +342,11 @@ module.exports.handleEvent = async ({ api, event }) => {
         if (userInfo?.[newUserID]) displayName = userInfo[newUserID].name;
       } catch {}
       
-      // ✅ KAHIT SILENT — PALITAN PA RIN ANG NICKNAME!
       if (gcData.autoNick) {
-        await setNickname(api, threadID, newUserID, "RYUK BOSS");
+        await setNickname(api, threadID, newUserID, gcData.savedNick);
         await sleep(COOLDOWNS.NICK_DELAY);
       }
       
-      // ✅ WELCOME MESSAGE LANG ANG HINDI MAGPAPADALA KUNG SILENT
       if (!gcData.silent && gcData.autoWelcome && gcData.welcomeMsg) {
         const welcomeText = gcData.welcomeMsg.replaceAll("{username}", displayName);
         await send(api, welcomeText, threadID);
@@ -321,14 +355,12 @@ module.exports.handleEvent = async ({ api, event }) => {
     return;
   }
 
-  // 🔒 MAY NAGPALIT NG GC NAME — IBABALIK PA RIN KAHIT SILENT!
   if (logMessageType === "log:thread-name") {
     if (!gcData.autoGname || !gcData.savedGname) return;
     const newGroupName = event.logMessageData?.name || "";
     if (newGroupName !== gcData.savedGname) {
       await sleep(1000);
       const ok = await restoreGroupName(api, threadID, gcData);
-      // ✅ IBINALIK PERO HINDI MAGPAPADALA NG MENSAHE KUNG SILENT
       if (ok && !gcData.silent) {
         await send(api, `
 ⚠️ Pinalitan ang pangalan dito!
@@ -340,13 +372,11 @@ module.exports.handleEvent = async ({ api, event }) => {
     return;
   }
 
-  // 🔥 SAGOT SA MENSAHE — HINDI SASAGOT KUNG SILENT
   if (!senderID || !body) return;
   try { if (String(senderID) === String(await api.getCurrentUserID?.() || "")) return; } catch {}
   const text = String(body).trim();
   if (!text || text.startsWith("/") || text.startsWith("!")) return;
   
-  // ✅ KUNG SILENT — HINDI SASAGOT SA CHAT
   if (gcData.silent) return;
   
   if (!gcData.roast || processing.has(String(threadID))) return;
@@ -361,12 +391,11 @@ module.exports.handleEvent = async ({ api, event }) => {
     saveGCData(threadID, gcData);
   } finally { processing.delete(String(threadID)); }
 };
-
-// ============== 👑 MGA UTOS — KASAMA /silent at /unsilent ==============
+      // ============== 👑 MGA UTOS ==============
 module.exports.run = async ({ api, event, args }) => {
   const { threadID, messageID, senderID } = event;
   const cmd = String(args?.[0] || "help").toLowerCase();
-  const adminCmds = ["on","off","silent","unsilent","restore","setnick","autonick","setgname","autogname","roast","react","heartreact","autowelcome","setwelcome","status"];
+  const adminCmds = ["on","off","silent","unsilent","restore","setnick","autonick","autorefresh","setgname","autogname","roast","react","heartreact","autowelcome","setwelcome","status"];
   if (adminCmds.includes(cmd) && !isAdmin(senderID)) {
     return send(api, "🔒 BAWAL — hindi pinagkatiwalaan!", threadID, messageID);
   }
@@ -375,42 +404,44 @@ module.exports.run = async ({ api, event, args }) => {
   gcData.commandCount++;
   saveGCData(threadID, gcData);
 
-  // ⚡ BUKSAN — DITO SA GC NA ITO LANG!
   if (cmd === "on") {
     gcData.active = true; gcData.silent = false;
     gcData.activatedBy = senderID; gcData.activatedAt = Date.now();
     saveGCData(threadID, gcData);
-    startHeartbeat(api, threadID); startGroupMonitor(api, threadID);
+    startHeartbeat(api, threadID);
+    startGroupMonitor(api, threadID);
+    startNickRefresh(api, threadID);
     await restoreGroupName(api, threadID, gcData);
     await send(api, "⏳ Inilalagay ang「RYUK BOSS」sa lahat dito...", threadID);
     const result = await applyNickToAll(api, threadID, "RYUK BOSS");
     return send(api, `
-👑「RYUK BOSS」— NAKABUKAS NA DITO SA GC! ⚡
+👑「RYUK BOSS」— NAKABUKAS NA! LUMALAPAG PA RIN! ⚡
 
 ✅ Estado: NORMAL 🔊
 ✅ Auto-Welcome: ${gcData.autoWelcome ? "ON ✅" : "OFF ❌"}
+✅ Auto-Refresh: LUMALAPAG SA LAHAT KAHIT WALANG BAGO! ✅
 ✅ Palayaw: RYUK BOSS — Tagumpay: ${result.success} | Nabigo: ${result.failed}
-💡 /silent = tahimik lang — nagbabantay pa rin!
+💡 /silent = tahimik lang — nagbabantay & lumalapag pa rin!
    /unsilent = magsalita ulit
     `.trim(), threadID, messageID);
   }
 
-  // 🔴 ISARA — TALAGANG TUMITIGIL LAHAT
   if (cmd === "off") {
     gcData.active = false; gcData.silent = false;
     saveGCData(threadID, gcData);
-    stopHeartbeat(threadID); stopGroupMonitor(threadID);
-    return send(api, "🔴「RYUK BOSS」— TUMIGIL NA TALAGA DITO!", threadID, messageID);
+    stopHeartbeat(threadID);
+    stopGroupMonitor(threadID);
+    stopNickRefresh(threadID);
+    return send(api, "🔴「RYUK BOSS」— TUMIGIL NA TALAGA!", threadID, messageID);
   }
 
-  // 🤫 SILENT — TAHIMIK LANG — BANTAY PA RIN! ✅
   if (cmd === "silent") {
     if (!gcData.active) return send(api, "⚠️ /ryuk on muna!", threadID, messageID);
     if (gcData.silent) return send(api, `
 🤫 Naka-SILENT na ako!
-✅ TAHIMIK LANG — HINDI PATAY!
-🔒 Binabantayan ko pa rin ang GC pangalan
-⚡ Binabago ko pa rin ang palayaw ng bago
+✅ TAHIMIK LANG — HINDI PATAY! HINDI TUMITIGIL!
+🔒 Binabantayan ko pa rin ang pangalan ng GC
+⚡ LUMALAPAG PA RIN — PINAPALIT ANG PALAYAW SA LAHAT!
 ❌ HINDI magpapadala ng mensahe
 💡 /unsilent para magsalita ulit
     `.trim(), threadID, messageID);
@@ -421,14 +452,14 @@ module.exports.run = async ({ api, event, args }) => {
 
 ✅ TULUY-TULOY PA RIN:
    🔒 Pagbabantay at pagbalik ng pangalan ng GC
-   ⚡ Pagpapalit ng palayaw sa bagong sasali
+   ⚡ LUMALAPAG SA LAHAT — PALIT NG PALAYAW BAWAT ORAS!
+   ✅ Palitan ng palayaw sa bagong sasali
 ❌ HINDI NA MAGPAPADALA:
-   • Auto-sagot sa chat • Heartbeat • Welcome
+   • Auto-sagot • Heartbeat • Welcome
 💡 /unsilent para bumalik sa pagsasalita
     `.trim(), threadID, messageID);
   }
 
-  // 🔊 UNSILENT — BUMALIK SA PAGSASALITA
   if (cmd === "unsilent") {
     if (!gcData.silent) return send(api, "🔊 Nagsasalita na ako!", threadID, messageID);
     gcData.silent = false;
@@ -436,7 +467,18 @@ module.exports.run = async ({ api, event, args }) => {
     return send(api, "🔊「NORMAL MODE」— BUMALIK NA! ✅", threadID, messageID);
   }
 
-  // 🔒 IBA PANG UTOS...
+  if (cmd === "autorefresh") {
+    const m = String(args?.[1] || "").toLowerCase();
+    if (!["on","off"].includes(m)) return send(api, "/ryuk autorefresh on/off", threadID, messageID);
+    gcData.autoRefreshNick = m === "on";
+    saveGCData(threadID, gcData);
+    if (gcData.active) {
+      if (m === "on") startNickRefresh(api, threadID);
+      else stopNickRefresh(threadID);
+    }
+    return send(api, `⚡ Auto-Refresh Palayaw: ${m.toUpperCase()}\n${m === "on" ? "✅ LUMALAPAG SA LAHAT BAWAT ORAS!" : "❌ Titigil sa pagpapalit sa lahat"}`, threadID, messageID);
+  }
+
   if (cmd === "restore") {
     const gOk = await restoreGroupName(api, threadID, gcData);
     const nRes = await applyNickToAll(api, threadID, gcData.savedNick);
@@ -511,7 +553,8 @@ module.exports.run = async ({ api, event, args }) => {
 👑 KALAGAYAN NG GC
 
 Sistema:     ${gcData.active ? "NAKABUKAS 🟢" : "NAKASARA 🔴"}
-Silent Mode: ${gcData.silent ? "TAHIMIK 🤫 — nagbabantay pa rin!" : "NORMAL 🔊"}
+Silent Mode: ${gcData.silent ? "TAHIMIK 🤫 — LUMALAPAG PA RIN!" : "NORMAL 🔊"}
+Auto-Refresh:${gcData.autoRefreshNick ? "LUMALAPAG SA LAHAT ⚡✅" : "OFF ❌"}
 Auto-Welcome:${gcData.autoWelcome ? "ON ✅" : "OFF ❌"}
 Auto-Nick:   ${gcData.autoNick ? "ON ✅" : "OFF ❌"}
 GC Protek:   ${gcData.autoGname ? "ON 🔒" : "OFF ❌"}
@@ -522,11 +565,12 @@ Auto-Reply:  ${gcData.roast ? "ON ✅" : "OFF ❌"}
   return send(api, `
 👑 MGA UTOS:
 
-/ryuk on     → Buksan
+/ryuk on     → Buksan — LUMALAPAG AGAD!
 /ryuk off    → Patayin
-/silent      → 🤫 Tahimik — BANTAY PA RIN
+/silent      → 🤫 Tahimik — LUMALAPAG PA RIN SA LAHAT!
 /unsilent    → 🔊 Magsalita ulit
+/ryuk autorefresh on/off → Ipagpatuloy/Pigilan ang pagpapalit sa lahat
 /ryuk status → Tignan kalagayan
     `.trim(), threadID, messageID);
 };
-  
+      
