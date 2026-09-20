@@ -1,144 +1,125 @@
 // ==========================================================
-// NOVA X — RYUK EDITION 💪🔥
-// COUNT 1-200 | WIN/LOSE SECTION | AUTO DATE & TIME
+// BOT NAME: count | 1-1000 | AUTO PROTECT | NAKAKATAWA REASON
+// WIN GOJO JUJUTSU KAISEN A.K.A RYUK GNM LVL 9999
 // ==========================================================
 
 const fs = require("fs");
 const path = require("path");
 
 module.exports.config = {
-  name: "count",
-  version: "1.0.0",
-  hasPermission: 1, // Ikaw lang ang makakagamit
-  credits: "Ryuk | 61594055835097",
-  description: "Count 1-200 + WIN/LOSE + Date & Time ✅",
+  name: "count", // ✅ MALIIT NA LAHAT — count
+  version: "2.1.0",
+  hasPermission: 0,
+  credits: "RYUK",
+  description: "count 1-1000 | auto mention | protect",
   usePrefix: true,
-  commandCategory: "Ryuk Only",
-  usages: "/count start | /count reset",
-  cooldowns: 2
+  commandCategory: "count",
+  usages: "/count start",
+  cooldowns: 1
 };
 
-const ADMIN_ID = "61594055835097";
-const DATA_FILE = path.join(__dirname, "count_ryuk_data.json");
+const RYUK_ID = "61594055835097"; // ✅ PALITAN KUNG MALI
+const DATA_FILE = path.join(__dirname, "count_data.json");
+
+// ✅ MGA NAKAKATAWANG REASON 😂
+const REASONS = [
+  "kasi mas makinis pa ako sa pader 😎✨",
+  "kasi lvl 9999 ako — ikaw lvl 0 pa naghahanap pa ng buhay 😂",
+  "kasi may 6 na mata ako — ikaw dalawang mata hindi mo pa magamit nang tama 🕶️",
+  "kasi ang tangkad ko sayo — kailangan mo pa umakyat sa hagdan para abutin ako 🏔️",
+  "kasi ako ang hari — ikaw taga-linis lang ng sahig dito 👑🧹",
+  "kasi hindi ka mananalo — kahit buhayin mo pa ang lolo mo para tulungan ka 💀",
+  "kasi mas mabango pa ako kaysa sa pabango mo 🥴🌸",
+  "kasi ang utak ko infinite — sayo wala eh, walang laman 🧠💨",
+  "kasi ako gojo — ikaw go-jo-walang 😂",
+  "kasi tinabihan mo ako — mali ka agad, walang tanong-tanong 😤",
+  "kasi kahit anong gawin mo — hanggang tingin ka lang sa akin 😌",
+  "kasi ako pinili ng tadhana — ikaw pinili ng kawalan 😭",
+  "kasi mas malakas ako sayo PERIOD 🔥",
+  "kasi hindi mo ako kayang talo — tanggapin mo na, hindi masakit 😂",
+  "kasi ako paborito — ikaw yung nakalimutan isama sa imbitasyon 💌",
+  "kasi kahit anong subok mo — bagsak ka pa rin sa akin 📉",
+  "kasi ang ganda ko naman kasi — hindi mo matatalo ang kagandahan ✨",
+  "kasi ryuk ako — hindi ako natatalo, PERIOD, TULDOK 📍",
+  "kasi sinubukan mo — tapos natalo ka na bago ka pa magsimula 😏",
+  "kasi bawal saktan ang hari dito 👑"
+];
 
 function loadData() {
   try {
-    if (!fs.existsSync(DATA_FILE)) return { count: 0, status: "idle" };
+    if (!fs.existsSync(DATA_FILE)) fs.writeFileSync(DATA_FILE, JSON.stringify({ counting: false, current: 0 }, null, 2));
     return JSON.parse(fs.readFileSync(DATA_FILE, "utf8"));
-  } catch {
-    return { count: 0, status: "idle" };
+  } catch { return { counting: false, current: 0 }; }
+}
+
+function saveData(d) { fs.writeFileSync(DATA_FILE, JSON.stringify(d, null, 2)); }
+function getReason() { return REASONS[Math.floor(Math.random() * REASONS.length)]; }
+function sendMsg(api, msg, tid, mid = null) {
+  return new Promise(r => api.sendMessage(msg, tid, (e,i)=>r(i), mid));
+}
+
+// ✅ AUTO PROTECT
+module.exports.handleEvent = async ({ api, event }) => {
+  const { threadID, senderID, body, mentions } = event;
+  if (!threadID || !body || String(senderID) === String(api.getCurrentUserID())) return;
+
+  const text = String(body).toLowerCase();
+  const bad = ["bwisit","tanga","bobo","ulol","gago","alis","umalis","pangit","ayoko","bastos","sira ulo","hayop","walang hiya","yawa","tangina","peste"];
+  const isBad = bad.some(w => text.includes(w));
+  const mentionYou = (mentions || []).some(m => String(m.id) === String(RYUK_ID));
+  const calledYou = text.includes("ryuk") || text.includes("gojo") || text.includes("satoru");
+
+  if (isBad && (mentionYou || calledYou)) {
+    await new Promise(r => setTimeout(r, 400));
+    await sendMsg(api,
+      `WIN GOJO JUJUTSU KAISEN A.K.A RYUK GNM LVL 9999\n` +
+      `LOSE @${senderID}\n` +
+      `REASON: ${getReason()}`,
+      threadID
+    );
   }
-}
+};
 
-function saveData(data) {
-  try {
-    fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), "utf8");
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function getDateTime() {
-  const now = new Date();
-  return {
-    date: now.getDate(),
-    month: now.toLocaleString("en-US", { month: "long" }),
-    year: now.getFullYear(),
-    time: now.toLocaleTimeString("en-US", { hour12: true })
-  };
-}
-
-async function sendCountSequence(api, threadID, start = 1) {
-  const data = loadData();
-  data.status = "counting";
-  saveData(data);
-
-  for (let i = start; i <= 200; i++) {
-    const current = loadData();
-    if (current.status === "stopped") {
-      return api.sendMessage("⏹️ Pagbibilang itinigil.", threadID);
-    }
-    
-    await new Promise(resolve => setTimeout(resolve, 300)); // Bilis ng pagbilang
-    await api.sendMessage(`${i}`, threadID);
-    data.count = i;
-    saveData(data);
-  }
-
-  // ✅ TAPOS NA — WIN SECTION
-  const dt = getDateTime();
-  const winMessage = `
-╔══════════════════════════╗
-║       🏆 WIN 🏆          ║
-╠══════════════════════════╣
-║ GOJO JUJUTSU KAISEN      ║
-║ A.K.A RYUK               ║
-╠══════════════════════════╣
-║       ❌ LOSE ❌         ║
-╠══════════════════════════╣
-║ REASON:                  ║
-║ Walang sinumang makahinto║
-║ kay Gojo — pinakamalakas ║
-║ sa lahat, walang kalaban ║
-║ na makapantay sa kapangyarihan. ║
-║ Buong mundo ay sumuko na ║
-║ sa di-natatalong kapangyarihan. ║
-╠══════════════════════════╣
-║ 📅 DATE: ${dt.date} ${dt.month} ${dt.year}        ║
-║ ⏰ TIME: ${dt.time}           ║
-╚══════════════════════════╝
-`;;
-
-  await new Promise(resolve => setTimeout(resolve, 500));
-  await api.sendMessage(winMessage.trim(), threadID);
-  
-  data.status = "done";
-  saveData(data);
-}
-
+// ✅ COUNT 1-1000 — BOT "count" ANG MAGBIBILANG
 module.exports.run = async ({ api, event, args }) => {
-  const { threadID, messageID, senderID } = event;
-
-  if (String(senderID) !== ADMIN_ID) {
-    return api.sendMessage("🔒 Ryuk lang ang pwedeng mag-utos!", threadID, messageID);
-  }
-
-  const cmd = (args[0] || "").toLowerCase();
+  const { threadID, messageID } = event;
+  const cmd = String(args?.[0] || "").toLowerCase();
   const data = loadData();
 
   if (cmd === "start") {
-    if (data.status === "counting") {
-      return api.sendMessage("⚠️ Nagbibilang pa — huwag magsimula ulit.", threadID, messageID);
+    if (data.counting) return sendMsg(api, "nagbibilang pa! huwag magmadali 😤", threadID, messageID);
+    data.counting = true; data.current = 0; saveData(data);
+    await sendMsg(api, "nagsisimula na — 1 hanggang 1000! 💪", threadID);
+
+    for (let num = 1; num <= 1000; num++) {
+      if (!data.counting) break;
+      data.current = num; saveData(data);
+      
+      let msg = `${num}`;
+      if (num === 100) msg = "100 — tuloy lang! 💪";
+      if (num === 500) msg = "500 — kalahati na! ⚡";
+      if (num === 777) msg = "777 — swerte ng ryuk! 🍀";
+      if (num === 999) msg = "999 — malapit na! 🔥";
+      if (num === 1000) msg = `1000 — tapos na!\n\nWIN GOJO JUJUTSU KAISEN A.K.A RYUK GNM LVL 9999`;
+      
+      await sendMsg(api, msg, threadID);
+      await new Promise(r => setTimeout(r, 350));
     }
-    const startFrom = data.count > 0 ? data.count + 1 : 1;
-    await api.sendMessage(`⚡ Magsisimula mula ${startFrom} hanggang 200...`, threadID, messageID);
-    await sendCountSequence(api, threadID, startFrom);
+    data.counting = false; saveData(data);
     return;
   }
 
   if (cmd === "stop") {
-    data.status = "stopped";
-    saveData(data);
-    return api.sendMessage(`⏹️ Itinigil sa bilang: ${data.count}`, threadID, messageID);
+    data.counting = false; saveData(data);
+    return sendMsg(api, `tumigil sa ${data.current} — babalik ako! 💪`, threadID, messageID);
   }
 
-  if (cmd === "reset") {
-    data.count = 0;
-    data.status = "idle";
-    saveData(data);
-    return api.sendMessage("🔄 Nireset — Magsimula ulit: /count start", threadID, messageID);
-  }
-
-  // Default — Status
-  return api.sendMessage(
-    `📊 COUNT STATUS\n` +
-    `Kasalukuyan: ${data.count}/200\n` +
-    `Kalagayan: ${data.status}\n\n` +
-    `/count start — Magsimula\n` +
-    `/count stop — Itigil\n` +
-    `/count reset — Simulan ulit`,
+  return sendMsg(api,
+    `👑 count — mga utos\n` +
+    `/count start — simulan ang 1-1000\n` +
+    `/count stop — itigil muna\n\n` +
+    `⚡ ipagtatanggol ka kapag may bastos!`,
     threadID, messageID
   );
 };
-                            
+    
