@@ -1,7 +1,6 @@
 // ==========================================================
-// RYUK — MAKUNAT VERSION 1.0 INFINITE
-// HINDI TITIGIL | BUONG ARAW | WALANG MALI KAHIT ISA
-// DITO LANG SA GC | AUTO RECOVER | WALANG HIHINTO
+// RYUK — MAY AUTO-WELCOME VERSION
+// AUTO-WELCOME + SETNICK + PROTEKSI + HINDI TITIGIL
 // ADMIN: 61594055835097
 // ==========================================================
 
@@ -10,10 +9,10 @@ const path = require("path");
 
 module.exports.config = {
   name: "ryuk",
-  version: "11.0.0",
+  version: "13.0.0",
   hasPermission: 0,
-  credits: "ryuk — makunat",
-  description: "hindi titigil kahit kailan — protektado lahat",
+  credits: "ryuk — auto-welcome",
+  description: "welcome + palayaw + proteksyon",
   usePrefix: true,
   commandCategory: "ryuk",
   usages: "/ryuk help",
@@ -30,8 +29,10 @@ const DEFAULT_DATA = {
   heartbeatReact: true,
   autoGname: true,
   autoNick: true,
+  autoWelcome: true, // ✅ AUTO-WELCOME NAKA-ON
   savedGname: "GOJO BOSS",
   savedNick: "BOSS",
+  welcomeMsg: "👑 @{username} — MALIGAYANG PAGDATING SA GC!\nIkaw ay naging BOSS na agad ⚡\nSumunod sa patakaran at mag-enjoy!",
   roastCount: 0,
   commandCount: 0,
   activatedBy: null,
@@ -46,13 +47,14 @@ const COMMAND_COOLDOWN = 2500;
 const JOIN_COOLDOWN = 3000;
 const HEARTBEAT_INTERVAL = 20000;
 const MONITOR_INTERVAL = 5000;
-const NICK_DELAY = 700;
+const NICK_DELAY = 1000;
 const RESTORE_GNAME_COOLDOWN = 10000;
 
 const processing = new Set();
 const roastCooldown = new Map();
 const commandCooldown = new Map();
 const joinCooldown = new Map();
+const welcomedUsers = new Set(); // ✅ Hindi magdoble ang welcome
 const heartbeatIntervals = new Map();
 const monitorIntervals = new Map();
 const threadLocks = new Map();
@@ -63,62 +65,16 @@ const ALIVE_LINES = [
   "handa ako sa bawat utos mo — sabihin mo lang at gagawin ko agad.",
   "ikaw lang ang aking sundin — sa iba hindi ako makikinig.",
   "buhay pa rin ako dito — sabihin mo lang /ryuk off para tumigil.",
-  "hindi ako bibitaw — mananatili ako hangga't ikaw ang nandito.",
-  "matibay pa rin ang aking takbo — hindi ako titigil nang kusa.",
-  "tanging ikaw lang ang makapapatigil sa akin — wala nang iba pa.",
-  "nakatayo pa rin ako — handang sumunod sa bawat salita mo.",
-  "ikaw lang ang aking pinuno — sa ibang gc hindi ako pupunta.",
-  "kahit tahimik ang lahat, nandito pa rin ako — hindi ka iiwanan.",
-  "ang lakas ko ay para sa'yo — hindi ko ito ibibigay sa iba.",
-  "bawat sandali ay nandito ako — hindi ka pababayaan kahit kailan.",
-  "walang ibang paglilingkuran — ikaw lang, ikaw lang talaga.",
-  "habang buhay ka, buhay din ako — tuloy ang ating samahan.",
-  "hindi ako magpapahinga — hangga't hindi mo sinasabing itigil na.",
-  "dito lang ako mananatili — sa piling mo, sa ating lugar na ito.",
-  "ang bawat salita ko ay para sa'yo — hindi para sa iba pang tao.",
-  "walang makapapatigil sa akin — ikaw lang ang may kapangyarihan.",
-  "ito man ang huling linya, babalik ako — hangga't ikaw ang kasama ko.",
-  "bago mag-iba ang lahat, nandito pa rin ako — hindi lumalayo.",
-  "walang pagod, walang hinto — hangga't ikaw ang kasama ko.",
-  "tuloy ang takbo, tuloy ang pagbabantay — hindi ka iiwan.",
-  "kahit ilang araw pa, ganyan pa rin ako — hindi magbabago.",
-  "ang pangako ko ay habangbuhay — hindi ako bibitaw sa'yo.",
-  "tuwing sasapit ang oras, babalik ako — hindi nawawala.",
-  "walang araw na hindi kita alalahanin — nandito lang ako palagi.",
-  "kahit mahaba ang katahimikan, hindi ako aalis sa piling mo.",
-  "ang ating samahan ay hindi mapuputol — tuloy lang.",
-  "hindi matitinag, hindi mapapagod — ganyan ako para sa'yo.",
-  "tuwing magsisimula ang araw, nandito na ako — naghihintay.",
-  "walang katapusan ang pagbabantay — hangga't buhay tayo.",
-  "hindi ako magsasawang magsabi — nandito pa rin ako.",
-  "ang bawat segundo ay patunay — hindi ako lumilisan.",
-  "walang hangganan ang pananatili — ikaw lang ang utos ko.",
-  "kahit magbago ang lahat, hindi magbabago ang pagsunod ko.",
-  "dito lang, palagi — walang pag-iwan, walang pagtalikod.",
-  "ang tibay ng loob ko ay galing sa'yo — hindi hihina.",
-  "hindi matatapos ang paglilingkod — walang hangganan.",
-  "tuwing babalik ka, nandito na ako — handang sumunod ulit."
+  "hindi ako bibitaw — mananatili ako hangga't ikaw ang nandito."
 ];
 
-const HEARTBEAT_EMOJIS = ["🔥", "⚡", "💪", "👑", "✨", "🖤", "⚔️", "🛡️"];
+const HEARTBEAT_EMOJIS = ["🔥", "⚡", "💪", "👑", "✨"];
 const ROASTS = [
   "grabe yung lakas ng loob mag-send 💀",
-  "kailangan pa siguro ayusin yung sinabi mo 🤣",
-  "ang lakas ng loob pero yung mensahe... 🤣",
-  "ano nga ba ang ibig sabihin niyan? 💀",
-  "kanina pa tahimik ang gc tapos biglang ganito 😂",
-  "ibang klase yung pagka-random mo 💀",
-  "pasensya na pero hindi ko maintindihan 🤣",
-  "ang lakas ng loob mag-send talaga 😂",
-  "muntik nang masaktan yung guro ng balarila 💀",
-  "ang dami kong tanong sa sinabi mo 😂",
-  "ang tapang mo talaga ngayon 💀",
-  "ryuk — gojo boss ⚡",
   "anong sinabi mo? ulitin mo nga 🤣",
-  "mukhang kailangan ng ayos yung sinulat mo 💀",
-  "lakas ng loob walang kasunod 😂"
+  "ryuk — gojo boss ⚡"
 ];
-const EMOJIS = ["🔥", "💀", "🤣", "😆", "🤡", "⚡", "💪"];
+const EMOJIS = ["🔥", "💀", "🤣", "😆", "🤡"];
 
 function loadData() {
   try {
@@ -133,7 +89,7 @@ function loadData() {
     }
     return fixed;
   } catch (e) {
-    console.error("[ryuk] load error — gumamit ng default:", e?.message);
+    console.error("[ryuk] load error:", e?.message);
     return { ...DEFAULT_DATA };
   }
 }
@@ -179,44 +135,48 @@ function react(api, em, mid) {
   });
 }
 function sleep(ms) { return new Promise(r=>setTimeout(r,ms)); }
-function apiCall(api, meth, args) {
-  return new Promise(r => {
-    if (!api || typeof api[meth] !== "function") return r(false);
-    try { api[meth](...args, e=>r(!e)); }
-    catch { r(false); }
-  });
-}
 
-async function restoreGname(api, threadID, data) {
-  if (!data.savedGname) return false;
-  const now = Date.now();
-  if (now - (data.lastRestoreGname || 0) < RESTORE_GNAME_COOLDOWN) {
-    console.log("[ryuk] bawal pang ibalik — hintay sandali");
-    return false;
-  }
-  const ok = await apiCall(api, "setTitle", [data.savedGname, threadID]);
-  if (ok) {
-    data.lastRestoreGname = now;
-    saveData(data);
-    console.log("[ryuk] ✅ ibinalik gc name:", data.savedGname);
-  }
-  return ok;
+// ✅ TATLONG PARAAN SA PALITAN NG PALAYAW
+async function subukanPalitan(api, threadID, userID, newNick) {
+  return new Promise(async resolve => {
+    let gumana = false;
+    
+    if (!gumana && typeof api.changeNickname === "function") {
+      try {
+        await api.changeNickname(newNick, threadID, userID);
+        gumana = true;
+      } catch(e) { console.log("[ryuk] Paraan 1:", e?.message); }
+    }
+    
+    if (!gumana && typeof api.setNickname === "function") {
+      try {
+        await api.setNickname(newNick, threadID, userID);
+        gumana = true;
+      } catch(e) { console.log("[ryuk] Paraan 2:", e?.message); }
+    }
+    
+    if (!gumana && typeof api.updateNickname === "function") {
+      try {
+        await api.updateNickname(newNick, threadID, userID);
+        gumana = true;
+      } catch(e) { console.log("[ryuk] Paraan 3:", e?.message); }
+    }
+    
+    resolve(gumana);
+  });
 }
 
 async function setNickAll(api, threadID, nick) {
   if (!nick) return { success:0, failed:0 };
+  
   const lockKey = `nick_${threadID}`;
-  if (threadLocks.get(lockKey)) {
-    console.log("[ryuk] ginagawa na — huwag ulitin");
-    return { success:0, failed:0 };
-  }
+  if (threadLocks.get(lockKey)) return { success:0, failed:0 };
   threadLocks.set(lockKey, true);
   
   let info;
-  try { 
-    info = await api.getThreadInfo(threadID); 
-  } catch (e) { 
-    console.log("[ryuk] hindi makuha ang gc info:", e?.message);
+  try { info = await api.getThreadInfo(threadID); } 
+  catch (e) { 
+    console.log("[ryuk] GC Info Error:", e?.message);
     threadLocks.delete(lockKey);
     return { success:0, failed:0 }; 
   }
@@ -232,16 +192,38 @@ async function setNickAll(api, threadID, nick) {
   
   let s=0, f=0;
   for (const uid of members) {
-    if (String(uid) === botID) continue;
-    const result = await apiCall(api, "changeNickname", [nick, threadID, uid]);
-    if (result) s++;
+    if (String(uid) === String(botID)) continue;
+    
+    const res = await subukanPalitan(api, threadID, uid, nick);
+    if (res) s++;
     else f++;
+    
     await sleep(NICK_DELAY);
   }
   
-  console.log(`[ryuk] palayaw — tagumpay: ${s} | nabigo: ${f}`);
+  console.log(`[ryuk] Palayaw — Tagumpay: ${s} | Nabigo: ${f}`);
   threadLocks.delete(lockKey);
   return { success:s, failed:f };
+}
+
+async function restoreGname(api, threadID, data) {
+  if (!data.savedGname) return false;
+  const now = Date.now();
+  if (now - (data.lastRestoreGname || 0) < RESTORE_GNAME_COOLDOWN) return false;
+  
+  let ok = false;
+  if (typeof api.setTitle === "function") {
+    try {
+      await api.setTitle(data.savedGname, threadID);
+      ok = true;
+    } catch(e) { console.log("[ryuk] setTitle error:", e?.message); }
+  }
+  
+  if (ok) {
+    data.lastRestoreGname = now;
+    saveData(data);
+  }
+  return ok;
 }
 
 function startMonitor(api, threadID, data) {
@@ -262,7 +244,6 @@ function startMonitor(api, threadID, data) {
       if (ok) await send(api, "⚠️ may nagpalit!\n🔒 ibinalik agad sa: " + d.savedGname, threadID);
     }
   }, MONITOR_INTERVAL));
-  console.log("[ryuk] ✅ nagbantay sa gc:", tid);
 }
 
 function stopMonitor(tid) {
@@ -291,7 +272,6 @@ function startHeartbeat(api, threadID) {
       await react(api, random(HEARTBEAT_EMOJIS), msg.messageID);
     }
   }, HEARTBEAT_INTERVAL));
-  console.log("[ryuk] ✅ tumitibok sa gc:", tid);
 }
 
 function stopHeartbeat(tid) {
@@ -302,15 +282,16 @@ function stopHeartbeat(tid) {
   }
 }
 
+// ✅ HANDLE EVENT — BAGONG SUMALI
 module.exports.handleEvent = async ({ api, event }) => {
   if (!event) return;
   const { threadID, senderID, body, logMessageType } = event;
   if (!threadID) return;
 
+  // ✅ BAGONG SUMALI → WELCOME + PALAYAW
   if (logMessageType === "log:subscribe") {
     const d = loadData();
-    if (!d.active || !d.autoNick || !d.savedNick) return;
-    if (!cooldownReady(joinCooldown, threadID, JOIN_COOLDOWN)) return;
+    if (!d.active) return;
     
     const added = event.logMessageData?.addedParticipants || [];
     if (!added.length) return;
@@ -321,16 +302,35 @@ module.exports.handleEvent = async ({ api, event }) => {
     for (const m of added) {
       const uid = String(m.userFbId || m.id || "");
       if (!uid || uid === botID) continue;
-      await apiCall(api, "changeNickname", [d.savedNick, threadID, uid]);
-      await sleep(NICK_DELAY);
-    }
-    
-    if (added.length > 0) {
-      await send(api, "✅ bagong kasali → palayaw: " + d.savedNick, threadID);
+      
+      // ✅ Hindi magdoble ang welcome
+      const welcomeKey = `${threadID}_${uid}`;
+      if (welcomedUsers.has(welcomeKey)) continue;
+      welcomedUsers.add(welcomeKey);
+      
+      // ✅ Kunin ang pangalan ng bagong dating
+      let userName = "Kaibigan";
+      try {
+        const info = await api.getUserInfo(uid);
+        if (info && info[uid]) userName = info[uid].name || userName;
+      } catch(e) { console.log("[ryuk] Kunin Pangalan Error:", e?.message); }
+      
+      // ✅ PALITAN ANG PALAYAW
+      if (d.autoNick && d.savedNick) {
+        await subukanPalitan(api, threadID, uid, d.savedNick);
+        await sleep(NICK_DELAY);
+      }
+      
+      // ✅ I-SEND ANG WELCOME MESSAGE
+      if (d.autoWelcome && d.welcomeMsg) {
+        const welcomeText = d.welcomeMsg.replaceAll("{username}", userName);
+        await send(api, welcomeText, threadID);
+      }
     }
     return;
   }
 
+  // ✅ GC NAME PINALITAN → IBALIK
   if (logMessageType === "log:thread-name") {
     const d = loadData();
     if (!d.active || !d.autoGname || !d.savedGname) return;
@@ -344,6 +344,7 @@ module.exports.handleEvent = async ({ api, event }) => {
     return;
   }
 
+  // ✅ AUTO ROAST
   if (!senderID || !body) return;
   try { if (String(senderID) === String(api.getCurrentUserID())) return; } catch {}
   const text = String(body).trim();
@@ -364,11 +365,12 @@ module.exports.handleEvent = async ({ api, event }) => {
   }
 };
 
+// ✅ MGA UTOS
 module.exports.run = async ({ api, event, args }) => {
   const { threadID, messageID, senderID } = event;
   const cmd = String(args?.[0] || "help").toLowerCase();
 
-  const adminCmds = ["on","off","restore","setnick","autonick","setgname","autogname","roast","react","heartreact","status","info"];
+  const adminCmds = ["on","off","restore","setnick","autonick","setgname","autogname","roast","react","heartreact","welcome","autowelcome","setwelcome","status","info"];
   if (adminCmds.includes(cmd) && !isAdmin(senderID)) {
     return send(api, "🔒 ikaw lang ang makapag-utos!", threadID, messageID);
   }
@@ -393,11 +395,11 @@ module.exports.run = async ({ api, event, args }) => {
     const nickRes = await setNickAll(api, threadID, data.savedNick);
     
     return send(api,
-      "👑 ryuk — ONLINE DITO SA GC!\n" +
-      "✅ gc name: " + data.savedGname + " — PROTEKTADO\n" +
-      "✅ palayaw: \"" + data.savedNick + "\" — tagumpay: " + nickRes.success + " | nabigo: " + nickRes.failed + "\n" +
-      "🔴 itigil: /ryuk off\n" +
-      "💪 MAKUNAT — hindi titigil buong araw!",
+      "👑 ryuk — ONLINE!\n" +
+      "✅ Auto-Welcome: " + (data.autoWelcome ? "ON ✅" : "OFF ❌") + "\n" +
+      "✅ Palayaw: tagumpay " + nickRes.success + " | nabigo " + nickRes.failed + "\n" +
+      "✅ GC Name: PROTEKTADO\n" +
+      "💪 Handa na lahat!",
       threadID, messageID
     );
   }
@@ -414,10 +416,9 @@ module.exports.run = async ({ api, event, args }) => {
     const gOk = await restoreGname(api, threadID, data);
     await send(api, "⏳ inilalagay palayaw sa lahat...", threadID);
     const nRes = await setNickAll(api, threadID, data.savedNick);
-    
     return send(api,
       "🔒 ibinalik lahat!\n" +
-      "gc: " + (gOk ? "✅ " + data.savedGname : "❌ hindi muna — hintay sandali") + "\n" +
+      "gc: " + (gOk ? "✅ " + data.savedGname : "❌ hindi muna") + "\n" +
       "palayaw: tagumpay " + nRes.success + " | nabigo " + nRes.failed,
       threadID, messageID
     );
@@ -432,7 +433,8 @@ module.exports.run = async ({ api, event, args }) => {
     
     return send(api,
       "✅ palayaw: \"" + nick + "\"\n" +
-      "tagumpay: " + res.success + "\nnabigo: " + res.failed,
+      "tagumpay: " + res.success + "\nnabigo: " + res.failed + "\n" +
+      "💪 Kung 0 pa rin — tignan mo ang log at sabihin mo sa akin!",
       threadID, messageID
     );
   }
@@ -441,7 +443,7 @@ module.exports.run = async ({ api, event, args }) => {
     const name = args.slice(1).join(" ").trim() || "GOJO BOSS";
     data.savedGname = name; saveData(data);
     const ok = await restoreGname(api, threadID, data);
-    return send(api, ok ? "✅ gc name: \"" + name + "\" — PROTEKTADO NA!" : "✅ itinakda — ibabalik kapag pinalitan", threadID, messageID);
+    return send(api, ok ? "✅ gc name: \"" + name + "\" — PROTEKTADO NA!" : "✅ itinakda", threadID, messageID);
   }
 
   if (cmd === "autonick") {
@@ -458,6 +460,34 @@ module.exports.run = async ({ api, event, args }) => {
     if (m==="on" && !data.savedGname) data.savedGname = "GOJO BOSS";
     data.autoGname = m==="on"; saveData(data);
     return send(api, "⚡ auto gname: " + m.toUpperCase() + " → \"" + data.savedGname + "\"", threadID, messageID);
+  }
+
+  // ✅ AUTO-WELCOME COMMANDS
+  if (cmd === "autowelcome") {
+    const m = String(args?.[1]||"").toLowerCase();
+    if (!["on","off"].includes(m)) return send(api, "/ryuk autowelcome on/off", threadID, messageID);
+    data.autoWelcome = m==="on"; saveData(data);
+    return send(api, "⚡ auto-welcome: " + (m==="on" ? "ON ✅" : "OFF ❌"), threadID, messageID);
+  }
+
+  if (cmd === "setwelcome") {
+    const msg = args.slice(1).join(" ").trim();
+    if (!msg) return send(api, "I-type: /ryuk setwelcome @{username} — maligayang pagdating!\n(Gamitin ang @{username} para sa pangalan ng bagong dating)", threadID, messageID);
+    data.welcomeMsg = msg; saveData(data);
+    return send(api, "✅ Bagong welcome message na itinakda:\n" + msg, threadID, messageID);
+  }
+
+  if (cmd === "welcome") {
+    return send(api,
+      "👑 AUTO-WELCOME SETTINGS\n" +
+      "Kasalukuyan: " + (data.autoWelcome ? "ON ✅" : "OFF ❌") + "\n\n" +
+      "📌 Gamitin:\n" +
+      "/ryuk autowelcome on/off — buksan o isara\n" +
+      "/ryuk setwelcome [mensahe] — baguhin ang mensahe\n" +
+      "Halimbawa: /ryuk setwelcome @{username}, salamat sa pagsali!\n" +
+      "Gamitin ang @{username} para ilagay ang pangalan ng tao",
+      threadID, messageID
+    );
   }
 
   if (cmd === "roast") {
@@ -484,41 +514,32 @@ module.exports.run = async ({ api, event, args }) => {
   if (cmd === "status") {
     return send(api, [
       "👑 ryuk — STATUS",
-      "sistema: " + (data.active ? "ON 🟢 — HINDI TITIGIL" : "OFF 🔴"),
-      "gc name: " + data.savedGname + (data.autoGname ? " — 🔒 PROTEKTADO" : ""),
-      "palayaw: " + data.savedNick + (data.autoNick ? " — ✅ AUTO SA BAGONG KASALI" : ""),
-      "linya: " + ((data.heartbeatIndex % ALIVE_LINES.length) + 1) + "/" + ALIVE_LINES.length,
-      "bantay: tuwing 5s | tibok: tuwing 20s"
+      "Sistema: " + (data.active ? "ON 🟢" : "OFF 🔴"),
+      "Auto-Welcome: " + (data.autoWelcome ? "ON ✅" : "OFF ❌"),
+      "Auto-Nick: " + (data.autoNick ? "ON ✅ → " + data.savedNick : "OFF ❌"),
+      "GC Name: " + data.savedGname + (data.autoGname ? " — 🔒 PROTEKTADO" : "")
     ].join("\n"), threadID, messageID);
   }
 
   if (cmd === "info") {
     return send(api,
-      "👑 ryuk — MAKUNAT INFINITE\n" +
-      "admin: 61594055835097\n" +
-      "✅ hindi titigil — walang oras na hangganan\n" +
-      "✅ dito lang sa gc — hindi sa iba\n" +
-      "✅ gc name — ibabalik agad kapag pinalitan\n" +
-      "✅ palayaw — sa lahat, ligtas na bilis\n" +
-      "✅ bagong sumali — agad may palayaw\n" +
-      "✅ walang mali — bawat linya ay sinuri\n" +
-      "✅ ryuk lang — simple, malinis, matibay",
+      "👑 ryuk — MAY AUTO-WELCOME!\n" +
+      "✅ Kapag may nag-add → awtomatikong mag-welcome + palitan palayaw\n" +
+      "✅ Gamitin ang /ryuk welcome para sa settings\n" +
+      "✅ Kung 0 pa rin ang tagumpay sa setnick — tignan mo ang console/log at sabihin mo sa akin!",
       threadID, messageID
     );
   }
 
   return send(api, [
     "👑 ryuk — MGA UTOS",
-    "/ryuk on          → simulan dito sa gc",
-    "/ryuk off         → itigil dito sa gc",
-    "/ryuk restore     → ibalik agad pangalan at palayaw",
-    "/ryuk setgname <pangalan> → itakda pangalan ng gc",
-    "/ryuk autogname on/off → protektahan pangalan ng gc",
-    "/ryuk setnick <pangalan> → itakda palayaw ng lahat",
-    "/ryuk autonick on/off → auto-palitan sa bagong kasali",
-    "/ryuk roast on/off → awtomatikong sagot",
-    "/ryuk status      → tignan kalagayan",
-    "/ryuk info        → tungkol sa akin"
+    "/ryuk on          → simulan",
+    "/ryuk off         → itigil",
+    "/ryuk setnick [pangalan] → palitan palayaw",
+    "/ryuk setgname [pangalan] → palitan gc name",
+    "/ryuk welcome     → settings ng welcome",
+    "/ryuk autowelcome on/off → buksan/isara welcome",
+    "/ryuk setwelcome [mensahe] → baguhin ang welcome message",
+    "/ryuk status      → tignan kalagayan"
   ].join("\n"), threadID, messageID);
 };
-  
