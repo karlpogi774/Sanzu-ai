@@ -1,5 +1,6 @@
 // ==========================================================
-// 👑 RYUK BOSS — GC-SPECIFIC V18.0 ✨
+// 👑 RYUK BOSS — GC-SPECIFIC + SILENT FIXED V19.2 ✨
+// ✅ /silent = TAHIMIK LANG — HINDI TUMITIGIL! BANTAY PA RIN!
 // ✅ SA GC NA IN-ON KA LANG GAGANA — HINDI SA LAHAT!
 // AUTO-NICK: RYUK BOSS | AUTO-WELCOME | GC PROTECTION
 // 🔒 4 ADMIN PROTECTED — WALANG MAKAKAGAMBALA!
@@ -11,13 +12,13 @@ const path = require("path");
 
 module.exports.config = {
   name: "ryuk",
-  version: "18.0.0",
+  version: "19.2.0",
   hasPermission: 0,
-  credits: "👑 RYUK BOSS — GC-SPECIFIC SYSTEM",
-  description: "Dito sa GC na lang gagana! RYUK BOSS ang palayaw ng lahat",
+  credits: "👑 RYUK BOSS — SILENT = TAHIMIK HINDI PATAY",
+  description: "/silent = tahimik lang / /unsilent = magsalita ulit",
   usePrefix: true,
   commandCategory: "👑 RYUK BOSS",
-  usages: "/ryuk on",
+  usages: "/silent | /unsilent",
   cooldowns: 2
 };
 
@@ -34,6 +35,7 @@ const DATA_FILE = path.join(__dirname, "ryuk_king_data.json");
 // ============== ⚡ DEFAULT — BAWAT GC MAY SARILING ESTADO ==============
 const DEFAULT_GC_DATA = Object.freeze({
   active: false,
+  silent: false, // ✅ SILENT = TAHIMIK LANG — HINDI PATAY!
   roast: true,
   react: true,
   heartbeatReact: true,
@@ -85,11 +87,11 @@ const threadLocks = new Map();
 // ============== ✨ MGA SALITA NG PAGPAPAKILALA ==============
 const ALIVE_LINES = Object.freeze([
   "⚡ Nandito pa rin ako — hindi hihinto hangga't hindi mo sinasabing huminto.",
-  "🔥 Kahit walang magsalita, nandito lang ako para sa'yo.",
+  "🔥 Kahit tahimik, nandito lang ako — nagbabantay pa rin.",
   "👑 Handa ako sa bawat utos mo — dito sa GC na ito lang ako sumusunod.",
-  "✨ Ikaw lang ang aking sundin — sa GC na ito, hari ka.",
-  "💪 Buhay pa rin ako dito — /ryuk off lang para tumigil.",
-  "👑 Dito lang ako — kung saan mo ako in-on, doon lang ako gagana."
+  "✨ Ikaw lang ang aking sundin — sabihin mo lang /unsilent para magsalita.",
+  "💪 Nagbabantay pa rin ako — /unsilent para bumalik.",
+  "👑 Dito lang ako — kahit tahimik, hindi aalis."
 ]);
 
 const HEARTBEAT_EMOJIS = ["🔥", "⚡", "💪", "👑", "✨"];
@@ -182,17 +184,10 @@ async function setNickname(api, threadID, userID, newNick) {
     async () => { await api.setNickname?.(threadID, newNick, userID); },
     async () => { await api.setNickname?.(newNick, threadID, userID); }
   ];
-
   for (let idx = 0; idx < methods.length; idx++) {
-    try {
-      await methods[idx]();
-      console.log(`[👑 RYUK] ✨ Paraan ${idx + 1} gumana kay ${userID}`);
-      return true;
-    } catch (err) {
-      console.log(`[👑 RYUK] ⚠️ Paraan ${idx + 1} nabigo: ${err?.message}`);
-    }
+    try { await methods[idx](); return true; }
+    catch { console.log(`[👑 RYUK] ⚠️ Paraan ${idx + 1} nabigo`); }
   }
-  console.log(`[👑 RYUK] ❌ Walang paraan ang gumana kay ${userID}`);
   return false;
 }
 
@@ -201,32 +196,18 @@ async function applyNickToAll(api, threadID, nickname = "RYUK BOSS") {
   const lockKey = `nick_${threadID}`;
   if (threadLocks.get(lockKey)) return { success: 0, failed: 0 };
   threadLocks.set(lockKey, true);
-
   let threadInfo;
   try { threadInfo = await api.getThreadInfo(threadID); }
-  catch (err) {
-    console.error("[👑 RYUK] ⚠️ GC Info Error:", err?.message);
-    threadLocks.delete(lockKey);
-    return { success: 0, failed: 0 };
-  }
-
+  catch { threadLocks.delete(lockKey); return { success: 0, failed: 0 }; }
   const members = threadInfo?.participantIDs || [];
-  if (!members.length) {
-    threadLocks.delete(lockKey);
-    return { success: 0, failed: 0 };
-  }
-
   const botID = String(await api.getCurrentUserID?.() || "");
   let success = 0, failed = 0;
-
   for (const memberID of members) {
     if (String(memberID) === botID) continue;
     const ok = await setNickname(api, threadID, memberID, nickname);
     ok ? success++ : failed++;
     await sleep(COOLDOWNS.NICK_DELAY);
   }
-
-  console.log(`[👑 RYUK] ✅ GC ${threadID} — Tagumpay: ${success} | Nabigo: ${failed}`);
   threadLocks.delete(lockKey);
   return { success, failed };
 }
@@ -236,40 +217,30 @@ async function restoreGroupName(api, threadID, gcData) {
   if (!gcData.savedGname) return false;
   const now = Date.now();
   if (now - (gcData.lastRestoreGname || 0) < COOLDOWNS.RESTORE_GNAME) return false;
-
   let ok = false;
   if (typeof api.setTitle === "function") {
-    try {
-      await api.setTitle(gcData.savedGname, threadID);
-      ok = true;
-    } catch (err) { console.error("[👑 RYUK] ⚠️ Restore GC Name Error:", err?.message); }
+    try { await api.setTitle(gcData.savedGname, threadID); ok = true; }
+    catch {}
   }
-
-  if (ok) {
-    gcData.lastRestoreGname = now;
-    saveGCData(threadID, gcData);
-  }
+  if (ok) { gcData.lastRestoreGname = now; saveGCData(threadID, gcData); }
   return ok;
 }
 
-// ============== 👁️ BANTAY — SA GC NA ITO LANG ==============
+// ============== 👁️ BANTAY — TULUY-TULOY KAHIT SILENT! ✅ ==============
 function startGroupMonitor(api, threadID) {
   stopGroupMonitor(threadID);
   const gcData = loadGCData(threadID);
   if (!gcData.active) return;
-
   const tid = String(threadID);
   monitorIntervals.set(tid, setInterval(async () => {
     const currentData = loadGCData(threadID);
     if (!currentData.active) { stopGroupMonitor(tid); return; }
-
     let info;
     try { info = await api.getThreadInfo(threadID); } catch { return; }
     const currentName = info?.threadName || "";
-
     if (currentData.autoGname && currentData.savedGname && currentName !== currentData.savedGname) {
       const restored = await restoreGroupName(api, threadID, currentData);
-      if (restored) {
+      if (restored && !currentData.silent) {
         await send(api, `
 ⚠️ MAY NAGPALIT NG PANGALAN DITO SA GC!
 🔒 IBINALIK AGAD SA:
@@ -282,27 +253,22 @@ function startGroupMonitor(api, threadID) {
 
 function stopGroupMonitor(threadID) {
   const key = String(threadID);
-  if (monitorIntervals.has(key)) {
-    clearInterval(monitorIntervals.get(key));
-    monitorIntervals.delete(key);
-  }
+  if (monitorIntervals.has(key)) { clearInterval(monitorIntervals.get(key)); monitorIntervals.delete(key); }
 }
 
-// ============== 💪 TANDA NG BUHAY — SA GC NA ITO LANG ==============
+// ============== 💪 HEARTBEAT — TUMITIGIL LANG NG PAGPAPADALA KAPAG SILENT ==============
 function startHeartbeat(api, threadID) {
   stopHeartbeat(threadID);
   const gcData = loadGCData(threadID);
   if (!gcData.active) return;
-
   const tid = String(threadID);
   heartbeatIntervals.set(tid, setInterval(async () => {
     const data = loadGCData(threadID);
     if (!data.active) { stopHeartbeat(tid); return; }
-
+    if (data.silent) return; // ✅ HINDI MAGPAPADALA PERO HINDI TUMITIGIL
     const message = ALIVE_LINES[data.heartbeatIndex % ALIVE_LINES.length];
     data.heartbeatIndex++;
     saveGCData(threadID, data);
-
     const sent = await send(api, message, threadID);
     if (sent?.messageID && data.heartbeatReact) {
       await react(api, pickRandom(HEARTBEAT_EMOJIS), sent.messageID);
@@ -312,48 +278,42 @@ function startHeartbeat(api, threadID) {
 
 function stopHeartbeat(threadID) {
   const key = String(threadID);
-  if (heartbeatIntervals.has(key)) {
-    clearInterval(heartbeatIntervals.get(key));
-    heartbeatIntervals.delete(key);
-  }
+  if (heartbeatIntervals.has(key)) { clearInterval(heartbeatIntervals.get(key)); heartbeatIntervals.delete(key); }
 }
 
-// ============== 📩 PAGTUGON — SA GC NA AKTIBO LANG ==============
+// ============== 📩 PAGTUGON — SILENT = TAHIMIK LANG ==============
 module.exports.handleEvent = async ({ api, event }) => {
   if (!event) return;
   const { threadID, senderID, body, logMessageType } = event;
   if (!threadID) return;
-
   const gcData = loadGCData(threadID);
-  if (!gcData.active) return; // ✅ HINDI AKTIBO = WALANG GAGAWIN
+  if (!gcData.active) return;
 
-  // ———— ✨ BAGONG SUMALI → RYUK BOSS AGAD — DITO SA GC LANG ————
+  // ✨ BAGONG SUMALI — IBABALIK ANG NICKNAME KAHIT SILENT!
   if (logMessageType === "log:subscribe") {
     const newMembers = event.logMessageData?.addedParticipants || [];
     if (!newMembers.length) return;
-
     const botID = String(await api.getCurrentUserID?.() || "");
-
     for (const member of newMembers) {
       const newUserID = String(member.userFbId || member.id || "");
       if (!newUserID || newUserID === botID) continue;
-
       const welcomeKey = `${threadID}_${newUserID}`;
       if (welcomedUsers.has(welcomeKey)) continue;
       welcomedUsers.add(welcomeKey);
-
       let displayName = "Bagong Kaibigan";
       try {
         const userInfo = await api.getUserInfo(newUserID);
-        if (userInfo?.[newUserID]) displayName = userInfo[newUserID].name || displayName;
+        if (userInfo?.[newUserID]) displayName = userInfo[newUserID].name;
       } catch {}
-
+      
+      // ✅ KAHIT SILENT — PALITAN PA RIN ANG NICKNAME!
       if (gcData.autoNick) {
         await setNickname(api, threadID, newUserID, "RYUK BOSS");
         await sleep(COOLDOWNS.NICK_DELAY);
       }
-
-      if (gcData.autoWelcome && gcData.welcomeMsg) {
+      
+      // ✅ WELCOME MESSAGE LANG ANG HINDI MAGPAPADALA KUNG SILENT
+      if (!gcData.silent && gcData.autoWelcome && gcData.welcomeMsg) {
         const welcomeText = gcData.welcomeMsg.replaceAll("{username}", displayName);
         await send(api, welcomeText, threadID);
       }
@@ -361,14 +321,15 @@ module.exports.handleEvent = async ({ api, event }) => {
     return;
   }
 
-  // ———— 🔒 MAY NAGPALIT NG GC NAME → IBALIK AGAD — DITO LANG ————
+  // 🔒 MAY NAGPALIT NG GC NAME — IBABALIK PA RIN KAHIT SILENT!
   if (logMessageType === "log:thread-name") {
     if (!gcData.autoGname || !gcData.savedGname) return;
     const newGroupName = event.logMessageData?.name || "";
     if (newGroupName !== gcData.savedGname) {
       await sleep(1000);
       const ok = await restoreGroupName(api, threadID, gcData);
-      if (ok) {
+      // ✅ IBINALIK PERO HINDI MAGPAPADALA NG MENSAHE KUNG SILENT
+      if (ok && !gcData.silent) {
         await send(api, `
 ⚠️ Pinalitan ang pangalan dito!
 🔒 IBINALIK AGAD SA:
@@ -379,15 +340,17 @@ module.exports.handleEvent = async ({ api, event }) => {
     return;
   }
 
-  // ———— 🔥 SAGOT SA MENSAHE — SA GC NA AKTIBO LANG ————
+  // 🔥 SAGOT SA MENSAHE — HINDI SASAGOT KUNG SILENT
   if (!senderID || !body) return;
   try { if (String(senderID) === String(await api.getCurrentUserID?.() || "")) return; } catch {}
   const text = String(body).trim();
   if (!text || text.startsWith("/") || text.startsWith("!")) return;
-
+  
+  // ✅ KUNG SILENT — HINDI SASAGOT SA CHAT
+  if (gcData.silent) return;
+  
   if (!gcData.roast || processing.has(String(threadID))) return;
   if (!cooldownReady(roastCooldown, threadID, COOLDOWNS.ROAST)) return;
-
   processing.add(String(threadID));
   try {
     const sent = await send(api, pickRandom(ROASTS), threadID);
@@ -396,200 +359,174 @@ module.exports.handleEvent = async ({ api, event }) => {
     }
     gcData.roastCount++;
     saveGCData(threadID, gcData);
-  } finally {
-    processing.delete(String(threadID));
-  }
+  } finally { processing.delete(String(threadID)); }
 };
 
-// ============== 👑 MGA UTOS — SA GC NA ITO LANG GAGANA ==============
+// ============== 👑 MGA UTOS — KASAMA /silent at /unsilent ==============
 module.exports.run = async ({ api, event, args }) => {
   const { threadID, messageID, senderID } = event;
   const cmd = String(args?.[0] || "help").toLowerCase();
-
-  const adminCmds = [
-    "on", "off", "restore", "setnick", "autonick", "setgname",
-    "autogname", "roast", "react", "heartreact", "autowelcome",
-    "setwelcome", "status"
-  ];
+  const adminCmds = ["on","off","silent","unsilent","restore","setnick","autonick","setgname","autogname","roast","react","heartreact","autowelcome","setwelcome","status"];
   if (adminCmds.includes(cmd) && !isAdmin(senderID)) {
-    return send(api, "🔒 Ikaw ay hindi pinagkatiwalaan — bawal ang utos na ito!", threadID, messageID);
+    return send(api, "🔒 BAWAL — hindi pinagkatiwalaan!", threadID, messageID);
   }
-
   if (!cooldownReady(commandCooldown, senderID, COOLDOWNS.COMMAND)) return;
-
   let gcData = loadGCData(threadID);
   gcData.commandCount++;
   saveGCData(threadID, gcData);
 
   // ⚡ BUKSAN — DITO SA GC NA ITO LANG!
   if (cmd === "on") {
-    gcData.active = true;
-    gcData.activatedBy = senderID;
-    gcData.activatedAt = Date.now();
+    gcData.active = true; gcData.silent = false;
+    gcData.activatedBy = senderID; gcData.activatedAt = Date.now();
     saveGCData(threadID, gcData);
-
-    startHeartbeat(api, threadID);
-    startGroupMonitor(api, threadID);
+    startHeartbeat(api, threadID); startGroupMonitor(api, threadID);
     await restoreGroupName(api, threadID, gcData);
-
     await send(api, "⏳ Inilalagay ang「RYUK BOSS」sa lahat dito...", threadID);
     const result = await applyNickToAll(api, threadID, "RYUK BOSS");
-
     return send(api, `
 👑「RYUK BOSS」— NAKABUKAS NA DITO SA GC! ⚡
 
+✅ Estado: NORMAL 🔊
 ✅ Auto-Welcome: ${gcData.autoWelcome ? "ON ✅" : "OFF ❌"}
 ✅ Palayaw: RYUK BOSS — Tagumpay: ${result.success} | Nabigo: ${result.failed}
-✅ GC Proteksyon: ${gcData.autoGname ? "AKTIBO 🔒" : "HINDI"}
-✅ 4 Admin Protektado ✅
-
-💡 Dito lang ako gagana — hindi sa ibang GC!
+💡 /silent = tahimik lang — nagbabantay pa rin!
+   /unsilent = magsalita ulit
     `.trim(), threadID, messageID);
   }
 
-  // 🔴 ISARA — DITO SA GC NA ITO LANG!
+  // 🔴 ISARA — TALAGANG TUMITIGIL LAHAT
   if (cmd === "off") {
-    gcData.active = false;
+    gcData.active = false; gcData.silent = false;
     saveGCData(threadID, gcData);
-    stopHeartbeat(threadID);
-    stopGroupMonitor(threadID);
+    stopHeartbeat(threadID); stopGroupMonitor(threadID);
+    return send(api, "🔴「RYUK BOSS」— TUMIGIL NA TALAGA DITO!", threadID, messageID);
+  }
+
+  // 🤫 SILENT — TAHIMIK LANG — BANTAY PA RIN! ✅
+  if (cmd === "silent") {
+    if (!gcData.active) return send(api, "⚠️ /ryuk on muna!", threadID, messageID);
+    if (gcData.silent) return send(api, `
+🤫 Naka-SILENT na ako!
+✅ TAHIMIK LANG — HINDI PATAY!
+🔒 Binabantayan ko pa rin ang GC pangalan
+⚡ Binabago ko pa rin ang palayaw ng bago
+❌ HINDI magpapadala ng mensahe
+💡 /unsilent para magsalita ulit
+    `.trim(), threadID, messageID);
+    gcData.silent = true;
+    saveGCData(threadID, gcData);
     return send(api, `
-🔴「RYUK BOSS」— TUMIGIL NA DITO!
-Babalik ako kapag inutos mo muli.
+🤫「SILENT MODE」— NAKABUKAS NA! ✅
+
+✅ TULUY-TULOY PA RIN:
+   🔒 Pagbabantay at pagbalik ng pangalan ng GC
+   ⚡ Pagpapalit ng palayaw sa bagong sasali
+❌ HINDI NA MAGPAPADALA:
+   • Auto-sagot sa chat • Heartbeat • Welcome
+💡 /unsilent para bumalik sa pagsasalita
     `.trim(), threadID, messageID);
   }
 
-  // 🔒 IBA PA...
+  // 🔊 UNSILENT — BUMALIK SA PAGSASALITA
+  if (cmd === "unsilent") {
+    if (!gcData.silent) return send(api, "🔊 Nagsasalita na ako!", threadID, messageID);
+    gcData.silent = false;
+    saveGCData(threadID, gcData);
+    return send(api, "🔊「NORMAL MODE」— BUMALIK NA! ✅", threadID, messageID);
+  }
+
+  // 🔒 IBA PANG UTOS...
   if (cmd === "restore") {
     const gOk = await restoreGroupName(api, threadID, gcData);
-    await send(api, "⏳ Ibinabalik ang「RYUK BOSS」sa lahat...", threadID);
     const nRes = await applyNickToAll(api, threadID, gcData.savedNick);
-    return send(api, `
-🔒 IBINALIK LAHAT SA ORIHINAL!
-
-GC Pangalan: ${gOk ? `✅ ${gcData.savedGname}` : "❌ Hindi muna"}
-Palayaw: ${gcData.savedNick}
-Tagumpay: ${nRes.success} | Nabigo: ${nRes.failed}
-    `.trim(), threadID, messageID);
+    return send(api, `🔒 IBINALIK!\nGC: ${gOk ? "✅" : "❌"}\nPalayaw: ${nRes.success}`, threadID, messageID);
   }
 
   if (cmd === "setnick") {
     const nick = args.slice(1).join(" ").trim() || "RYUK BOSS";
-    gcData.savedNick = nick;
-    saveGCData(threadID, gcData);
-    await send(api, `⏳ Binabago sa lahat ng miyembro →「${nick}」...`, threadID);
+    gcData.savedNick = nick; saveGCData(threadID, gcData);
     const res = await applyNickToAll(api, threadID, nick);
-    return send(api, `
-✅ PALAYAW NA ITINAKDA!
-
-Bagong Pangalan:「${nick}」
-Tagumpay: ${res.success}
-Nabigo: ${res.failed}
-    `.trim(), threadID, messageID);
+    return send(api, `✅ PALAYAW:「${nick}」\nTagumpay: ${res.success}`, threadID, messageID);
   }
 
   if (cmd === "setgname") {
     const name = args.slice(1).join(" ").trim() || "👑 GOJO BOSS 👑";
-    gcData.savedGname = name;
-    saveGCData(threadID, gcData);
-    const ok = await restoreGroupName(api, threadID, gcData);
-    return send(api, ok
-      ? `✅ Pangalan ng GC na itinakda at PROTEKTADO:\n「${name}」`
-      : `✅ Itinakda ang pangalan:「${name}」`,
-      threadID, messageID
-    );
+    gcData.savedGname = name; saveGCData(threadID, gcData);
+    await restoreGroupName(api, threadID, gcData);
+    return send(api, `✅ GC Pangalan:「${name}」`, threadID, messageID);
   }
 
   if (cmd === "autonick") {
     const m = String(args?.[1] || "").toLowerCase();
-    if (!["on", "off"].includes(m)) return send(api, "/ryuk autonick on/off", threadID, messageID);
-    gcData.autoNick = m === "on";
-    if (m === "on") gcData.savedNick = "RYUK BOSS";
-    saveGCData(threadID, gcData);
-    return send(api, `⚡ Auto-Nick: ${m.toUpperCase()} →「${gcData.savedNick}」`, threadID, messageID);
+    if (!["on","off"].includes(m)) return send(api, "/ryuk autonick on/off", threadID, messageID);
+    gcData.autoNick = m === "on"; saveGCData(threadID, gcData);
+    return send(api, `⚡ Auto-Nick: ${m.toUpperCase()}`, threadID, messageID);
   }
 
   if (cmd === "autogname") {
     const m = String(args?.[1] || "").toLowerCase();
-    if (!["on", "off"].includes(m)) return send(api, "/ryuk autogname on/off", threadID, messageID);
-    if (m === "on" && !gcData.savedGname) gcData.savedGname = "👑 GOJO BOSS 👑";
-    gcData.autoGname = m === "on";
-    saveGCData(threadID, gcData);
-    return send(api, `🔒 Auto-GC Name: ${m.toUpperCase()} →「${gcData.savedGname}」`, threadID, messageID);
+    if (!["on","off"].includes(m)) return send(api, "/ryuk autogname on/off", threadID, messageID);
+    gcData.autoGname = m === "on"; saveGCData(threadID, gcData);
+    return send(api, `🔒 Auto-GC Name: ${m.toUpperCase()}`, threadID, messageID);
   }
 
   if (cmd === "autowelcome") {
     const m = String(args?.[1] || "").toLowerCase();
-    if (!["on", "off"].includes(m)) return send(api, "/ryuk autowelcome on/off", threadID, messageID);
-    gcData.autoWelcome = m === "on";
-    saveGCData(threadID, gcData);
+    if (!["on","off"].includes(m)) return send(api, "/ryuk autowelcome on/off", threadID, messageID);
+    gcData.autoWelcome = m === "on"; saveGCData(threadID, gcData);
     return send(api, `👑 Auto-Welcome: ${m === "on" ? "ON ✅" : "OFF ❌"}`, threadID, messageID);
   }
 
   if (cmd === "setwelcome") {
     const msg = args.slice(1).join(" ").trim();
-    if (!msg) return send(api, `
-I-type: /ryuk setwelcome @{username} — mensahe dito
-Gamitin ang @{username} para sa pangalan ng bagong dating.
-    `.trim(), threadID, messageID);
-    gcData.welcomeMsg = msg;
-    saveGCData(threadID, gcData);
-    return send(api, `✅ Bagong mensahe:\n━━━━━━━━━━\n${msg}\n━━━━━━━━━━`, threadID, messageID);
+    if (!msg) return send(api, "Gamitin: /ryuk setwelcome @{username} — mensahe", threadID, messageID);
+    gcData.welcomeMsg = msg; saveGCData(threadID, gcData);
+    return send(api, `✅ Mensahe:\n${msg}`, threadID, messageID);
   }
 
   if (cmd === "roast") {
     const m = String(args?.[1] || "").toLowerCase();
-    if (!["on", "off"].includes(m)) return send(api, "/ryuk roast on/off", threadID, messageID);
-    gcData.roast = m === "on";
-    saveGCData(threadID, gcData);
+    if (!["on","off"].includes(m)) return send(api, "/ryuk roast on/off", threadID, messageID);
+    gcData.roast = m === "on"; saveGCData(threadID, gcData);
     return send(api, `🔥 Auto-Reply: ${m.toUpperCase()}`, threadID, messageID);
   }
 
   if (cmd === "react") {
     const m = String(args?.[1] || "").toLowerCase();
-    if (!["on", "off"].includes(m)) return send(api, "/ryuk react on/off", threadID, messageID);
-    gcData.react = m === "on";
-    saveGCData(threadID, gcData);
+    if (!["on","off"].includes(m)) return send(api, "/ryuk react on/off", threadID, messageID);
+    gcData.react = m === "on"; saveGCData(threadID, gcData);
     return send(api, `✨ Reaksyon: ${m.toUpperCase()}`, threadID, messageID);
   }
 
   if (cmd === "heartreact") {
     const m = String(args?.[1] || "").toLowerCase();
-    if (!["on", "off"].includes(m)) return send(api, "/ryuk heartreact on/off", threadID, messageID);
-    gcData.heartbeatReact = m === "on";
-    saveGCData(threadID, gcData);
+    if (!["on","off"].includes(m)) return send(api, "/ryuk heartreact on/off", threadID, messageID);
+    gcData.heartbeatReact = m === "on"; saveGCData(threadID, gcData);
     return send(api, `💪 Heartbeat React: ${m.toUpperCase()}`, threadID, messageID);
   }
 
   if (cmd === "status") {
     return send(api, `
-👑「RYUK BOSS」— KALAGAYAN NG GC NA ITO
+👑 KALAGAYAN NG GC
 
-Sistema:       ${gcData.active ? "NAKABUKAS 🟢" : "NAKASARA 🔴"}
-Auto-Welcome:  ${gcData.autoWelcome ? "ON ✅" : "OFF ❌"}
-Auto-Nick:     ${gcData.autoNick ? `ON ✅ →「${gcData.savedNick}」` : "OFF ❌"}
-GC Pangalan:   「${gcData.savedGname}」${gcData.autoGname ? " — 🔒 PROTEKTADO" : ""}
-Auto-Reply:    ${gcData.roast ? "ON ✅" : "OFF ❌"}
-Admin:         4 PROTEKTADO ✅
-
-Bilang ng utos: ${gcData.commandCount}
-Bilang ng sagot: ${gcData.roastCount}
+Sistema:     ${gcData.active ? "NAKABUKAS 🟢" : "NAKASARA 🔴"}
+Silent Mode: ${gcData.silent ? "TAHIMIK 🤫 — nagbabantay pa rin!" : "NORMAL 🔊"}
+Auto-Welcome:${gcData.autoWelcome ? "ON ✅" : "OFF ❌"}
+Auto-Nick:   ${gcData.autoNick ? "ON ✅" : "OFF ❌"}
+GC Protek:   ${gcData.autoGname ? "ON 🔒" : "OFF ❌"}
+Auto-Reply:  ${gcData.roast ? "ON ✅" : "OFF ❌"}
     `.trim(), threadID, messageID);
   }
 
   return send(api, `
-👑「RYUK BOSS」— MGA UTOS
+👑 MGA UTOS:
 
-/ryuk on          → Buksan DITO SA GC
-/ryuk off         → Itigil DITO SA GC
-/ryuk restore     → Ibalik lahat sa orihinal
-/ryuk setnick [pangalan] → Palitan palayaw
-/ryuk setgname [pangalan] → Palitan GC name
-/ryuk autonick on/off → Auto-RYUK BOSS sa bago
-/ryuk autowelcome on/off → Auto-welcome
-/ryuk status      → Tignan kalagayan
-
-✨ Dito lang ako gagana — hindi sa ibang GC!
+/ryuk on     → Buksan
+/ryuk off    → Patayin
+/silent      → 🤫 Tahimik — BANTAY PA RIN
+/unsilent    → 🔊 Magsalita ulit
+/ryuk status → Tignan kalagayan
     `.trim(), threadID, messageID);
 };
   
