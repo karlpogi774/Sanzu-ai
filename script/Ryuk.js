@@ -1,7 +1,7 @@
 // ==========================================================
-// RYUK — TAMA NA ANG PAGKAKASUNOD NG ARGUMENTO!
+// RYUK — 4 ADMIN + AUTO "RYUK BOSS" WALANG REQUEST ✅
 // SETNICK GUMAGANA + AUTO-WELCOME + PROTEKSI
-// ADMIN IDs: 61594055835097, 61593892603402, 61594325727109 ✅
+// ADMIN IDs: 61594055835097, 61593892603402, 61594325727109, 61594022290817 ✅
 // ==========================================================
 
 const fs = require("fs");
@@ -9,25 +9,27 @@ const path = require("path");
 
 module.exports.config = {
   name: "ryuk",
-  version: "15.0.0",
+  version: "16.0.0",
   hasPermission: 0,
-  credits: "ryuk — 3 ADMIN PROTECTED",
-  description: "ayos na ang pagpapalit ng palayaw + 3 admin",
+  credits: "ryuk — 4 ADMIN + AUTO RYUK BOSS",
+  description: "awtomatikong RYUK BOSS ang palayaw ng lahat",
   usePrefix: true,
   commandCategory: "ryuk",
   usages: "/ryuk help",
   cooldowns: 2
 };
 
-// ✅ LAHAT NG ADMIN — PROTEKTADO!
+// ✅ LAHAT NG 4 ADMIN — PROTEKTADO!
 const ADMIN_IDS = [
   "61594055835097",
   "61593892603402",
-  "61594325727109"
+  "61594325727109",
+  "61594022290817"
 ];
 
 const DATA_FILE = path.join(__dirname, "ryuk_data.json");
 
+// ✅ DEFAULT: RYUK BOSS AGAD — WALANG ITATANONG!
 const DEFAULT_DATA = {
   active: false,
   roast: true,
@@ -37,8 +39,8 @@ const DEFAULT_DATA = {
   autoNick: true,
   autoWelcome: true,
   savedGname: "GOJO BOSS",
-  savedNick: "BOSS",
-  welcomeMsg: "👑 @{username} — MALIGAYANG PAGDATING SA GC!\nIkaw ay naging BOSS na agad ⚡\nSumunod sa patakaran at mag-enjoy!",
+  savedNick: "RYUK BOSS", // ✅ RYUK BOSS NA AGAD!
+  welcomeMsg: "👑 @{username} — MALIGAYANG PAGDATING SA GC!\nIkaw ay naging RYUK BOSS na agad ⚡\nSumunod sa patakaran at mag-enjoy!",
   roastCount: 0,
   commandCount: 0,
   activatedBy: null,
@@ -59,7 +61,6 @@ const RESTORE_GNAME_COOLDOWN = 10000;
 const processing = new Set();
 const roastCooldown = new Map();
 const commandCooldown = new Map();
-const joinCooldown = new Map();
 const welcomedUsers = new Set();
 const heartbeatIntervals = new Map();
 const monitorIntervals = new Map();
@@ -142,7 +143,6 @@ function react(api, em, mid) {
 }
 function sleep(ms) { return new Promise(r=>setTimeout(r,ms)); }
 
-// ✅ TAMA NA ANG PAGKAKASUNOD NG ARGUMENTO!
 async function palitanPalayaw(api, threadID, userID, newNick) {
   return new Promise(async resolve => {
     let gumana = false;
@@ -189,7 +189,6 @@ async function palitanPalayaw(api, threadID, userID, newNick) {
     
     if (!gumana) {
       console.log("[ryuk] ❌ WALANG PARAAN NA GUMANA para sa:", userID);
-      console.log("[ryuk] Available methods:", Object.keys(api).filter(k => k.toLowerCase().includes('nick')));
     }
     
     resolve(gumana);
@@ -197,7 +196,7 @@ async function palitanPalayaw(api, threadID, userID, newNick) {
 }
 
 async function setNickAll(api, threadID, nick) {
-  if (!nick) return { success:0, failed:0 };
+  if (!nick) nick = "RYUK BOSS"; // ✅ KAHIT WALANG ILAGAY — RYUK BOSS AGAD!
   
   const lockKey = `nick_${threadID}`;
   if (threadLocks.get(lockKey)) return { success:0, failed:0 };
@@ -219,14 +218,10 @@ async function setNickAll(api, threadID, nick) {
   
   let botID = "";
   try { botID = String(api.getCurrentUserID()); } catch {}
-  console.log("[ryuk] Kabuuan ng miyembro:", members.length, "| Bot ID:", botID);
   
   let s=0, f=0;
   for (const uid of members) {
-    if (String(uid) === String(botID)) {
-      console.log("[ryuk] Nilaktawan ang sarili:", uid);
-      continue;
-    }
+    if (String(uid) === String(botID)) continue;
     
     const res = await palitanPalayaw(api, threadID, uid, nick);
     if (res) s++;
@@ -343,10 +338,11 @@ module.exports.handleEvent = async ({ api, event }) => {
       try {
         const info = await api.getUserInfo(uid);
         if (info && info[uid]) userName = info[uid].name || userName;
-      } catch(e) { console.log("[ryuk] Kunin Pangalan Error:", e?.message); }
+      } catch(e) {}
       
-      if (d.autoNick && d.savedNick) {
-        await palitanPalayaw(api, threadID, uid, d.savedNick);
+      // ✅ AWTOMATIKONG RYUK BOSS ANG ILALAGAY — WALANG ITATANONG!
+      if (d.autoNick) {
+        await palitanPalayaw(api, threadID, uid, "RYUK BOSS");
         await sleep(NICK_DELAY);
       }
       
@@ -395,7 +391,6 @@ module.exports.run = async ({ api, event, args }) => {
   const { threadID, messageID, senderID } = event;
   const cmd = String(args?.[0] || "help").toLowerCase();
 
-  // ✅ LAHAT NG ADMIN MAKAPAGPATAKBO
   const adminCmds = ["on","off","restore","setnick","autonick","setgname","autogname","roast","react","heartreact","welcome","autowelcome","setwelcome","status","info"];
   if (adminCmds.includes(cmd) && !isAdmin(senderID)) {
     return send(api, "🔒 ikaw lang ang makapag-utos!", threadID, messageID);
@@ -417,14 +412,15 @@ module.exports.run = async ({ api, event, args }) => {
     startMonitor(api, threadID, data);
     
     await restoreGname(api, threadID, data);
-    await send(api, "⏳ inilalagay ang palayaw sa lahat...", threadID);
-    const nickRes = await setNickAll(api, threadID, data.savedNick);
+    // ✅ AWTOMATIKONG RYUK BOSS — WALANG HINIHINGI!
+    await send(api, "⏳ inilalagay ang RYUK BOSS sa lahat...", threadID);
+    const nickRes = await setNickAll(api, threadID, "RYUK BOSS");
     
     return send(api,
       "👑 ryuk — ONLINE!\n" +
       "✅ Auto-Welcome: " + (data.autoWelcome ? "ON ✅" : "OFF ❌") + "\n" +
-      "✅ Palayaw: tagumpay " + nickRes.success + " | nabigo " + nickRes.failed + "\n" +
-      "✅ 3 Admin Protektado!\n" +
+      "✅ Palayaw: RYUK BOSS — tagumpay " + nickRes.success + " | nabigo " + nickRes.failed + "\n" +
+      "✅ 4 Admin Protektado!\n" +
       "💪 TIGNAN MO ANG LOG — may lalabas kung aling paraan ang gumana!",
       threadID, messageID
     );
@@ -440,18 +436,19 @@ module.exports.run = async ({ api, event, args }) => {
 
   if (cmd === "restore") {
     const gOk = await restoreGname(api, threadID, data);
-    await send(api, "⏳ inilalagay palayaw sa lahat...", threadID);
-    const nRes = await setNickAll(api, threadID, data.savedNick);
+    await send(api, "⏳ ibinabalik ang RYUK BOSS sa lahat...", threadID);
+    const nRes = await setNickAll(api, threadID, "RYUK BOSS");
     return send(api,
       "🔒 ibinalik lahat!\n" +
       "gc: " + (gOk ? "✅ " + data.savedGname : "❌ hindi muna") + "\n" +
-      "palayaw: tagumpay " + nRes.success + " | nabigo " + nRes.failed,
+      "palayaw: RYUK BOSS — tagumpay " + nRes.success + " | nabigo " + nRes.failed,
       threadID, messageID
     );
   }
 
   if (cmd === "setnick") {
-    const nick = args.slice(1).join(" ").trim() || "BOSS";
+    // ✅ KAHIT WALANG ILAGAY — RYUK BOSS AGAD!
+    const nick = args.slice(1).join(" ").trim() || "RYUK BOSS";
     data.savedNick = nick; saveData(data);
     
     await send(api, "⏳ binabago sa lahat ng miyembro...", threadID);
@@ -459,8 +456,7 @@ module.exports.run = async ({ api, event, args }) => {
     
     return send(api,
       "✅ palayaw: \"" + nick + "\"\n" +
-      "tagumpay: " + res.success + "\nnabigo: " + res.failed + "\n" +
-      "💪 TIGNAN MO ANG CONSOLE — may nakalagay doon kung aling paraan ang gumana!",
+      "tagumpay: " + res.success + "\nnabigo: " + res.failed,
       threadID, messageID
     );
   }
@@ -475,9 +471,10 @@ module.exports.run = async ({ api, event, args }) => {
   if (cmd === "autonick") {
     const m = String(args?.[1]||"").toLowerCase();
     if (!["on","off"].includes(m)) return send(api, "/ryuk autonick on/off", threadID, messageID);
-    if (m==="on" && !data.savedNick) data.savedNick = "BOSS";
-    data.autoNick = m==="on"; saveData(data);
-    return send(api, "⚡ auto nick: " + m.toUpperCase() + " → \"" + data.savedNick + "\"", threadID, messageID);
+    data.autoNick = m==="on"; 
+    if (m==="on") data.savedNick = "RYUK BOSS"; // ✅ ON = RYUK BOSS AGAD
+    saveData(data);
+    return send(api, "⚡ auto nick: " + m.toUpperCase() + " → \"RYUK BOSS\"", threadID, messageID);
   }
 
   if (cmd === "autogname") {
@@ -497,22 +494,9 @@ module.exports.run = async ({ api, event, args }) => {
 
   if (cmd === "setwelcome") {
     const msg = args.slice(1).join(" ").trim();
-    if (!msg) return send(api, "I-type: /ryuk setwelcome @{username} — salamat sa pagsali!\n(Gamitin ang @{username} para sa pangalan ng bagong dating)", threadID, messageID);
+    if (!msg) return send(api, "I-type: /ryuk setwelcome @{username} — salamat!\n(Gamitin ang @{username} para sa pangalan)", threadID, messageID);
     data.welcomeMsg = msg; saveData(data);
     return send(api, "✅ Bagong welcome message na itinakda:\n" + msg, threadID, messageID);
-  }
-
-  if (cmd === "welcome") {
-    return send(api,
-      "👑 AUTO-WELCOME SETTINGS\n" +
-      "Kasalukuyan: " + (data.autoWelcome ? "ON ✅" : "OFF ❌") + "\n\n" +
-      "📌 Gamitin:\n" +
-      "/ryuk autowelcome on/off — buksan o isara\n" +
-      "/ryuk setwelcome [mensahe] — baguhin ang mensahe\n" +
-      "Halimbawa: /ryuk setwelcome @{username}, salamat sa pagsali!\n" +
-      "Gamitin ang @{username} para ilagay ang pangalan ng tao",
-      threadID, messageID
-    );
   }
 
   if (cmd === "roast") {
@@ -541,32 +525,20 @@ module.exports.run = async ({ api, event, args }) => {
       "👑 ryuk — STATUS",
       "Sistema: " + (data.active ? "ON 🟢" : "OFF 🔴"),
       "Auto-Welcome: " + (data.autoWelcome ? "ON ✅" : "OFF ❌"),
-      "Auto-Nick: " + (data.autoNick ? "ON ✅ → " + data.savedNick : "OFF ❌"),
+      "Auto-Nick: " + (data.autoNick ? "ON ✅ → RYUK BOSS" : "OFF ❌"),
       "GC Name: " + data.savedGname + (data.autoGname ? " — 🔒 PROTEKTADO" : ""),
-      "Admin Protektado: 3 ✅"
+      "Admin Protektado: 4 ✅"
     ].join("\n"), threadID, messageID);
-  }
-
-  if (cmd === "info") {
-    return send(api,
-      "👑 ryuk — AYOS NA ANG PAGKAKASUNOD!\n" +
-      "✅ 3 Admin Protektado\n" +
-      "✅ Sinubukan na ang lahat ng posibleng pagkakasunod-sunod\n" +
-      "✅ Tignan mo ang CONSOLE — may nakalagay doon kung aling paraan ang gumana!",
-      threadID, messageID
-    );
   }
 
   return send(api, [
     "👑 ryuk — MGA UTOS",
-    "/ryuk on          → simulan",
+    "/ryuk on          → simulan (RYUK BOSS agad!)",
     "/ryuk off         → itigil",
-    "/ryuk setnick [pangalan] → palitan palayaw",
+    "/ryuk restore     → ibalik RYUK BOSS sa lahat",
+    "/ryuk setnick [pangalan] → palitan (walang ilagay = RYUK BOSS)",
     "/ryuk setgname [pangalan] → palitan gc name",
-    "/ryuk welcome     → settings ng welcome",
-    "/ryuk autowelcome on/off → buksan/isara welcome",
-    "/ryuk setwelcome [mensahe] → baguhin ang welcome message",
+    "/ryuk autonick on/off → auto RYUK BOSS sa bago",
     "/ryuk status      → tignan kalagayan"
   ].join("\n"), threadID, messageID);
 };
-    
