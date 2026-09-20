@@ -1,6 +1,8 @@
 // ==========================================================
-// RYUK — 4 ADMIN + AUTO "RYUK BOSS" WALANG REQUEST ✅
-// SETNICK GUMAGANA + AUTO-WELCOME + PROTEKSI
+// 👑 RYUK BOSS — GC-SPECIFIC V18.0 ✨
+// ✅ SA GC NA IN-ON KA LANG GAGANA — HINDI SA LAHAT!
+// AUTO-NICK: RYUK BOSS | AUTO-WELCOME | GC PROTECTION
+// 🔒 4 ADMIN PROTECTED — WALANG MAKAKAGAMBALA!
 // ADMIN IDs: 61594055835097, 61593892603402, 61594325727109, 61594022290817 ✅
 // ==========================================================
 
@@ -9,28 +11,28 @@ const path = require("path");
 
 module.exports.config = {
   name: "ryuk",
-  version: "16.0.0",
+  version: "18.0.0",
   hasPermission: 0,
-  credits: "ryuk — 4 ADMIN + AUTO RYUK BOSS",
-  description: "awtomatikong RYUK BOSS ang palayaw ng lahat",
+  credits: "👑 RYUK BOSS — GC-SPECIFIC SYSTEM",
+  description: "Dito sa GC na lang gagana! RYUK BOSS ang palayaw ng lahat",
   usePrefix: true,
-  commandCategory: "ryuk",
-  usages: "/ryuk help",
+  commandCategory: "👑 RYUK BOSS",
+  usages: "/ryuk on",
   cooldowns: 2
 };
 
-// ✅ LAHAT NG 4 ADMIN — PROTEKTADO!
-const ADMIN_IDS = [
+// ============== 🔒 MGA PINAGKATIWALAAN — WALANG TATAPAT 🔒 ==============
+const ADMIN_IDS = Object.freeze([
   "61594055835097",
   "61593892603402",
   "61594325727109",
   "61594022290817"
-];
+]);
 
-const DATA_FILE = path.join(__dirname, "ryuk_data.json");
+const DATA_FILE = path.join(__dirname, "ryuk_king_data.json");
 
-// ✅ DEFAULT: RYUK BOSS AGAD — WALANG ITATANONG!
-const DEFAULT_DATA = {
+// ============== ⚡ DEFAULT — BAWAT GC MAY SARILING ESTADO ==============
+const DEFAULT_GC_DATA = Object.freeze({
   active: false,
   roast: true,
   react: true,
@@ -38,9 +40,19 @@ const DEFAULT_DATA = {
   autoGname: true,
   autoNick: true,
   autoWelcome: true,
-  savedGname: "GOJO BOSS",
-  savedNick: "RYUK BOSS", // ✅ RYUK BOSS NA AGAD!
-  welcomeMsg: "👑 @{username} — MALIGAYANG PAGDATING SA GC!\nIkaw ay naging RYUK BOSS na agad ⚡\nSumunod sa patakaran at mag-enjoy!",
+  savedGname: "👑 GOJO BOSS 👑",
+  savedNick: "RYUK BOSS",
+  welcomeMsg: `
+╭ ╭─────────────────────╮
+ │ 👑 MALIGAYANG PAGDATING 👑
+ │    @{username}
+ │
+ │ Ikaw ay naging 「RYUK BOSS」na ⚡
+ │ Sumunod sa batas, maging tapat
+ │ Dito — HARI ang nasusunod 👑
+ ╰───────────────────── ╮
+ ╰─➤  RYUK GNM LVL 9999
+  `.trim(),
   roastCount: 0,
   commandCount: 0,
   activatedBy: null,
@@ -48,16 +60,20 @@ const DEFAULT_DATA = {
   heartbeatIndex: 0,
   lastRestoreGname: 0,
   lastNickUpdate: 0
-};
+});
 
-const ROAST_COOLDOWN = 8000;
-const COMMAND_COOLDOWN = 2500;
-const JOIN_COOLDOWN = 3000;
-const HEARTBEAT_INTERVAL = 20000;
-const MONITOR_INTERVAL = 5000;
-const NICK_DELAY = 1000;
-const RESTORE_GNAME_COOLDOWN = 10000;
+// ============== ⚡ MGA PAGKAKATINIG NG ORAS ==============
+const COOLDOWNS = Object.freeze({
+  ROAST: 8000,
+  COMMAND: 2500,
+  JOIN: 3000,
+  HEARTBEAT: 20000,
+  MONITOR: 5000,
+  NICK_DELAY: 1000,
+  RESTORE_GNAME: 10000
+});
 
+// ============== 🔄 MGA TAGAPAG-INGAT — BAWAT GC MAY SARILING ==============
 const processing = new Set();
 const roastCooldown = new Map();
 const commandCooldown = new Map();
@@ -66,479 +82,514 @@ const heartbeatIntervals = new Map();
 const monitorIntervals = new Map();
 const threadLocks = new Map();
 
-const ALIVE_LINES = [
-  "nandito pa rin ako, hindi hihinto hangga't hindi mo sinasabing huminto.",
-  "kahit walang magsalita, nandito lang ako para sa'yo.",
-  "handa ako sa bawat utos mo — sabihin mo lang at gagawin ko agad.",
-  "ikaw lang ang aking sundin — sa iba hindi ako makikinig.",
-  "buhay pa rin ako dito — sabihin mo lang /ryuk off para tumigil.",
-  "hindi ako bibitaw — mananatili ako hangga't ikaw ang nandito."
-];
+// ============== ✨ MGA SALITA NG PAGPAPAKILALA ==============
+const ALIVE_LINES = Object.freeze([
+  "⚡ Nandito pa rin ako — hindi hihinto hangga't hindi mo sinasabing huminto.",
+  "🔥 Kahit walang magsalita, nandito lang ako para sa'yo.",
+  "👑 Handa ako sa bawat utos mo — dito sa GC na ito lang ako sumusunod.",
+  "✨ Ikaw lang ang aking sundin — sa GC na ito, hari ka.",
+  "💪 Buhay pa rin ako dito — /ryuk off lang para tumigil.",
+  "👑 Dito lang ako — kung saan mo ako in-on, doon lang ako gagana."
+]);
 
 const HEARTBEAT_EMOJIS = ["🔥", "⚡", "💪", "👑", "✨"];
-const ROASTS = [
-  "grabe yung lakas ng loob mag-send 💀",
-  "anong sinabi mo? ulitin mo nga 🤣",
-  "ryuk — gojo boss ⚡"
-];
-const EMOJIS = ["🔥", "💀", "🤣", "😆", "🤡"];
+const ROASTS = Object.freeze([
+  "💀 Grabe yung lakas ng loob mag-send dito...",
+  "🤣 Anong sinabi mo? Ulitin mo nga, hindi ko narinig...",
+  "👑 RYUK — GOJO BOSS ⚡",
+  "😂 Tapos ka na ba? Wala kang tatalo dito sa GC...",
+  "🔥 Subukan mo pa — hindi ka mananalo sa akin dito."
+]);
+const EMOJIS = ["🔥", "💀", "🤣", "😆", "👑", "✨"];
 
-function loadData() {
+// ============== 📂 TALAAN — BAWAT GC MAY SARILING DATA ==============
+function loadAllData() {
   try {
     if (!fs.existsSync(DATA_FILE)) {
-      saveData({ ...DEFAULT_DATA });
-      return { ...DEFAULT_DATA };
+      fs.writeFileSync(DATA_FILE, "{}", "utf8");
+      return {};
     }
-    const parsed = JSON.parse(fs.readFileSync(DATA_FILE, "utf8"));
-    const fixed = { ...DEFAULT_DATA };
-    for (const k in DEFAULT_DATA) {
-      if (parsed[k] !== undefined) fixed[k] = parsed[k];
-    }
-    return fixed;
-  } catch (e) {
-    console.error("[ryuk] load error:", e?.message);
-    return { ...DEFAULT_DATA };
+    return JSON.parse(fs.readFileSync(DATA_FILE, "utf8"));
+  } catch (err) {
+    console.error("[👑 RYUK] ⚠️ Load error:", err?.message);
+    return {};
   }
 }
 
-function saveData(data) {
+function saveAllData(allData) {
   try {
-    const temp = DATA_FILE + ".tmp";
-    fs.writeFileSync(temp, JSON.stringify(data, null, 2), "utf8");
+    const temp = `${DATA_FILE}.tmp`;
+    fs.writeFileSync(temp, JSON.stringify(allData, null, 2), "utf8");
     fs.renameSync(temp, DATA_FILE);
     return true;
-  } catch (e) {
-    console.error("[ryuk] save error:", e?.message);
+  } catch (err) {
+    console.error("[👑 RYUK] ⚠️ Save error:", err?.message);
     return false;
   }
 }
 
-function isAdmin(id) { return ADMIN_IDS.includes(String(id)); }
-function random(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
-function cooldownReady(map, key, dur) {
+function loadGCData(threadID) {
+  const allData = loadAllData();
+  const tid = String(threadID);
+  if (!allData[tid]) allData[tid] = { ...DEFAULT_GC_DATA };
+  return { ...DEFAULT_GC_DATA, ...allData[tid] };
+}
+
+function saveGCData(threadID, gcData) {
+  const allData = loadAllData();
+  allData[String(threadID)] = gcData;
+  return saveAllData(allData);
+}
+
+// ============== 🛡️ MGA TULONG NA GAWAIN ==============
+const isAdmin = (id) => ADMIN_IDS.includes(String(id));
+const pickRandom = (arr) => arr[Math.floor(Math.random() * arr.length)];
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+function cooldownReady(map, key, duration) {
   const now = Date.now();
   const k = String(key);
-  const last = map.get(k) || 0;
-  if (now - last < dur) return false;
+  const lastUsed = map.get(k) || 0;
+  if (now - lastUsed < duration) return false;
   map.set(k, now);
   return true;
 }
-function send(api, msg, tid, rid=null) {
-  return new Promise(r => {
-    if (!api || !tid || !msg) return r(null);
-    try { api.sendMessage(msg, tid, (e,i)=>r(e?null:i), rid); }
-    catch { r(null); }
+
+function send(api, message, threadID, messageID = null) {
+  return new Promise(resolve => {
+    if (!api || !threadID || !message) return resolve(null);
+    try { api.sendMessage(message, threadID, (_, i) => resolve(i), messageID); }
+    catch { resolve(null); }
   });
 }
-function react(api, em, mid) {
-  return new Promise(r => {
-    if (!api || !mid || !em) return r(false);
-    try { 
+
+function react(api, emoji, messageID) {
+  return new Promise(resolve => {
+    if (!api || !messageID || !emoji) return resolve(false);
+    try {
       if (typeof api.setMessageReaction === "function") {
-        api.setMessageReaction(em, mid, ()=>r(true), true); 
-      } else { r(false); }
-    }
-    catch { r(false); }
-  });
-}
-function sleep(ms) { return new Promise(r=>setTimeout(r,ms)); }
-
-async function palitanPalayaw(api, threadID, userID, newNick) {
-  return new Promise(async resolve => {
-    let gumana = false;
-    
-    if (!gumana && typeof api.changeNickname === "function") {
-      try {
-        await api.changeNickname(threadID, newNick, userID);
-        gumana = true;
-        console.log("[ryuk] ✅ Paraan 1 gumana para sa:", userID);
-      } catch(e) { 
-        console.log("[ryuk] Paraan 1 nabigo:", e?.message);
-      }
-    }
-    
-    if (!gumana && typeof api.changeNickname === "function") {
-      try {
-        await api.changeNickname(newNick, threadID, userID);
-        gumana = true;
-        console.log("[ryuk] ✅ Paraan 2 gumana para sa:", userID);
-      } catch(e) { 
-        console.log("[ryuk] Paraan 2 nabigo:", e?.message);
-      }
-    }
-    
-    if (!gumana && typeof api.setNickname === "function") {
-      try {
-        await api.setNickname(threadID, newNick, userID);
-        gumana = true;
-        console.log("[ryuk] ✅ Paraan 3 gumana para sa:", userID);
-      } catch(e) { 
-        console.log("[ryuk] Paraan 3 nabigo:", e?.message);
-      }
-    }
-    
-    if (!gumana && typeof api.setNickname === "function") {
-      try {
-        await api.setNickname(newNick, threadID, userID);
-        gumana = true;
-        console.log("[ryuk] ✅ Paraan 4 gumana para sa:", userID);
-      } catch(e) { 
-        console.log("[ryuk] Paraan 4 nabigo:", e?.message);
-      }
-    }
-    
-    if (!gumana) {
-      console.log("[ryuk] ❌ WALANG PARAAN NA GUMANA para sa:", userID);
-    }
-    
-    resolve(gumana);
+        api.setMessageReaction(emoji, messageID, () => resolve(true), true);
+      } else { resolve(false); }
+    } catch { resolve(false); }
   });
 }
 
-async function setNickAll(api, threadID, nick) {
-  if (!nick) nick = "RYUK BOSS"; // ✅ KAHIT WALANG ILAGAY — RYUK BOSS AGAD!
-  
-  const lockKey = `nick_${threadID}`;
-  if (threadLocks.get(lockKey)) return { success:0, failed:0 };
-  threadLocks.set(lockKey, true);
-  
-  let info;
-  try { info = await api.getThreadInfo(threadID); } 
-  catch (e) { 
-    console.log("[ryuk] GC Info Error:", e?.message);
-    threadLocks.delete(lockKey);
-    return { success:0, failed:0 }; 
+// ============== ✨ PALIT NG PALAYAW — LAHAT NG PARAAN ==============
+async function setNickname(api, threadID, userID, newNick) {
+  const methods = [
+    async () => { await api.changeNickname?.(threadID, newNick, userID); },
+    async () => { await api.changeNickname?.(newNick, threadID, userID); },
+    async () => { await api.setNickname?.(threadID, newNick, userID); },
+    async () => { await api.setNickname?.(newNick, threadID, userID); }
+  ];
+
+  for (let idx = 0; idx < methods.length; idx++) {
+    try {
+      await methods[idx]();
+      console.log(`[👑 RYUK] ✨ Paraan ${idx + 1} gumana kay ${userID}`);
+      return true;
+    } catch (err) {
+      console.log(`[👑 RYUK] ⚠️ Paraan ${idx + 1} nabigo: ${err?.message}`);
+    }
   }
-  
-  const members = info?.participantIDs || [];
+  console.log(`[👑 RYUK] ❌ Walang paraan ang gumana kay ${userID}`);
+  return false;
+}
+
+// ============== 👑 ILAGAY ANG RYUK BOSS — DITO SA GC LANG ==============
+async function applyNickToAll(api, threadID, nickname = "RYUK BOSS") {
+  const lockKey = `nick_${threadID}`;
+  if (threadLocks.get(lockKey)) return { success: 0, failed: 0 };
+  threadLocks.set(lockKey, true);
+
+  let threadInfo;
+  try { threadInfo = await api.getThreadInfo(threadID); }
+  catch (err) {
+    console.error("[👑 RYUK] ⚠️ GC Info Error:", err?.message);
+    threadLocks.delete(lockKey);
+    return { success: 0, failed: 0 };
+  }
+
+  const members = threadInfo?.participantIDs || [];
   if (!members.length) {
     threadLocks.delete(lockKey);
-    return { success:0, failed:0 };
+    return { success: 0, failed: 0 };
   }
-  
-  let botID = "";
-  try { botID = String(api.getCurrentUserID()); } catch {}
-  
-  let s=0, f=0;
-  for (const uid of members) {
-    if (String(uid) === String(botID)) continue;
-    
-    const res = await palitanPalayaw(api, threadID, uid, nick);
-    if (res) s++;
-    else f++;
-    
-    await sleep(NICK_DELAY);
+
+  const botID = String(await api.getCurrentUserID?.() || "");
+  let success = 0, failed = 0;
+
+  for (const memberID of members) {
+    if (String(memberID) === botID) continue;
+    const ok = await setNickname(api, threadID, memberID, nickname);
+    ok ? success++ : failed++;
+    await sleep(COOLDOWNS.NICK_DELAY);
   }
-  
-  console.log(`[ryuk] KABUUAN — Tagumpay: ${s} | Nabigo: ${f}`);
+
+  console.log(`[👑 RYUK] ✅ GC ${threadID} — Tagumpay: ${success} | Nabigo: ${failed}`);
   threadLocks.delete(lockKey);
-  return { success:s, failed:f };
+  return { success, failed };
 }
 
-async function restoreGname(api, threadID, data) {
-  if (!data.savedGname) return false;
+// ============== 🔒 IBALIK ANG PANGALAN NG GC ==============
+async function restoreGroupName(api, threadID, gcData) {
+  if (!gcData.savedGname) return false;
   const now = Date.now();
-  if (now - (data.lastRestoreGname || 0) < RESTORE_GNAME_COOLDOWN) return false;
-  
+  if (now - (gcData.lastRestoreGname || 0) < COOLDOWNS.RESTORE_GNAME) return false;
+
   let ok = false;
   if (typeof api.setTitle === "function") {
     try {
-      await api.setTitle(data.savedGname, threadID);
+      await api.setTitle(gcData.savedGname, threadID);
       ok = true;
-    } catch(e) { console.log("[ryuk] setTitle error:", e?.message); }
+    } catch (err) { console.error("[👑 RYUK] ⚠️ Restore GC Name Error:", err?.message); }
   }
-  
+
   if (ok) {
-    data.lastRestoreGname = now;
-    saveData(data);
+    gcData.lastRestoreGname = now;
+    saveGCData(threadID, gcData);
   }
   return ok;
 }
 
-function startMonitor(api, threadID, data) {
-  stopMonitor(threadID);
-  if (!data.active) return;
-  
+// ============== 👁️ BANTAY — SA GC NA ITO LANG ==============
+function startGroupMonitor(api, threadID) {
+  stopGroupMonitor(threadID);
+  const gcData = loadGCData(threadID);
+  if (!gcData.active) return;
+
   const tid = String(threadID);
   monitorIntervals.set(tid, setInterval(async () => {
-    const d = loadData();
-    if (!d.active) { stopMonitor(tid); return; }
-    
+    const currentData = loadGCData(threadID);
+    if (!currentData.active) { stopGroupMonitor(tid); return; }
+
     let info;
     try { info = await api.getThreadInfo(threadID); } catch { return; }
-    const current = info?.threadName || "";
-    
-    if (d.autoGname && d.savedGname && current !== d.savedGname) {
-      const ok = await restoreGname(api, threadID, d);
-      if (ok) await send(api, "⚠️ may nagpalit!\n🔒 ibinalik agad sa: " + d.savedGname, threadID);
+    const currentName = info?.threadName || "";
+
+    if (currentData.autoGname && currentData.savedGname && currentName !== currentData.savedGname) {
+      const restored = await restoreGroupName(api, threadID, currentData);
+      if (restored) {
+        await send(api, `
+⚠️ MAY NAGPALIT NG PANGALAN DITO SA GC!
+🔒 IBINALIK AGAD SA:
+「${currentData.savedGname}」
+        `.trim(), threadID);
+      }
     }
-  }, MONITOR_INTERVAL));
+  }, COOLDOWNS.MONITOR));
 }
 
-function stopMonitor(tid) {
-  const k = String(tid);
-  if (monitorIntervals.has(k)) {
-    clearInterval(monitorIntervals.get(k));
-    monitorIntervals.delete(k);
+function stopGroupMonitor(threadID) {
+  const key = String(threadID);
+  if (monitorIntervals.has(key)) {
+    clearInterval(monitorIntervals.get(key));
+    monitorIntervals.delete(key);
   }
 }
 
+// ============== 💪 TANDA NG BUHAY — SA GC NA ITO LANG ==============
 function startHeartbeat(api, threadID) {
   stopHeartbeat(threadID);
-  if (!loadData().active) return;
-  
+  const gcData = loadGCData(threadID);
+  if (!gcData.active) return;
+
   const tid = String(threadID);
   heartbeatIntervals.set(tid, setInterval(async () => {
-    const d = loadData();
-    if (!d.active) { stopHeartbeat(tid); return; }
-    
-    const line = ALIVE_LINES[d.heartbeatIndex % ALIVE_LINES.length];
-    d.heartbeatIndex++;
-    saveData(d);
-    
-    const msg = await send(api, line, threadID);
-    if (msg?.messageID && d.heartbeatReact) {
-      await react(api, random(HEARTBEAT_EMOJIS), msg.messageID);
+    const data = loadGCData(threadID);
+    if (!data.active) { stopHeartbeat(tid); return; }
+
+    const message = ALIVE_LINES[data.heartbeatIndex % ALIVE_LINES.length];
+    data.heartbeatIndex++;
+    saveGCData(threadID, data);
+
+    const sent = await send(api, message, threadID);
+    if (sent?.messageID && data.heartbeatReact) {
+      await react(api, pickRandom(HEARTBEAT_EMOJIS), sent.messageID);
     }
-  }, HEARTBEAT_INTERVAL));
+  }, COOLDOWNS.HEARTBEAT));
 }
 
-function stopHeartbeat(tid) {
-  const k = String(tid);
-  if (heartbeatIntervals.has(k)) {
-    clearInterval(heartbeatIntervals.get(k));
-    heartbeatIntervals.delete(k);
+function stopHeartbeat(threadID) {
+  const key = String(threadID);
+  if (heartbeatIntervals.has(key)) {
+    clearInterval(heartbeatIntervals.get(key));
+    heartbeatIntervals.delete(key);
   }
 }
 
+// ============== 📩 PAGTUGON — SA GC NA AKTIBO LANG ==============
 module.exports.handleEvent = async ({ api, event }) => {
   if (!event) return;
   const { threadID, senderID, body, logMessageType } = event;
   if (!threadID) return;
 
+  const gcData = loadGCData(threadID);
+  if (!gcData.active) return; // ✅ HINDI AKTIBO = WALANG GAGAWIN
+
+  // ———— ✨ BAGONG SUMALI → RYUK BOSS AGAD — DITO SA GC LANG ————
   if (logMessageType === "log:subscribe") {
-    const d = loadData();
-    if (!d.active) return;
-    
-    const added = event.logMessageData?.addedParticipants || [];
-    if (!added.length) return;
-    
-    let botID = "";
-    try { botID = String(api.getCurrentUserID()); } catch {}
-    
-    for (const m of added) {
-      const uid = String(m.userFbId || m.id || "");
-      if (!uid || uid === botID) continue;
-      
-      const welcomeKey = `${threadID}_${uid}`;
+    const newMembers = event.logMessageData?.addedParticipants || [];
+    if (!newMembers.length) return;
+
+    const botID = String(await api.getCurrentUserID?.() || "");
+
+    for (const member of newMembers) {
+      const newUserID = String(member.userFbId || member.id || "");
+      if (!newUserID || newUserID === botID) continue;
+
+      const welcomeKey = `${threadID}_${newUserID}`;
       if (welcomedUsers.has(welcomeKey)) continue;
       welcomedUsers.add(welcomeKey);
-      
-      let userName = "Kaibigan";
+
+      let displayName = "Bagong Kaibigan";
       try {
-        const info = await api.getUserInfo(uid);
-        if (info && info[uid]) userName = info[uid].name || userName;
-      } catch(e) {}
-      
-      // ✅ AWTOMATIKONG RYUK BOSS ANG ILALAGAY — WALANG ITATANONG!
-      if (d.autoNick) {
-        await palitanPalayaw(api, threadID, uid, "RYUK BOSS");
-        await sleep(NICK_DELAY);
+        const userInfo = await api.getUserInfo(newUserID);
+        if (userInfo?.[newUserID]) displayName = userInfo[newUserID].name || displayName;
+      } catch {}
+
+      if (gcData.autoNick) {
+        await setNickname(api, threadID, newUserID, "RYUK BOSS");
+        await sleep(COOLDOWNS.NICK_DELAY);
       }
-      
-      if (d.autoWelcome && d.welcomeMsg) {
-        const welcomeText = d.welcomeMsg.replaceAll("{username}", userName);
+
+      if (gcData.autoWelcome && gcData.welcomeMsg) {
+        const welcomeText = gcData.welcomeMsg.replaceAll("{username}", displayName);
         await send(api, welcomeText, threadID);
       }
     }
     return;
   }
 
+  // ———— 🔒 MAY NAGPALIT NG GC NAME → IBALIK AGAD — DITO LANG ————
   if (logMessageType === "log:thread-name") {
-    const d = loadData();
-    if (!d.active || !d.autoGname || !d.savedGname) return;
-    
-    const newName = event.logMessageData?.name || "";
-    if (newName !== d.savedGname) {
+    if (!gcData.autoGname || !gcData.savedGname) return;
+    const newGroupName = event.logMessageData?.name || "";
+    if (newGroupName !== gcData.savedGname) {
       await sleep(1000);
-      const ok = await restoreGname(api, threadID, d);
-      if (ok) await send(api, "⚠️ pinalitan!\n🔒 ibinalik agad sa: " + d.savedGname, threadID);
+      const ok = await restoreGroupName(api, threadID, gcData);
+      if (ok) {
+        await send(api, `
+⚠️ Pinalitan ang pangalan dito!
+🔒 IBINALIK AGAD SA:
+「${gcData.savedGname}」
+        `.trim(), threadID);
+      }
     }
     return;
   }
 
+  // ———— 🔥 SAGOT SA MENSAHE — SA GC NA AKTIBO LANG ————
   if (!senderID || !body) return;
-  try { if (String(senderID) === String(api.getCurrentUserID())) return; } catch {}
+  try { if (String(senderID) === String(await api.getCurrentUserID?.() || "")) return; } catch {}
   const text = String(body).trim();
   if (!text || text.startsWith("/") || text.startsWith("!")) return;
-  
-  const d = loadData();
-  if (!d.active || !d.roast || processing.has(String(threadID))) return;
-  if (!cooldownReady(roastCooldown, threadID, ROAST_COOLDOWN)) return;
-  
+
+  if (!gcData.roast || processing.has(String(threadID))) return;
+  if (!cooldownReady(roastCooldown, threadID, COOLDOWNS.ROAST)) return;
+
   processing.add(String(threadID));
   try {
-    const info = await send(api, random(ROASTS), threadID);
-    if (info?.messageID && d.react) await react(api, random(EMOJIS), info.messageID);
-    d.roastCount++;
-    saveData(d);
+    const sent = await send(api, pickRandom(ROASTS), threadID);
+    if (sent?.messageID && gcData.react) {
+      await react(api, pickRandom(EMOJIS), sent.messageID);
+    }
+    gcData.roastCount++;
+    saveGCData(threadID, gcData);
   } finally {
     processing.delete(String(threadID));
   }
 };
 
+// ============== 👑 MGA UTOS — SA GC NA ITO LANG GAGANA ==============
 module.exports.run = async ({ api, event, args }) => {
   const { threadID, messageID, senderID } = event;
   const cmd = String(args?.[0] || "help").toLowerCase();
 
-  const adminCmds = ["on","off","restore","setnick","autonick","setgname","autogname","roast","react","heartreact","welcome","autowelcome","setwelcome","status","info"];
+  const adminCmds = [
+    "on", "off", "restore", "setnick", "autonick", "setgname",
+    "autogname", "roast", "react", "heartreact", "autowelcome",
+    "setwelcome", "status"
+  ];
   if (adminCmds.includes(cmd) && !isAdmin(senderID)) {
-    return send(api, "🔒 ikaw lang ang makapag-utos!", threadID, messageID);
+    return send(api, "🔒 Ikaw ay hindi pinagkatiwalaan — bawal ang utos na ito!", threadID, messageID);
   }
 
-  if (!cooldownReady(commandCooldown, senderID, COMMAND_COOLDOWN)) return;
+  if (!cooldownReady(commandCooldown, senderID, COOLDOWNS.COMMAND)) return;
 
-  const data = loadData();
-  data.commandCount++;
-  saveData(data);
+  let gcData = loadGCData(threadID);
+  gcData.commandCount++;
+  saveGCData(threadID, gcData);
 
+  // ⚡ BUKSAN — DITO SA GC NA ITO LANG!
   if (cmd === "on") {
-    data.active = true;
-    data.activatedBy = senderID;
-    data.activatedAt = Date.now();
-    saveData(data);
-    
+    gcData.active = true;
+    gcData.activatedBy = senderID;
+    gcData.activatedAt = Date.now();
+    saveGCData(threadID, gcData);
+
     startHeartbeat(api, threadID);
-    startMonitor(api, threadID, data);
-    
-    await restoreGname(api, threadID, data);
-    // ✅ AWTOMATIKONG RYUK BOSS — WALANG HINIHINGI!
-    await send(api, "⏳ inilalagay ang RYUK BOSS sa lahat...", threadID);
-    const nickRes = await setNickAll(api, threadID, "RYUK BOSS");
-    
-    return send(api,
-      "👑 ryuk — ONLINE!\n" +
-      "✅ Auto-Welcome: " + (data.autoWelcome ? "ON ✅" : "OFF ❌") + "\n" +
-      "✅ Palayaw: RYUK BOSS — tagumpay " + nickRes.success + " | nabigo " + nickRes.failed + "\n" +
-      "✅ 4 Admin Protektado!\n" +
-      "💪 TIGNAN MO ANG LOG — may lalabas kung aling paraan ang gumana!",
-      threadID, messageID
-    );
+    startGroupMonitor(api, threadID);
+    await restoreGroupName(api, threadID, gcData);
+
+    await send(api, "⏳ Inilalagay ang「RYUK BOSS」sa lahat dito...", threadID);
+    const result = await applyNickToAll(api, threadID, "RYUK BOSS");
+
+    return send(api, `
+👑「RYUK BOSS」— NAKABUKAS NA DITO SA GC! ⚡
+
+✅ Auto-Welcome: ${gcData.autoWelcome ? "ON ✅" : "OFF ❌"}
+✅ Palayaw: RYUK BOSS — Tagumpay: ${result.success} | Nabigo: ${result.failed}
+✅ GC Proteksyon: ${gcData.autoGname ? "AKTIBO 🔒" : "HINDI"}
+✅ 4 Admin Protektado ✅
+
+💡 Dito lang ako gagana — hindi sa ibang GC!
+    `.trim(), threadID, messageID);
   }
 
+  // 🔴 ISARA — DITO SA GC NA ITO LANG!
   if (cmd === "off") {
-    data.active = false;
-    saveData(data);
+    gcData.active = false;
+    saveGCData(threadID, gcData);
     stopHeartbeat(threadID);
-    stopMonitor(threadID);
-    return send(api, "🔴 tumigil na — utos mo!", threadID, messageID);
+    stopGroupMonitor(threadID);
+    return send(api, `
+🔴「RYUK BOSS」— TUMIGIL NA DITO!
+Babalik ako kapag inutos mo muli.
+    `.trim(), threadID, messageID);
   }
 
+  // 🔒 IBA PA...
   if (cmd === "restore") {
-    const gOk = await restoreGname(api, threadID, data);
-    await send(api, "⏳ ibinabalik ang RYUK BOSS sa lahat...", threadID);
-    const nRes = await setNickAll(api, threadID, "RYUK BOSS");
-    return send(api,
-      "🔒 ibinalik lahat!\n" +
-      "gc: " + (gOk ? "✅ " + data.savedGname : "❌ hindi muna") + "\n" +
-      "palayaw: RYUK BOSS — tagumpay " + nRes.success + " | nabigo " + nRes.failed,
-      threadID, messageID
-    );
+    const gOk = await restoreGroupName(api, threadID, gcData);
+    await send(api, "⏳ Ibinabalik ang「RYUK BOSS」sa lahat...", threadID);
+    const nRes = await applyNickToAll(api, threadID, gcData.savedNick);
+    return send(api, `
+🔒 IBINALIK LAHAT SA ORIHINAL!
+
+GC Pangalan: ${gOk ? `✅ ${gcData.savedGname}` : "❌ Hindi muna"}
+Palayaw: ${gcData.savedNick}
+Tagumpay: ${nRes.success} | Nabigo: ${nRes.failed}
+    `.trim(), threadID, messageID);
   }
 
   if (cmd === "setnick") {
-    // ✅ KAHIT WALANG ILAGAY — RYUK BOSS AGAD!
     const nick = args.slice(1).join(" ").trim() || "RYUK BOSS";
-    data.savedNick = nick; saveData(data);
-    
-    await send(api, "⏳ binabago sa lahat ng miyembro...", threadID);
-    const res = await setNickAll(api, threadID, nick);
-    
-    return send(api,
-      "✅ palayaw: \"" + nick + "\"\n" +
-      "tagumpay: " + res.success + "\nnabigo: " + res.failed,
+    gcData.savedNick = nick;
+    saveGCData(threadID, gcData);
+    await send(api, `⏳ Binabago sa lahat ng miyembro →「${nick}」...`, threadID);
+    const res = await applyNickToAll(api, threadID, nick);
+    return send(api, `
+✅ PALAYAW NA ITINAKDA!
+
+Bagong Pangalan:「${nick}」
+Tagumpay: ${res.success}
+Nabigo: ${res.failed}
+    `.trim(), threadID, messageID);
+  }
+
+  if (cmd === "setgname") {
+    const name = args.slice(1).join(" ").trim() || "👑 GOJO BOSS 👑";
+    gcData.savedGname = name;
+    saveGCData(threadID, gcData);
+    const ok = await restoreGroupName(api, threadID, gcData);
+    return send(api, ok
+      ? `✅ Pangalan ng GC na itinakda at PROTEKTADO:\n「${name}」`
+      : `✅ Itinakda ang pangalan:「${name}」`,
       threadID, messageID
     );
   }
 
-  if (cmd === "setgname") {
-    const name = args.slice(1).join(" ").trim() || "GOJO BOSS";
-    data.savedGname = name; saveData(data);
-    const ok = await restoreGname(api, threadID, data);
-    return send(api, ok ? "✅ gc name: \"" + name + "\" — PROTEKTADO NA!" : "✅ itinakda", threadID, messageID);
-  }
-
   if (cmd === "autonick") {
-    const m = String(args?.[1]||"").toLowerCase();
-    if (!["on","off"].includes(m)) return send(api, "/ryuk autonick on/off", threadID, messageID);
-    data.autoNick = m==="on"; 
-    if (m==="on") data.savedNick = "RYUK BOSS"; // ✅ ON = RYUK BOSS AGAD
-    saveData(data);
-    return send(api, "⚡ auto nick: " + m.toUpperCase() + " → \"RYUK BOSS\"", threadID, messageID);
+    const m = String(args?.[1] || "").toLowerCase();
+    if (!["on", "off"].includes(m)) return send(api, "/ryuk autonick on/off", threadID, messageID);
+    gcData.autoNick = m === "on";
+    if (m === "on") gcData.savedNick = "RYUK BOSS";
+    saveGCData(threadID, gcData);
+    return send(api, `⚡ Auto-Nick: ${m.toUpperCase()} →「${gcData.savedNick}」`, threadID, messageID);
   }
 
   if (cmd === "autogname") {
-    const m = String(args?.[1]||"").toLowerCase();
-    if (!["on","off"].includes(m)) return send(api, "/ryuk autogname on/off", threadID, messageID);
-    if (m==="on" && !data.savedGname) data.savedGname = "GOJO BOSS";
-    data.autoGname = m==="on"; saveData(data);
-    return send(api, "⚡ auto gname: " + m.toUpperCase() + " → \"" + data.savedGname + "\"", threadID, messageID);
+    const m = String(args?.[1] || "").toLowerCase();
+    if (!["on", "off"].includes(m)) return send(api, "/ryuk autogname on/off", threadID, messageID);
+    if (m === "on" && !gcData.savedGname) gcData.savedGname = "👑 GOJO BOSS 👑";
+    gcData.autoGname = m === "on";
+    saveGCData(threadID, gcData);
+    return send(api, `🔒 Auto-GC Name: ${m.toUpperCase()} →「${gcData.savedGname}」`, threadID, messageID);
   }
 
   if (cmd === "autowelcome") {
-    const m = String(args?.[1]||"").toLowerCase();
-    if (!["on","off"].includes(m)) return send(api, "/ryuk autowelcome on/off", threadID, messageID);
-    data.autoWelcome = m==="on"; saveData(data);
-    return send(api, "⚡ auto-welcome: " + (m==="on" ? "ON ✅" : "OFF ❌"), threadID, messageID);
+    const m = String(args?.[1] || "").toLowerCase();
+    if (!["on", "off"].includes(m)) return send(api, "/ryuk autowelcome on/off", threadID, messageID);
+    gcData.autoWelcome = m === "on";
+    saveGCData(threadID, gcData);
+    return send(api, `👑 Auto-Welcome: ${m === "on" ? "ON ✅" : "OFF ❌"}`, threadID, messageID);
   }
 
   if (cmd === "setwelcome") {
     const msg = args.slice(1).join(" ").trim();
-    if (!msg) return send(api, "I-type: /ryuk setwelcome @{username} — salamat!\n(Gamitin ang @{username} para sa pangalan)", threadID, messageID);
-    data.welcomeMsg = msg; saveData(data);
-    return send(api, "✅ Bagong welcome message na itinakda:\n" + msg, threadID, messageID);
+    if (!msg) return send(api, `
+I-type: /ryuk setwelcome @{username} — mensahe dito
+Gamitin ang @{username} para sa pangalan ng bagong dating.
+    `.trim(), threadID, messageID);
+    gcData.welcomeMsg = msg;
+    saveGCData(threadID, gcData);
+    return send(api, `✅ Bagong mensahe:\n━━━━━━━━━━\n${msg}\n━━━━━━━━━━`, threadID, messageID);
   }
 
   if (cmd === "roast") {
-    const m = String(args?.[1]||"").toLowerCase();
-    if (!["on","off"].includes(m)) return send(api, "/ryuk roast on/off", threadID, messageID);
-    data.roast = m==="on"; saveData(data);
-    return send(api, "🔥 auto-roast: " + m.toUpperCase(), threadID, messageID);
+    const m = String(args?.[1] || "").toLowerCase();
+    if (!["on", "off"].includes(m)) return send(api, "/ryuk roast on/off", threadID, messageID);
+    gcData.roast = m === "on";
+    saveGCData(threadID, gcData);
+    return send(api, `🔥 Auto-Reply: ${m.toUpperCase()}`, threadID, messageID);
   }
 
   if (cmd === "react") {
-    const m = String(args?.[1]||"").toLowerCase();
-    if (!["on","off"].includes(m)) return send(api, "/ryuk react on/off", threadID, messageID);
-    data.react = m==="on"; saveData(data);
-    return send(api, "⚡ reaksyon sa sagot: " + m.toUpperCase(), threadID, messageID);
+    const m = String(args?.[1] || "").toLowerCase();
+    if (!["on", "off"].includes(m)) return send(api, "/ryuk react on/off", threadID, messageID);
+    gcData.react = m === "on";
+    saveGCData(threadID, gcData);
+    return send(api, `✨ Reaksyon: ${m.toUpperCase()}`, threadID, messageID);
   }
 
   if (cmd === "heartreact") {
-    const m = String(args?.[1]||"").toLowerCase();
-    if (!["on","off"].includes(m)) return send(api, "/ryuk heartreact on/off", threadID, messageID);
-    data.heartbeatReact = m==="on"; saveData(data);
-    return send(api, "✨ reaksyon sa linya: " + m.toUpperCase(), threadID, messageID);
+    const m = String(args?.[1] || "").toLowerCase();
+    if (!["on", "off"].includes(m)) return send(api, "/ryuk heartreact on/off", threadID, messageID);
+    gcData.heartbeatReact = m === "on";
+    saveGCData(threadID, gcData);
+    return send(api, `💪 Heartbeat React: ${m.toUpperCase()}`, threadID, messageID);
   }
 
   if (cmd === "status") {
-    return send(api, [
-      "👑 ryuk — STATUS",
-      "Sistema: " + (data.active ? "ON 🟢" : "OFF 🔴"),
-      "Auto-Welcome: " + (data.autoWelcome ? "ON ✅" : "OFF ❌"),
-      "Auto-Nick: " + (data.autoNick ? "ON ✅ → RYUK BOSS" : "OFF ❌"),
-      "GC Name: " + data.savedGname + (data.autoGname ? " — 🔒 PROTEKTADO" : ""),
-      "Admin Protektado: 4 ✅"
-    ].join("\n"), threadID, messageID);
+    return send(api, `
+👑「RYUK BOSS」— KALAGAYAN NG GC NA ITO
+
+Sistema:       ${gcData.active ? "NAKABUKAS 🟢" : "NAKASARA 🔴"}
+Auto-Welcome:  ${gcData.autoWelcome ? "ON ✅" : "OFF ❌"}
+Auto-Nick:     ${gcData.autoNick ? `ON ✅ →「${gcData.savedNick}」` : "OFF ❌"}
+GC Pangalan:   「${gcData.savedGname}」${gcData.autoGname ? " — 🔒 PROTEKTADO" : ""}
+Auto-Reply:    ${gcData.roast ? "ON ✅" : "OFF ❌"}
+Admin:         4 PROTEKTADO ✅
+
+Bilang ng utos: ${gcData.commandCount}
+Bilang ng sagot: ${gcData.roastCount}
+    `.trim(), threadID, messageID);
   }
 
-  return send(api, [
-    "👑 ryuk — MGA UTOS",
-    "/ryuk on          → simulan (RYUK BOSS agad!)",
-    "/ryuk off         → itigil",
-    "/ryuk restore     → ibalik RYUK BOSS sa lahat",
-    "/ryuk setnick [pangalan] → palitan (walang ilagay = RYUK BOSS)",
-    "/ryuk setgname [pangalan] → palitan gc name",
-    "/ryuk autonick on/off → auto RYUK BOSS sa bago",
-    "/ryuk status      → tignan kalagayan"
-  ].join("\n"), threadID, messageID);
+  return send(api, `
+👑「RYUK BOSS」— MGA UTOS
+
+/ryuk on          → Buksan DITO SA GC
+/ryuk off         → Itigil DITO SA GC
+/ryuk restore     → Ibalik lahat sa orihinal
+/ryuk setnick [pangalan] → Palitan palayaw
+/ryuk setgname [pangalan] → Palitan GC name
+/ryuk autonick on/off → Auto-RYUK BOSS sa bago
+/ryuk autowelcome on/off → Auto-welcome
+/ryuk status      → Tignan kalagayan
+
+✨ Dito lang ako gagana — hindi sa ibang GC!
+    `.trim(), threadID, messageID);
 };
+  
