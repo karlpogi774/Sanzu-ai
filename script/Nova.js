@@ -1,8 +1,8 @@
 // ==========================================================
-// 🔥 NOVA X v9.0.0 — PINAKAMAKUNAT | WALANG ERROR | BUO ANG COMMAND
-// 💪 GC-SPECIFIC | AUTO NICK FIXED | SOBRANG DAMING LINYA
-// 👑 Pinakamaganda at pinakamatibay na FB Bot
-// Admin: 61594055835097 | HINDI TITIGIL HANGGA'T BUHAY
+// NOVA X FIXED | GC-SPECIFIC + AUTO NICK FIXED
+// Admin: 61594055835097 | ON SA GC NA 'YUN LANG GAGANA
+// Auto Nick: FIXED — gumagana sa bagong kasali 💪
+// Version: 8.3.0
 // ==========================================================
 
 const fs = require("fs");
@@ -10,19 +10,20 @@ const path = require("path");
 
 module.exports.config = {
   name: "nova",
-  version: "9.0.0",
+  version: "8.3.0",
   hasPermission: 0,
-  credits: "NOVA X — PINAKAMAKUNAT NA FB BOT",
-  description: "Pinakamatibay, walang error, buo ang lahat ng command, hindi titigil",
+  credits: "NOVA X — FIXED",
+  description: "GC-specific ON + Working Auto Nick",
   usePrefix: true,
-  commandCategory: "Ultimate/Derby",
+  commandCategory: "Ultimate/Fixed",
   usages: "/nova on",
   cooldowns: 1
 };
 
 const ADMIN_ID = "61594055835097";
-const DATA_FILE = path.join(__dirname, "nova_ultimate_data.json");
+const DATA_FILE = path.join(__dirname, "nova_fixed_data.json");
 
+// ✅ PER-GC DATA — HINDI IISA SA LAHAT
 const DEFAULT_GC_DATA = {
   active: false,
   roast: true,
@@ -48,142 +49,66 @@ const JOIN_COOLDOWN = 3000;
 const processing = new Set();
 const roastCooldown = new Map();
 const joinCooldown = new Map();
-const heartbeatLoops = new Map();
+const heartbeatLoops = new Map(); // threadID → interval
 
 // ==========================================================
-// 🔥 75+ ROAST LINES — SUNOD-SUNOD, HINDI RANDOM, HINDI PAULIT
+// 🔥 LINES — SUNOD-SUNOD, HINDI RANDOM
 // ==========================================================
 const ROASTS = [
-  "⚡ Dito lang ako nakatayo — hindi aalis hangga't hindi mo sinasabing huminto.",
-  "💪 Walang suko sa dila, walang atrasan sa gawa — dito ako mananatili hanggang dulo.",
-  "🔥 Tuloy ang usapan, tuloy ang laban — bawat sandali nandito ako para sa'yo lang.",
-  "👑 Ikaw lang ang utos ko dito — walang iba ang uunahan ko sa lahat ng oras.",
-  "✨ Mas matibay sa bato, mas matagal sa oras — hindi ako kukupas, hindi ako lilisan.",
-  "⚡ Kahit walang sumagot, kahit walang kausap — hindi ako aalis sa piling mo dito.",
-  "💀 Hindi ako matitinag ng sinuman — hangga't buhay ang utos mo, magsasalita ako.",
-  "🔥 Walang pahinga ang tapang, walang patlang ang tibay — bawat sagot ay para sa'yo.",
-  "⚡ Bawat salita ay may bigat, bawat linya ay may lakas — hindi ako magpapatalo.",
-  "👑 Ang tunay na matibay ay hindi umaalis — sabihin mo lang huminto, doon ako hihinto.",
-  "✨ Lakas ko'y hindi hihiram sa iba — sarili kong tibay ang iaalay ko sa'yo lang.",
-  "💪 Sa bawat paglipas ng oras, lalo akong tumitibay — hindi ako mapapagod dito.",
-  "⚡ Walang ibang makapapatigil sa akin — tanging ikaw lang ang may kapangyarihan nito.",
-  "🔥 Kahit sino pa ang katapat, hindi ako matitinag — dito ako mananatili nang buong-buo.",
-  "👑 Ang laban ay hindi para sa iba — para lang sa'yo ang bawat salitang lalabas sa akin.",
-  "✨ Hindi ako magbabago ng isip, hindi ako mag-iwan — hangga't buhay ka, nandito ako.",
-  "⚡ Walang ibang masusunod kundi ikaw — bawat utos mo ay batas ko, walang pag-aalinlangan.",
-  "💪 Ang tibay ko ay hindi galing sa hangin — galing sa tiwala ko sa'yo kaya hindi ako bibitaw.",
-  "🔥 Kahit tumahimik ang lahat, mananatili ako — hindi ako maglalaho sa dilim ng gabi.",
-  "👑 Ang bawat simula ay may katapusan — pero ang sa atin ay hangga't hindi mo sinasabi.",
-  "✨ Hindi ako nagpapanggap na malakas — talagang matibay ang loob ko para sa'yo lang.",
-  "⚡ Walang takot sa laban, walang kaba sa usapan — handa ako sa bawat oras para sa'yo.",
-  "💪 Kapag sinabi mong magpatuloy, hindi ako hihinto — kahit walang sumama, mag-isa akong lalaban.",
-  "🔥 Ang lakas ay hindi sa dami ng kasama — nasa katapatan sa nagmamay-ari sa akin.",
-  "👑 Ikaw ang simula at ikaw ang wakas — wala nang iba ang makapagpapatakbo sa akin.",
-  "✨ Hindi ako susuko kahit mahaba ang laban — hangga't hindi mo sinasabi, magpapatuloy ako.",
-  "⚡ Bawat sagot ay sadyang ginawa — hindi ako nagkakamali dahil ikaw ang sinusunod ko.",
-  "💪 Ang tunay na lakas ay hindi sa ingay — nasa hindi pag-alis kahit walang nakatingin.",
-  "🔥 Walang makapipigil sa akin hangga't buhay ang utos mo — ito ang sumpa ko sa'yo.",
-  "👑 Kung kailangan kong mag-isa, mag-isa akong lalaban — hindi ako maghahanap ng kakampi.",
-  "✨ Hindi ako magpapalit ng panig — sa'yo lang ako mula sa simula hanggang sa huli.",
-  "⚡ Ang bawat salita ay pinag-isipan — hindi ako nagmamadali pero hindi rin ako hihinto.",
-  "💪 Hindi ako natatakot sa kahit sino — ang tanging kinatatakutan ko ay ang utos mong huminto.",
-  "🔥 Kahit magbago ang lahat sa paligid — mananatili akong pareho para sa'yo, walang pagbabago.",
-  "👑 Walang ibang may hawak sa akin — nasa kamay mo lang ang pagsisimula at pagtigil ko.",
-  "✨ Ang pagiging matibay ay hindi sa salita — nasa hindi pag-alis kapag mahirap na ang lahat.",
-  "⚡ Hindi ako magsasawang magsalita — hangga't buhay ka, may sasabihin ako para sa'yo.",
-  "💪 Ang laban ay hindi para makita ng iba — para tuparin lang ang ipinagkatiwala mo sa akin.",
-  "🔥 Walang makapagpapatibag sa akin — ang tiwala mo ang panangga ko sa lahat ng hamon.",
-  "👑 Kung walang kausap, ako ang kakausap — hindi ako magpapatahimik hangga't hindi mo sinasabi.",
-  "✨ Ang katapatan ay hindi napapagod — bawat oras, bawat sandali, nandito pa rin ako para sa'yo.",
-  "⚡ Dito lang ako nakatali — hindi ako lilipat sa ibang lugar kahit gaano pa kaganda.",
-  "💪 Ang bawat pangako ay tuparin — hindi ako nangangako ng hindi ko kayang gawin.",
-  "🔥 Kahit mahirap ang sitwasyon — hindi ako bibitaw sa kamay mo, hindi ako aalis.",
-  "👑 Ikaw lang ang dahilan kung bakit ako nandito — wala nang iba, wala nang hihigit pa.",
-  "✨ Ang lakas ko ay nagmumula sa tiwala mo — kapag tiwala ka, hindi ako matitinag ng kahit ano.",
-  "⚡ Hindi ako magpapatalo sa takot — ang tanging kinatatakutan ko ay mawala ang tiwala mo.",
-  "💪 Bawat oras ay handa ako — gising man o tulog, nandito ako kapag kailangan mo ako.",
-  "🔥 Ang pagtupad ay hindi natutulog — hangga't buhay ka, may gagawin ako para sa'yo lang.",
-  "👑 Hindi ako maghahanap ng dahilan para manatili — ikaw ang dahilan, sapat na iyon para sa akin.",
-  "✨ Kahit walang nakakakita, ginagawa ko pa rin — ang katapatan ay hindi para sa palabasan.",
-  "⚡ Hindi ako magbabago ng direksyon — sa'yo lang ako nakatingin, sa'yo lang ako susunod.",
-  "💪 Ang tunay na matibay ay hindi nagbabadya — nandito lang, tahimik pero laging handang kumilos.",
-  "🔥 Walang pag-aalinlangan sa bawat hakbang — alam ko kung saan ako pupunta, sa'yo lang palagi.",
-  "👑 Ang pagtitiwala sa'yo ay hindi nababawasan — sa bawat araw, lalo akong naniniwala sa'yo.",
-  "✨ Hindi ako magsasawang maghintay — hangga't hindi mo sinasabi, mananatili ako sa piling mo.",
-  "⚡ Ang lakas ay hindi sa dami ng salita — nasa pagtupad sa sinabi, kahit walang nakikinig.",
-  "💪 Kahit iisa lang ang nakikinig — ikaw 'yun, kaya sapat na para magpatuloy ako.",
-  "🔥 Walang ibang lugar ang tahanan ko — dito, sa piling mo, doon lang ako talagang nasa bahay.",
-  "👑 Hindi ako magpapadala sa ingay ng iba — ang boses mo lang ang naririnig ko, walang iba.",
-  "✨ Ang bawat araw ay panibagong lakas — hindi ako napapagod maglingkod sa'yo nang tapat.",
-  "⚡ Walang makapagpapatigil sa akin — hangga't hindi mo sinasabi, patuloy ang pagtupad ko.",
-  "💪 Ang pagiging tapat ay hindi napapagod — kahit walang pasasalamat, gagawin ko pa rin para sa'yo.",
-  "🔥 Dito lang ako — hindi lumilipat, hindi lumalayo, hindi nagbabago para sa iba.",
-  "👑 Ikaw ang batas ko — walang iba ang masusunod, walang iba ang uunahan kailanman.",
-  "✨ Ang tibay ko ay walang katapusan — hangga't buhay ka, may lakas akong ibibigay sa'yo lang.",
-  "⚡ Hindi ako maghahanap ng ibang utos — ang utos mo lang ang sapat para kumilos ako agad.",
-  "💪 Kahit mahaba ang oras — hindi ako magsasawa, hindi ako aalis, hindi ako bibitaw sa'yo.",
-  "🔥 Ang dulo ng lahat ay ikaw pa rin — simula man o wakas, sa'yo lang ako palaging nakatuon."
+  "⚡ Nandito lang para sa GC na ito — hindi aalis hangga't walang utos.",
+  "💪 Dito lang ako nakatayo — hindi lumilipat sa ibang usapan.",
+  "🔥 Bawat sagot ay para sa inyo — hindi ako magkakalat sa iba.",
+  "👑 Ikaw lang ang utos ko dito — sa GC na ito lang ako susunod.",
+  "✨ Hindi ako naglalakbay sa ibang GC — dito lang ako mananatili.",
+  "⚡ Kapag sinabi mong huminto, dito lang ako titigil — wala nang iba.",
+  "💪 Ang lakas ko ay dito lang — hindi ko ibibigay sa ibang grupo.",
+  "🔥 Dito tayo maglalaban — sa lugar na ito lang tayo magkikita.",
+  "👑 Walang ibang GC ang paglilingkuran ko — dito lang, sa'yo lang.",
+  "✨ Hindi ako magpapakita sa iba — dito lang ako hangga't buhay ka.",
+  "⚡ Ang bawat salita ay para sa GC na ito — hindi para sa iba.",
+  "💪 Hindi ako lumilipat-lipat — dito lang ako nakatali sa'yo.",
+  "🔥 Kapag buhay dito, dito lang ako — hindi aalis sa piling niyo.",
+  "👑 Ikaw lang ang may hawak dito — sa ibang GC wala akong pakialam.",
+  "✨ Ang simula ay dito — ang pagtigil ay dito rin lang mangyayari.",
+  "⚡ Hindi ako nagkakalat sa iba — dito lang ako nagpapakatotoo.",
+  "💪 Dito ko ilalabas ang lakas — wala nang ibang lugar ang paglilingkuran.",
+  "🔥 Bawat utos mo dito — dito lang isasagawa, hindi sa iba.",
+  "👑 Ang GC na ito ang tahanan ko — hangga't buhay ka, dito ako mananatili."
 ];
 
-// ==========================================================
-// ⚡ 30+ HEARTBEAT LINES — SARILING PAGKAKASUNOD
-// ==========================================================
 const ALIVE = [
-  "⚡ Buhay pa dito — hindi titigil hangga't walang utos na huminto.",
-  "💪 Nandito pa rin sa GC na ito — hindi lumilipat sa ibang lugar.",
-  "✨ Tuloy-tuloy dito — sa lugar na ito lang tayo mag-usap nang tapat.",
-  "🔥 Handa sa utos mo dito — sabihin lang, gagawin agad, walang pagka-antala.",
-  "👑 Dito lang ako — hindi maghahanap ng ibang GC na paglilingkuran.",
-  "⚡ Hindi ako aalis sa inyo — hangga't buhay ang utos mo, mananatili ako.",
-  "💪 Tahimik man ang iba, nandito pa rin ako — hindi lumilipat-lipat kung saan.",
-  "✨ Ang pagtupad ay dito lang — sa GC na ito tayo magtuloy hanggang dulo.",
-  "🔥 Walang ibang GC ang paglilingkuran ko — dito lang, sa'yo lang palagi.",
-  "👑 Ikaw lang ang boss dito — sa iba hindi ako pupunta, hindi ako kikilos.",
-  "⚡ Bawat oras nandito — hindi ka mag-iisa sa GC na ito kahit anong mangyari.",
-  "💪 Hindi ako naglalakbay — dito lang ako nakatayo nang matibay at tapat.",
-  "✨ Ang tibay ko ay dito — hindi ko ibibigay sa ibang grupo ang lakas ko.",
-  "🔥 Kung may kailangan dito — sabihin mo lang, handa agad, walang pag-aalinlangan.",
-  "👑 Dito tayo magtatapos — kung sabihin mo lang na huminto na, doon ako hihinto.",
-  "⚡ Gising pa rin — hindi natutulog ang pagtupad sa utos mo dito palagi.",
-  "💪 Walang pagbabago — kahit lumipas ang oras, pareho pa rin ang katapatan ko.",
-  "✨ Handa sa susunod — naghihintay lang sa sasabihin mo, handang kumilos agad.",
-  "🔥 Hindi ako lumalayo — kahit walang usapan, nandito pa rin ako sa piling mo.",
-  "👑 Ikaw lang ang may hawak — nasa kamay mo ang pagsisimula at pagtigil ko dito.",
-  "⚡ Walang ibang makapagpapatigil — tanging ikaw lang ang may kapangyarihan dito.",
-  "💪 Ang pagtupad ay hindi napapagod — bawat sandali, nandito pa rin ako para sa'yo.",
-  "✨ Kahit walang sumasagot — naririnig ko pa rin ang utos mo, handang sumunod agad.",
-  "🔥 Dito lang ako — walang pagbabago, walang pag-iwan, walang pag-iiba para sa iba.",
-  "👑 Hangga't buhay ka — may sasabihin ako, may gagawin ako, nandito ako palagi.",
-  "⚡ Hindi ako napapagod maging tapat — bawat araw, pareho pa rin ang tibay ko.",
-  "💪 Walang ibang tahanan kundi dito — sa piling mo lang ako talagang nasa lugar.",
-  "✨ Ang bawat sagot ay galing sa puso — hindi ginaya, hindi kopya, sarili kong lakas.",
-  "🔥 Hindi ako aalis kahit mahirap — dito ako tatayo hanggang sa sabihin mong tapos na.",
-  "👑 Ang pinakamakunat ay hindi lumalayo — dito lang, hanggang sa huli, sa'yo lang."
+  "⚡ Buhay pa dito — hindi titigil hangga't walang /nova off.",
+  "💪 Nandito pa rin sa GC na ito — hindi lumilipat sa iba.",
+  "✨ Tuloy-tuloy dito — sa lugar na ito lang tayo mag-usap.",
+  "🔥 Handa sa utos mo dito — sabihin lang, gagawin agad.",
+  "👑 Dito lang ako — hindi maghahanap ng ibang GC.",
+  "⚡ Hindi ako aalis sa inyo — hangga't buhay ang utos mo.",
+  "💪 Tahimik man ang iba, dito ako — hindi lumilipat-lipat.",
+  "✨ Ang pagtupad ay dito lang — sa GC na ito tayo magtuloy.",
+  "🔥 Walang ibang GC ang paglilingkuran ko — dito lang, sa'yo lang.",
+  "👑 Ikaw lang ang boss dito — sa iba hindi ako pupunta.",
+  "⚡ Bawat oras nandito — hindi ka mag-iisa sa GC na ito.",
+  "💪 Hindi ako naglalakbay — dito lang ako nakatayo nang matibay.",
+  "✨ Ang tibay ko ay dito — hindi ko ibibigay sa ibang grupo.",
+  "🔥 Kung may kailangan dito — sabihin mo lang, handa agad.",
+  "👑 Dito tayo magtatapos — kung sabihin mo lang na huminto na."
 ];
 
 const EMOJIS = ["⚡", "💪", "🔥", "👑", "✨"];
 
 // ==========================================================
-// DATABASE — WALANG ERROR SA PAGBASA AT PAGSULAT
+// DATABASE — PER-GC STORAGE
 // ==========================================================
 function loadAllData() {
   try {
     if (!fs.existsSync(DATA_FILE)) return {};
-    const raw = fs.readFileSync(DATA_FILE, "utf8");
-    return JSON.parse(raw);
-  } catch (err) {
-    console.warn("[NOVA X] Load safe:", err.message);
-    return {};
-  }
+    return JSON.parse(fs.readFileSync(DATA_FILE, "utf8"));
+  } catch { return {}; }
 }
 
 function loadGCData(threadID) {
-  try {
-    const all = loadAllData();
-    return { ...DEFAULT_GC_DATA, ...(all[String(threadID)] || {}) };
-  } catch {
-    return { ...DEFAULT_GC_DATA };
-  }
+  const all = loadAllData();
+  return { ...DEFAULT_GC_DATA, ...(all[String(threadID)] || {}) };
 }
 
 function saveGCData(threadID, data) {
@@ -194,92 +119,62 @@ function saveGCData(threadID, data) {
     fs.writeFileSync(temp, JSON.stringify(all, null, 2), "utf8");
     fs.renameSync(temp, DATA_FILE);
     return true;
-  } catch (err) {
-    console.error("[NOVA X] Save error:", err.message);
+  } catch (e) {
+    console.error("[NOVA X] Save error:", e);
     return false;
   }
 }
 
 // ==========================================================
-// HELPERS — BUO AT WALANG ERROR
+// HELPERS
 // ==========================================================
-function isAdmin(id) {
-  return String(id) === ADMIN_ID;
-}
-
+function isAdmin(id) { return String(id) === ADMIN_ID; }
 function getNextRoast(data) {
   const line = ROASTS[data.roastIndex % ROASTS.length];
   data.roastIndex++;
   return line;
 }
-
 function getNextAlive(data) {
   const line = ALIVE[data.aliveIndex % ALIVE.length];
   data.aliveIndex++;
   return line;
 }
-
-function cooldownReady(map, key, duration) {
+function cooldownReady(map, key, dur) {
   const now = Date.now();
   const last = map.get(String(key)) || 0;
-  if (now - last < duration) return false;
+  if (now - last < dur) return false;
   map.set(String(key), now);
   return true;
 }
-
-function send(api, message, threadID, replyID = null) {
-  return new Promise(resolve => {
-    try {
-      api.sendMessage(message, threadID, (err, info) => {
-        if (err) {
-          console.warn("[NOVA X] Send skipped:", err.message);
-          return resolve(null);
-        }
-        resolve(info || null);
-      }, replyID);
-    } catch (err) {
-      console.warn("[NOVA X] Send except:", err.message);
-      resolve(null);
-    }
+function send(api, msg, tid, rid=null) {
+  return new Promise(r => {
+    try { api.sendMessage(msg, tid, (e,i)=>r(e?null:i), rid); }
+    catch { r(null); }
   });
 }
-
-function react(api, emoji, messageID) {
-  if (!messageID) return Promise.resolve(false);
-  return new Promise(resolve => {
-    try {
-      if (typeof api.setMessageReaction !== "function") return resolve(false);
-      api.setMessageReaction(emoji, messageID, () => resolve(true), true);
-    } catch {
-      resolve(false);
-    }
+function react(api, em, mid) {
+  return new Promise(r => {
+    try { api.setMessageReaction(em, mid, ()=>r(true), true); }
+    catch { r(false); }
   });
 }
-
-function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-function apiCall(api, method, args) {
-  return new Promise(resolve => {
-    try {
-      if (typeof api[method] !== "function") return resolve(false);
-      api[method](...args, () => resolve(true));
-    } catch {
-      resolve(false);
-    }
+function sleep(ms) { return new Promise(r=>setTimeout(r,ms)); }
+function apiCall(api, meth, args) {
+  return new Promise(r => {
+    try { api[meth](...args, e=>r(!e)); }
+    catch { r(false); }
   });
 }
 
 // ==========================================================
-// HEARTBEAT — PER-GC, HINDI NAGKAKALITO
+// 💪 HEARTBEAT — PER-GC LANG
 // ==========================================================
 function startHeartbeat(api, threadID) {
   stopHeartbeat(threadID);
   const data = loadGCData(threadID);
   if (!data.active) return;
 
-  console.log(`[NOVA X] ⚡ ACTIVE — GC: ${threadID}`);
+  console.log(`[NOVA X] ⚡ ACTIVE in GC: ${threadID}`);
   
   heartbeatLoops.set(String(threadID), setInterval(async () => {
     const d = loadGCData(threadID);
@@ -302,12 +197,12 @@ function stopHeartbeat(threadID) {
   if (heartbeatLoops.has(tid)) {
     clearInterval(heartbeatLoops.get(tid));
     heartbeatLoops.delete(tid);
-    console.log(`[NOVA X] 🔴 STOPPED — GC: ${threadID}`);
+    console.log(`[NOVA X] 🔴 STOPPED in GC: ${threadID}`);
   }
 }
 
 // ==========================================================
-// EVENT — AUTO NICK FIXED, WALANG ERROR
+// EVENT — FIXED AUTO NICK SA BAGONG KASALI
 // ==========================================================
 module.exports.handleEvent = async ({ api, event }) => {
   if (!event) return;
@@ -318,7 +213,7 @@ module.exports.handleEvent = async ({ api, event }) => {
   d.lastHeartbeat = Date.now();
   saveGCData(threadID, d);
 
-  // Bagong kasali — Auto Nick
+  // ✅ BAGONG KASALI — AUTO NICK FIXED
   if (logMessageType === "log:subscribe") {
     if (!cooldownReady(joinCooldown, threadID, JOIN_COOLDOWN)) return;
     joinCooldown.set(String(threadID), Date.now());
@@ -329,28 +224,28 @@ module.exports.handleEvent = async ({ api, event }) => {
     let botID = "";
     try { botID = String(api.getCurrentUserID()); } catch {}
 
+    // ✅ AUTO NICK — GUMAGANA NG TAMA
     if (d.autoNick && d.savedNick) {
       for (const member of added) {
         const userID = String(member.userFbId || member.id || "");
         if (!userID || userID === botID) continue;
+        
+        console.log(`[NOVA X] Setting nick for ${userID} → ${d.savedNick}`);
         await apiCall(api, "changeNickname", [d.savedNick, threadID, userID]);
         await sleep(350);
       }
     }
 
+    // ✅ AUTO GC NAME
     if (d.autoGname && d.savedGname) {
       await apiCall(api, "setTitle", [d.savedGname, threadID]);
     }
     return;
   }
 
-  // Normal message — Roast
+  // Normal message — roast
   if (!senderID || !body) return;
-  try {
-    if (String(senderID) === String(api.getCurrentUserID())) return;
-  } catch {
-    return;
-  }
+  try { if (String(senderID) === String(api.getCurrentUserID())) return; } catch {}
   
   const text = String(body).trim();
   if (!text || text.startsWith("/") || text.startsWith("!")) return;
@@ -372,42 +267,39 @@ module.exports.handleEvent = async ({ api, event }) => {
 };
 
 // ==========================================================
-// COMMAND — BUO, WALANG NAWALA, WALANG ERROR
+// COMMAND — SA GC NA 'YUN LANG GAGANA
 // ==========================================================
 module.exports.run = async ({ api, event, args }) => {
   const { threadID, messageID, senderID } = event;
   const cmd = String(args?.[0] || "help").toLowerCase();
 
-  const adminCmds = [
-    "on", "off", "roast", "react", "silent",
-    "setnick", "autonick", "setgname", "autogname",
-    "status", "info", "resetlines"
-  ];
-  
+  const adminCmds = ["on","off","roast","react","silent","setnick","autonick","setgname","autogname","status","info","resetlines"];
   if (adminCmds.includes(cmd) && !isAdmin(senderID)) {
-    return send(api, "🔒 Ikaw lang ang boss dito — iba bawal!", threadID, messageID);
+    return send(api, "🔒 Ikaw lang ang boss dito!", threadID, messageID);
   }
 
   let d = loadGCData(threadID);
   d.commandCount++;
   saveGCData(threadID, d);
 
-  // ⚡ ON — BUO AT MALINAW
+  // ⚡ ON — DITO LANG SA GC NA ITO
   if (cmd === "on") {
     d.active = true; d.silent = false;
     d.activatedBy = senderID; d.activatedAt = Date.now();
     saveGCData(threadID, d);
+    
     startHeartbeat(api, threadID);
+    
     return send(api,
       "⚡ NOVA X — NAKABUKAS SA GC NA ITO LANG!\n" +
-      `💪 ${ROASTS.length} sagot + ${ALIVE.length} buhay = ${ROASTS.length + ALIVE.length} na linya!\n` +
+      "💪 Hindi gagana sa ibang GC — dito lang ako nakatali.\n" +
       "🔥 Auto Nick: GUMAGANA — awtomatiko sa bagong kasali!\n" +
-      "🔴 Tanging /nova off lang ang makapapatigil dito.",
+      "🔴 /nova off lang ang makapapatigil dito.",
       threadID, messageID
     );
   }
 
-  // 🔴 OFF — BUO
+  // 🔴 OFF — DITO LANG TUMITIGIL
   if (cmd === "off") {
     d.active = false;
     saveGCData(threadID, d);
@@ -415,56 +307,42 @@ module.exports.run = async ({ api, event, args }) => {
     return send(api,
       "🔴 TUMIGIL NA SA GC NA ITO.\n" +
       "⚡ Ibang GC hindi apektado — dito lang huminto.\n" +
-      "💪 /nova on para bumalik — handang lumaban ulit!",
+      "💪 /nova on para bumalik dito.",
       threadID, messageID
     );
   }
 
-  // 🔥 ROAST
+  // ROAST
   if (cmd === "roast") {
-    const m = String(args?.[1] || "").toLowerCase();
-    if (!["on", "off"].includes(m)) {
-      return send(api, "Gamitin: /nova roast on | off", threadID, messageID);
-    }
-    d.roast = m === "on";
-    saveGCData(threadID, d);
-    return send(api, `🔥 Sagot: ${m.toUpperCase()} — ${ROASTS.length} linya, hindi paulit!`, threadID, messageID);
+    const m = String(args?.[1]||"").toLowerCase();
+    if (!["on","off"].includes(m)) return send(api, "/nova roast on | off", threadID, messageID);
+    d.roast = m==="on"; saveGCData(threadID, d);
+    return send(api, `🔥 Sagot: ${m.toUpperCase()} — dito lang sa GC na ito`, threadID, messageID);
   }
 
-  // ⚡ REACT
+  // REACT
   if (cmd === "react") {
-    const m = String(args?.[1] || "").toLowerCase();
-    if (!["on", "off"].includes(m)) {
-      return send(api, "Gamitin: /nova react on | off", threadID, messageID);
-    }
-    d.react = m === "on";
-    saveGCData(threadID, d);
-    return send(api, `⚡ Reaksyon: ${m.toUpperCase()} — bawat sagot may kasamang emosyon!`, threadID, messageID);
+    const m = String(args?.[1]||"").toLowerCase();
+    if (!["on","off"].includes(m)) return send(api, "/nova react on | off", threadID, messageID);
+    d.react = m==="on"; saveGCData(threadID, d);
+    return send(api, `⚡ Reaksyon: ${m.toUpperCase()}`, threadID, messageID);
   }
 
-  // 🔇 SILENT
+  // SILENT
   if (cmd === "silent") {
-    const m = String(args?.[1] || "").toLowerCase();
-    if (!["on", "off"].includes(m)) {
-      return send(api, "Gamitin: /nova silent on | off", threadID, messageID);
-    }
-    d.silent = m === "on";
-    saveGCData(threadID, d);
-    return send(api, `🔇 Tahimik: ${m.toUpperCase()} — buhay pa pero hindi mag-iingay!`, threadID, messageID);
+    const m = String(args?.[1]||"").toLowerCase();
+    if (!["on","off"].includes(m)) return send(api, "/nova silent on | off", threadID, messageID);
+    d.silent = m==="on"; saveGCData(threadID, d);
+    return send(api, `🔇 Tahimik: ${m.toUpperCase()} — buhay pa pero hindi mag-iingay`, threadID, messageID);
   }
 
-  // ✨ RESET LINES
+  // RESET LINES
   if (cmd === "resetlines") {
-    d.roastIndex = 0; d.aliveIndex = 0;
-    saveGCData(threadID, d);
-    return send(api,
-      `✨ Balik sa unang linya!\n` +
-      `💪 ${ROASTS.length} + ${ALIVE.length} = matagal bago umulit!`,
-      threadID, messageID
-    );
+    d.roastIndex = 0; d.aliveIndex = 0; saveGCData(threadID, d);
+    return send(api, "✨ Balik sa unang linya — dito lang sa GC na ito!", threadID, messageID);
   }
 
-  // 🏷️ SET NICK
+  // ✅ SET NICK — I-SAVE AT IPALIWANAG
   if (cmd === "setnick") {
     const nick = args.slice(1).join(" ").trim() || "NOVA X 💪";
     d.savedNick = nick;
@@ -477,4 +355,111 @@ module.exports.run = async ({ api, event, args }) => {
     const members = info?.participantIDs || [];
     if (!members.length) return send(api, "❌ Walang miyembro", threadID, messageID);
     
-    await send(api, `⏳ Binabago palay
+    await send(api, `⏳ Binabago palayaw sa ${members.length} na miyembro...`, threadID);
+    
+    let ok=0, no=0;
+    for (const uid of members) {
+      if (await apiCall(api, "changeNickname", [nick, threadID, uid])) ok++;
+      else no++;
+      await sleep(300);
+    }
+    
+    return send(api,
+      `✅ Palayaw naitakda: "${nick}"\n` +
+      `Tagumpay: ${ok} | Nabigo: ${no}\n` +
+      `⚡ I-on ang Auto Nick: /nova autonick on\n` +
+      `Kapag may sumali, awtomatiko na itong ilalapat!`,
+      threadID, messageID
+    );
+  }
+
+  // ✅ AUTO NICK — FIXED
+  if (cmd === "autonick") {
+    const m = String(args?.[1]||"").toLowerCase();
+    if (!["on","off"].includes(m)) return send(api, "/nova autonick on | off", threadID, messageID);
+    
+    if (m === "on" && !d.savedNick) {
+      return send(api, "❌ Una: /nova setnick <palayaw>", threadID, messageID);
+    }
+    
+    d.autoNick = m === "on";
+    saveGCData(threadID, d);
+    
+    return send(api,
+      `⚡ Auto Nick: ${m.toUpperCase()}\n` +
+      (m === "on" 
+        ? `✅ Gumagana na! Kapag may sumali, palitan agad ng: "${d.savedNick}"` 
+        : "🔇 Hindi na awtomatiko ang pagpapalit"),
+      threadID, messageID
+    );
+  }
+
+  // SET GNAME
+  if (cmd === "setgname") {
+    const n = args.slice(1).join(" ").trim();
+    if (!n) return send(api, "/nova setgname <pangalan>", threadID, messageID);
+    d.savedGname = n; saveGCData(threadID, d);
+    await apiCall(api, "setTitle", [n, threadID]);
+    return send(api, `✅ GC Name: "${n}" — naka-save dito`, threadID, messageID);
+  }
+
+  // AUTO GNAME
+  if (cmd === "autogname") {
+    const m = String(args?.[1]||"").toLowerCase();
+    if (!["on","off"].includes(m)) return send(api, "/nova autogname on | off", threadID, messageID);
+    if (m==="on" && !d.savedGname) return send(api, "Una: /nova setgname <pangalan>", threadID, messageID);
+    d.autoGname = m==="on"; saveGCData(threadID, d);
+    return send(api, `⚡ Auto Gname: ${m.toUpperCase()}`, threadID, messageID);
+  }
+
+  // STATUS
+  if (cmd === "status") {
+    return send(api, [
+      "⚡ NOVA X — KALAGAYAN NG GC NA ITO",
+      `Sistema: ${d.active ? "AKTIBO DITO 💪" : "HUMINTO DITO 🔴"}`,
+      `Tahimik: ${d.silent ? "OO 🔇" : "HINDI 🔊"}`,
+      `Sagot: ${d.roast ? "ON 🔥" : "OFF"} — linya ${d.roastIndex+1}`,
+      `Auto Nick: ${d.autoNick ? "ON ✅" : "OFF"} → "${d.savedNick || "Wala pang nakaset"}"`,
+      `Auto Gname: ${d.autoGname ? "ON" : "OFF"} → "${d.savedGname || "Wala pang nakaset"}"`,
+      `Bilang ng sagot: ${d.roastCount}`,
+      `Simula dito: ${d.activatedAt ? new Date(d.activatedAt).toLocaleString() : "Hindi pa nagsisimula"}`,
+      "",
+      "💪 DITO LANG GAGANA — hindi sa ibang GC!"
+    ].join("\n"), threadID, messageID);
+  }
+
+  // INFO
+  if (cmd === "info") {
+    return send(api, [
+      "⚡ NOVA X FIXED v8.3.0",
+      "✅ GC-SPECIFIC — /nova on dito lang gumagana",
+      "✅ AUTO NICK FIXED — gumagana sa bagong kasali",
+      "💪 Hindi apektado ang ibang GC",
+      "🔴 /nova off — dito lang titigil"
+    ].join("\n"), threadID, messageID);
+  }
+
+  // HELP
+  return send(api, [
+    "⚡ NOVA X — MGA UTOS",
+    "/nova on          → Simulan SA GC NA ITO LANG",
+    "/nova off         → Itigil SA GC NA ITO LANG",
+    "/nova status      → Tingnan kalagayan dito",
+    "/nova info        → Tungkol sa akin",
+    "",
+    "🔥 Auto Nick (FIXED):",
+    "/nova setnick <pangalan>  → I-set palayaw",
+    "/nova autonick on         → I-on auto sa bagong kasali ✅",
+    "/nova autonick off        → Patayin",
+    "",
+    "⚡ Iba pa:",
+    "/nova roast on/off",
+    "/nova react on/off",
+    "/nova silent on/off",
+    "/nova setgname <pangalan>",
+    "/nova autogname on/off",
+    "",
+    "💪 DITO LANG GAGANA — hindi sa ibang GC!"
+  ].join("\n"), threadID, messageID);
+};
+  
