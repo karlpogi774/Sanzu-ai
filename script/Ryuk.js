@@ -1,11 +1,15 @@
 // ==========================================================
-// 👑 RYUK BOSS — ULTIMATE MAKUNAT V21.0 ✨
-// ✅ /silent = TAHIMIK LANG — HINDI TUMITIGIL! BANTAY PA RIN!
-// ✅ KAHIT WALANG MAG-CHAT — LALAPAG PA RIN! MAKUNAT 24/7
-// ✅ HINDI MA-DETECT — SLOW & NATURAL LANG ✅
-// ✅ SA GC NA IN-ON KA LANG GAGANA — HINDI SA LAHAT!
-// ✅ AUTO-NICK: RYUK BOSS | AUTO-WELCOME | GC PROTECTION
-// ✅ 4 ADMIN LOCKED — WALANG MAKAKAGAMBALA!
+// 👑 RYUK BOSS — ULTIMATE MAKUNAT V24.1 ✨
+// ✅ LALAPAG KAHIT WALANG MAG-CHAT SA GC! 24/7
+// ✅ AUTO-REACT SA LAHAT NG MENSAHE 💖
+// ✅ AUTO GC NAME: RYUK BOSS GC — HINDI MAPAPALITAN NG IBA!
+// ✅ AUTO NICKNAME: RYUK BOSS — LAGI
+// ✅ AUTO WELCOME — BATI SA BAGONG KASALI
+// ✅ KAHIT /SILENT — HINDI TUMITIGIL, LALAPAG PA RIN!
+// ✅ HINDI MA-DETECT — MABAGAL, NATURAL, RANDOM DELAY
+// ✅ GC-SPECIFIC — DOON LANG SA GC NA IN-ON MO
+// ✅ 4 ADMIN PROTECTED — WALANG IBANG MAKAKAGALAW
+// ✅ WALANG ERROR — PROTECTED SA LAHAT NG SIDE
 // ADMIN IDs: 61594055835097, 61593892603402, 61594325727109, 61594022290817
 // ==========================================================
 
@@ -15,9 +19,19 @@ const path = require("path");
 const DATA_DIR = path.join(__dirname, "ryuk_data");
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 
-const gcConfig = {};
+const TARGET_NICK = "RYUK BOSS";
+const TARGET_GNAME = "RYUK BOSS GC";
+const ADMIN_IDS = new Set([
+  "61594055835097",
+  "61593892603402",
+  "61594325727109",
+  "61594022290817"
+]);
+
 const activeIntervals = {};
 const lastSent = {};
+const REACT_EMOJIS = ["❤️", "🔥", "💪", "✨", "💜", "👑", "⚡", "💎"];
+
 const statusLines = [
   "Nandito lang ako, hindi ako aalis basta-basta 💪",
   "Bantay ko ang GC na 'to, walang magagambala dito 👑",
@@ -41,13 +55,6 @@ const statusLines = [
   "Pinakamakunat, pinakamaganda — ako lang 'yon, walang iba 👑"
 ];
 
-const ADMIN_IDS = new Set([
-  "61594055835097",
-  "61593892603402",
-  "61594325727109",
-  "61594022290817"
-]);
-
 function isAdmin(senderID) {
   return ADMIN_IDS.has(String(senderID));
 }
@@ -60,14 +67,16 @@ function loadGC(threadID) {
   try {
     const file = getGCFile(threadID);
     if (fs.existsSync(file)) return JSON.parse(fs.readFileSync(file, "utf8"));
-  } catch (e) {}
+  } catch {}
   return {
     active: false,
     silent: false,
     autoNick: true,
-    targetNick: "RYUK BOSS",
+    autoGname: true,
     autoWelcome: true,
-    savedGname: ""
+    autoReact: true,
+    targetNick: TARGET_NICK,
+    targetGname: TARGET_GNAME
   };
 }
 
@@ -79,6 +88,10 @@ function pickLine(threadID) {
   const idx = (lastSent[threadID] || -1) + 1;
   lastSent[threadID] = idx >= statusLines.length ? 0 : idx;
   return statusLines[lastSent[threadID]];
+}
+
+function pickReact() {
+  return REACT_EMOJIS[Math.floor(Math.random() * REACT_EMOJIS.length)];
 }
 
 function stopGCWatch(threadID) {
@@ -98,46 +111,48 @@ function startGCWatch(api, threadID) {
     if (!cfg.active) { stopGCWatch(threadID); return; }
 
     try {
-      // Auto-set nickname
-      if (cfg.autoNick && cfg.targetNick) {
-        const info = await api.getThreadInfo(threadID);
-        const me = info.participants?.find(p => p.id === api.getCurrentUserID?.() || api.userID);
+      const info = await api.getThreadInfo(threadID);
+      const myID = api.getCurrentUserID ? api.getCurrentUserID() : api.userID;
+
+      // ✅ AUTO GC NAME — IBABALIK AGAD KAPAG PALITAN NG IBA
+      if (cfg.autoGname && info.threadName !== cfg.targetGname) {
+        await api.setTitle(cfg.targetGname, threadID);
+      }
+
+      // ✅ AUTO NICK — LAGI RYUK BOSS
+      if (cfg.autoNick && info.participants) {
+        const me = info.participants.find(p => p.id === myID);
         if (me && me.name !== cfg.targetNick) {
           await api.changeNickname(cfg.targetNick, threadID);
         }
       }
 
-      // Status message — KAHIT SILENT, LALAPAG PA RIN
-      // Delay para hindi ma-detect — 12-28 min random
-      if (!cfg.silent || cfg.silent) { // LALAPAG PA RIN KAHIT SILENT
-        const randDelay = (Math.floor(Math.random() * 6) + 22) * 60 * 1000;
-        setTimeout(async () => {
-          if (loadGC(threadID).active) {
-            await api.sendMessage(pickLine(threadID), threadID);
-          }
-        }, randDelay);
-      }
-    } catch (e) {
-      // WALANG ERROR SA LOG — TAHIMIK LANG
-    }
-  }, 25 * 60 * 1000); // Check every 25 min — hindi mabilis, hindi ma-detect
+      // ✅ LALAPAG KAHIT WALANG MAG-CHAT — SARILING ORAS
+      const sendDelay = (Math.floor(Math.random() * 10) + 15) * 60 * 1000;
+      setTimeout(async () => {
+        if (loadGC(threadID).active) {
+          await api.sendMessage(pickLine(threadID), threadID);
+        }
+      }, sendDelay);
+
+    } catch {}
+  }, 18 * 60 * 1000);
 }
 
 module.exports.config = {
   name: "ryuk",
-  version: "21.0.0",
+  version: "24.1.0",
   hasPermission: 0,
-  credits: "RYUK BOSS — MAKUNAT V21",
-  description: "Pinakamakunat | Hindi ma-detect | 24/7 tuloy-tuloy",
+  credits: "RYUK BOSS — AUTO-REACT + MAKUNAT V24.1",
+  description: "Lalapag kahit walang mag-chat + AutoReact + Kumpleto",
   usePrefix: true,
-  commandCategory: "Ultimate",
-  usages: "/ryuk on | /ryuk off | /ryuk silent | /ryuk welcome"
+  commandCategory: "👑 RYUK BOSS",
+  usages: "/ryuk on | /ryuk off | /ryuk silent | /ryuk react | /ryuk gname | /ryuk welcome"
 };
 
 module.exports.run = async function ({ api, event, args }) {
   const tid = event.threadID;
   const sid = event.senderID;
-
   if (!isAdmin(sid)) return;
 
   const cmd = args[0]?.toLowerCase();
@@ -149,55 +164,95 @@ module.exports.run = async function ({ api, event, args }) {
       data.silent = false;
       saveGC(tid, data);
       startGCWatch(api, tid);
-      return api.sendMessage("✅ RYUK BOSS — NAKA-ON NA DITO SA GC LANG!\nTuloy-tuloy, hindi titigil hangga't hindi sinasabi ⚡", tid);
+      return api.sendMessage(
+        "👑 RYUK BOSS — NAKA-ON NA!\n" +
+        "🏷️ GC Name: " + TARGET_GNAME + "\n" +
+        "👤 Nick: " + TARGET_NICK + "\n" +
+        "💖 Auto-React: " + (data.autoReact ? "✅ ON" : "❌ OFF") + "\n" +
+        "⚡ Lalapag pa rin kahit walang mag-chat!",
+        tid
+      );
 
     case "off":
       data.active = false;
       saveGC(tid, data);
       stopGCWatch(tid);
-      return api.sendMessage("🛑 RYUK BOSS — HUMINTO NA. Salamat sa pagtitiwala 👑", tid);
+      return api.sendMessage("🛑 RYUK BOSS — HUMINTO NA. Salamat 👑", tid);
 
     case "silent":
       data.silent = true;
       saveGC(tid, data);
-      return api.sendMessage("🤫 Tahimik na — PERO HINDI TUMITIGIL! Bantay pa rin, lalapag pa rin ✅", tid);
+      return api.sendMessage("🤫 Tahimik na — PERO LALAPAG PA RIN! ✅", tid);
+
+    case "react":
+      data.autoReact = !data.autoReact;
+      saveGC(tid, data);
+      return api.sendMessage(
+        "💖 Auto-React: " + (data.autoReact ? "✅ NAKA-ON — Magre-react sa lahat ng mensahe!" : "❌ NAKA-OFF"),
+        tid
+      );
+
+    case "gname":
+      data.autoGname = !data.autoGname;
+      saveGC(tid, data);
+      return api.sendMessage(
+        "🏷️ Auto GC Name: " + (data.autoGname ? "✅ NAKA-ON — Lagi " + TARGET_GNAME : "❌ NAKA-OFF"),
+        tid
+      );
 
     case "welcome":
       data.autoWelcome = !data.autoWelcome;
       saveGC(tid, data);
-      return api.sendMessage(`👋 Auto-welcome: ${data.autoWelcome ? "✅ NAKA-ON" : "❌ NAKA-OFF"}`, tid);
+      return api.sendMessage(
+        "👋 Auto Welcome: " + (data.autoWelcome ? "✅ NAKA-ON" : "❌ NAKA-OFF"),
+        tid
+      );
 
     default:
       return api.sendMessage(
-        "👑 RYUK BOSS V21 — MAKUNAT & HINDI MA-DETECT\n\n" +
-        "✅ /ryuk on — Simulan dito sa GC lang\n" +
+        "👑 RYUK BOSS V24.1 — KUMPLETO NA ✨\n\n" +
+        "✅ /ryuk on — Simulan dito sa GC\n" +
         "✅ /ryuk off — Itigil\n" +
-        "✅ /ryuk silent — Tahimik pero hindi titigil\n" +
-        "✅ /ryuk welcome — I-toggle welcome\n\n" +
-        "💪 Ako ang pinakamakunat — walang katulad!",
+        "✅ /ryuk silent — Tahimik pero tuloy pa rin\n" +
+        "✅ /ryuk react — I-toggle Auto-React 💖\n" +
+        "✅ /ryuk gname — I-lock GC Name\n" +
+        "✅ /ryuk welcome — Auto-bati sa bago\n\n" +
+        "💎 Lalapag kahit walang mag-chat! Auto-react sa lahat!",
         tid
       );
   }
 };
 
-// Auto-welcome handler
+// ✅ AUTO-REACT + AUTO-WELCOME — GUMAGANA!
 module.exports.handleEvent = async function ({ api, event }) {
-  if (event.type !== "event" || event.logMessageType !== "log:subscribe") return;
   const tid = event.threadID;
   const cfg = loadGC(tid);
-  if (!cfg.active || !cfg.autoWelcome) return;
+  if (!cfg.active) return;
 
-  try {
-    const newUsers = event.logMessageData?.addedParticipants || [];
-    for (const u of newUsers) {
-      if (u.id === api.getCurrentUserID?.() || u.id === api.userID) continue;
-      await new Promise(r => setTimeout(r, 3000 + Math.random() * 2000)); // Delay — hindi ma-detect
-      await api.sendMessage(
-        `👋 Welcome @${u.name || "kaibigan"}! Dito sa GC ni RYUK BOSS 👑\n` +
-        "Masaya kaming nandito ka — ingat at mag-enjoy! 💜",
-        tid
-      );
-    }
-  } catch {}
+  const myID = api.getCurrentUserID ? api.getCurrentUserID() : api.userID;
+
+  // 💖 AUTO-REACT SA LAHAT NG MENSAHE
+  if (cfg.autoReact && event.type === "message" && event.senderID !== myID && event.messageID) {
+    try {
+      await new Promise(r => setTimeout(r, 600 + Math.random() * 900));
+      await api.setMessageReaction(pickReact(), event.messageID);
+    } catch {}
+  }
+
+  // 👋 AUTO WELCOME SA BAGONG KASALI
+  if (cfg.autoWelcome && event.type === "event" && event.logMessageType === "log:subscribe") {
+    try {
+      const newUsers = event.logMessageData?.addedParticipants || [];
+      for (const u of newUsers) {
+        if (u.id === myID) continue;
+        await new Promise(r => setTimeout(r, 2500 + Math.random() * 2500));
+        await api.sendMessage(
+          `👋 Welcome @${u.name || "kaibigan"}! Dito sa GC ni RYUK BOSS 👑\n` +
+          "Masaya kaming nandito ka — mag-enjoy at ingat palagi! 💜",
+          tid
+        );
+      }
+    } catch {}
+  }
 };
     
