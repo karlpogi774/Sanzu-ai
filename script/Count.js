@@ -1,6 +1,6 @@
 // ==========================================================
-// 👑 COUNT BOT — RYUK EDITION V3.0 ✨
-// ✅ COUNT 1-1000 | AUTO-MENTION KAPAG MAY UMAWAY 🔥
+// 👑 COUNT BOT — RYUK EDITION V3.1 ✨
+// ✅ COUNT 1-100 LANG! | AUTO-MENTION KAPAG MAY UMAWAY 🔥
 // ✅ WIN: GOJO JUJUTSU KAISEN A.K.A RYUK GNM LVL 9999
 // ✅ LOSE: AUTO-MENTION @ KAPAG MAY UMAWAY SAIYO
 // ✅ NAKAKATAWA REASON | HINDI MA-RESTRICTED ✅
@@ -20,6 +20,8 @@ const ADMIN_IDS = new Set([
   "61594325727109",
   "61594022290817"
 ]);
+
+const MAX_COUNT = 100; // ✅ 1 HANGGANG 100 LANG
 
 const activeCount = {};
 const currentNumber = {};
@@ -51,7 +53,7 @@ function loadData(threadID) {
     const f = getFile(threadID);
     if (fs.existsSync(f)) return JSON.parse(fs.readFileSync(f, "utf8"));
   } catch {}
-  return { active: false, num: 0, max: 1000 };
+  return { active: false, num: 0, max: MAX_COUNT };
 }
 
 function saveData(threadID, data) {
@@ -91,13 +93,13 @@ function startCounting(api, threadID) {
   countIntervals[threadID] = setInterval(async () => {
     if (!activeCount[threadID]) { stopCount(threadID); return; }
     currentNumber[threadID]++;
-    saveData(threadID, { active: true, num: currentNumber[threadID], max: 1000 });
+    saveData(threadID, { active: true, num: currentNumber[threadID], max: MAX_COUNT });
 
-    if (currentNumber[threadID] > 1000) {
+    if (currentNumber[threadID] >= MAX_COUNT) {
       stopCount(threadID);
       const dt = formatDate();
       return api.sendMessage(
-        `🎉🎉🎉 1000 REACHED! 🎉🎉🎉\n\n` +
+        `🎉🎉🎉 100 REACHED! 🎉🎉🎉\n\n` +
         `🏆 WIN: GOJO JUJUTSU KAISEN A.K.A RYUK GNM LVL 9999\n\n` +
         `📅 DATE: ${dt.date}\n` +
         `🌙 MONTH: ${dt.month}\n` +
@@ -118,10 +120,10 @@ function startCounting(api, threadID) {
 
 module.exports.config = {
   name: "count",
-  version: "3.0.0",
+  version: "3.1.0",
   hasPermission: 0,
-  credits: "RYUK — COUNT EDITION",
-  description: "Count 1-1000 | Auto-Mention sa umaaway | Nakakatawa Reason",
+  credits: "RYUK — COUNT 1-100 EDITION",
+  description: "Count 1-100 | Auto-Mention sa umaaway | Nakakatawa Reason",
   usePrefix: true,
   commandCategory: "👑 COUNT",
   usages: "/count start | /count stop"
@@ -138,7 +140,7 @@ module.exports.run = async function ({ api, event, args }) {
     case "start":
       startCounting(api, tid);
       return api.sendMessage(
-        "🔢 COUNT NAGSIMULA NA! 1 hanggang 1000 ⚡\n" +
+        "🔢 COUNT NAGSIMULA NA! 1 hanggang 100 ⚡\n" +
         "Hindi ma-restrict — dahan-dahan pero sigurado 💪\n" +
         "I-type ang /count stop para huminto ✅",
         tid
@@ -162,8 +164,8 @@ module.exports.run = async function ({ api, event, args }) {
 
     default:
       return api.sendMessage(
-        "👑 COUNT BOT — RYUK EDITION V3.0 ✨\n\n" +
-        "✅ /count start — Simulan ang 1-1000\n" +
+        "👑 COUNT BOT — RYUK EDITION V3.1 ✨\n\n" +
+        "✅ /count start — Simulan ang 1-100\n" +
         "✅ /count stop — Huminto at ipakita ang resulta\n\n" +
         "🏆 Kapag natapos: IKAW ANG PANALO!\n" +
         "⚠️ Kapag huminto: Auto-mention sa umaway sayo!\n" +
@@ -213,4 +215,4 @@ module.exports.handleEvent = async function ({ api, event }) {
     );
   }
 };
-          
+                 
