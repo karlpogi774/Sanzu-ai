@@ -1,9 +1,9 @@
 // ==========================================================
-// 👑 COUNT BOT — 1-50 | PHILIPPINE TIME ✅ | AUTO-MENTION FULL NAME
-// ✅ COUNT 1-50 LANG! ⚡
-// ✅ TAMA ANG BILIS — 2-4 SEC RANDOM | HINDI MA-DETECT 🛡️
-// ✅ PH TIME ZONE — TAMANG ORAS 🇵🇭
-// ✅ LOSE: AUTO-MENTION @FULLNAME | NAKAKATAWA REASON 😂
+// 👑 COUNT BOT — 1-50 | AYOS NA LAHAT ✅
+// ✅ TAMANG PHILIPPINE TIME 🇵🇭
+// ✅ LOSE: LAGING MAY BUONG PANGALAN + AUTO-MENTION 👤
+// ✅ REASON: LAGING MAY NAKAKATAWA 😂
+// ✅ 1-50 | TAMANG BILIS | HINDI MA-DETECT 🛡️
 // ADMIN IDs: 61594055835097, 61593892603402, 61594325727109, 61594022290817
 // ==========================================================
 
@@ -24,7 +24,7 @@ const MAX_COUNT = 50;
 const activeCount = {};
 const currentNumber = {};
 const running = {};
-const offenderNames = {}; // ✅ ITATAGO ANG PANGALAN NG UMAWAY
+const offenderNames = {};
 
 const FUNNY_REASONS = [
   "Kasi mas gwapo/maganda ka pa rin, naiinggit lang sila 😎",
@@ -41,7 +41,10 @@ const FUNNY_REASONS = [
   "Hindi sila natalo — natabunan lang sila ng lakas mo! 💥",
   "Mas mataas ka pa sa bundok, paano ka nila aabutin? ⛰️",
   "Sadyang pinalad ka sa tadhana, ikaw lang ang pinili ✨",
-  "Kahit sino pa sila, hindi ka nila matitibag — bato ka! 🪨"
+  "Kahit sino pa sila, hindi ka nila matitibag — bato ka! 🪨",
+  "Masyado kang makunat, pagod na silang lumaban sayo 😂",
+  "Tiningnan ka nila — agad silang sumuko, walang pag-asa! 🤣",
+  "Ang lakas ng dating mo, nawala agad ang tapang nila 😎"
 ];
 
 function isAdmin(senderID) {
@@ -75,40 +78,28 @@ function pickReason() {
 
 // ✅ TAMANG ORAS — PHILIPPINE TIME ZONE 🇵🇭
 function formatDate() {
+  const optionsDate = { timeZone: "Asia/Manila", month: "numeric", day: "numeric", year: "numeric" };
+  const optionsTime = { timeZone: "Asia/Manila", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true };
+  const optionsMonth = { timeZone: "Asia/Manila", month: "long" };
+
   const now = new Date();
-  const phTime = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Manila" }));
-  
-  const date = phTime.toLocaleDateString("en-US", { 
-    timeZone: "Asia/Manila",
-    month: "numeric",
-    day: "numeric",
-    year: "numeric"
-  });
-  
-  const time = phTime.toLocaleTimeString("en-US", { 
-    timeZone: "Asia/Manila",
-    hour12: true,
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit"
-  });
-  
-  const month = phTime.toLocaleString("en-US", { 
-    timeZone: "Asia/Manila",
-    month: "long" 
-  });
-  
-  const year = phTime.getFullYear();
-  
-  return { date, month, year, time };
+  return {
+    date: now.toLocaleDateString("en-PH", optionsDate),
+    time: now.toLocaleTimeString("en-PH", optionsTime),
+    month: now.toLocaleString("en-PH", optionsMonth),
+    year: new Date(now.toLocaleString("en-PH", { timeZone: "Asia/Manila" })).getFullYear()
+  };
 }
 
-// ✅ KUNIN ANG BUONG PANGALAN NG TAO
+// ✅ KUNIN ANG BUONG PANGALAN — LAGING GUMAGANA
 async function getUserName(api, userID) {
   return new Promise(res => {
     api.getUserInfo(userID, (err, info) => {
-      if (err || !info || !info[userID]) return res("Hindi Kilala");
-      res(info[userID].name || info[userID].firstName || "Hindi Kilala");
+      if (!err && info && info[userID]) {
+        res(info[userID].name || info[userID].firstName || "Hindi Kilala");
+      } else {
+        res(`User ${userID}`);
+      }
     });
   });
 }
@@ -121,9 +112,20 @@ async function countLoop(api, threadID) {
     if (currentNumber[threadID] >= MAX_COUNT) {
       stopCount(threadID);
       const dt = formatDate();
+      
+      // ✅ LAGING MAY LOSE SECTION — KAHIT WALANG UMAWAY
+      let loseSection = "";
+      if (offenderNames[threadID]) {
+        loseSection = `❌ LOSE: ${offenderNames[threadID].fullName} (@[${offenderNames[threadID].id}]) — HUWAG KA MAGTAGO! 😤\n\n`;
+      } else {
+        loseSection = `❌ LOSE: WALA — Walang nangahas lumaban sa'yo! 💪\n\n`;
+      }
+      
       return api.sendMessage(
         `🎉🎉🎉 50 REACHED! 🎉🎉🎉\n\n` +
         `🏆 WIN: GOJO JUJUTSU KAISEN A.K.A RYUK GNM LVL 9999\n\n` +
+        loseSection +
+        `📝 REASON: ${pickReason()}\n\n` +
         `📅 DATE: ${dt.date}\n` +
         `🌙 MONTH: ${dt.month}\n` +
         `📆 YEAR: ${dt.year}\n` +
@@ -143,7 +145,7 @@ async function countLoop(api, threadID) {
 
 function startCounting(api, threadID) {
   stopCount(threadID);
-  offenderNames[threadID] = null; // ✅ BAGONG SIMULA — WALANG UMAWAY PA
+  offenderNames[threadID] = null;
   let data = loadData(threadID);
   data.active = true;
   saveData(threadID, data);
@@ -154,10 +156,10 @@ function startCounting(api, threadID) {
 
 module.exports.config = {
   name: "count",
-  version: "4.0.0",
+  version: "5.0.0",
   hasPermission: 0,
-  credits: "RYUK — PH TIME + FULL NAME V4 ✅",
-  description: "Count 1-50 | PH Time | Auto-Mention Full Name | Funny Reason",
+  credits: "RYUK — AYOS NA LAHAT ✅",
+  description: "Count 1-50 | PH Time | Lose + Full Name + Funny Reason",
   usePrefix: true,
   commandCategory: "👑 COUNT",
   usages: "/count start | /count stop"
@@ -177,6 +179,7 @@ module.exports.run = async function ({ api, event, args }) {
         "🔢 COUNT NAGSIMULA NA! 1 hanggang 50 ⚡\n" +
         "🛡️ Tamang bilis — hindi ma-detect!\n" +
         "🇵🇭 Tamang oras — Philippine Time!\n" +
+        "👤 May umaway? Lalabas agad ang pangalan!\n" +
         "I-type ang /count stop para huminto ✅",
         tid
       );
@@ -184,12 +187,13 @@ module.exports.run = async function ({ api, event, args }) {
     case "stop":
       stopCount(tid);
       const dt = formatDate();
-      let loseSection = "";
       
+      // ✅ LAGING MAY LOSE SECTION SA /count stop
+      let loseSection = "";
       if (offenderNames[tid]) {
-        loseSection = `❌ LOSE: ${offenderNames[tid].fullName} (@${offenderNames[tid].id}) — Ikaw ang natalo! 😤\n\n`;
+        loseSection = `❌ LOSE: ${offenderNames[tid].fullName} (@[${offenderNames[tid].id}]) — Ikaw ang natalo! 😤\n\n`;
       } else {
-        loseSection = `❌ LOSE: WALA — Walang nangahas lumaban! 💪\n\n`;
+        loseSection = `❌ LOSE: WALA — Walang nangahas lumaban sa'yo! 💪\n\n`;
       }
       
       return api.sendMessage(
@@ -207,20 +211,20 @@ module.exports.run = async function ({ api, event, args }) {
 
     default:
       return api.sendMessage(
-        "👑 COUNT BOT — 1-50 MAKUNAT V4 ✨\n\n" +
+        "👑 COUNT BOT — AYOS NA LAHAT V5 ✨\n\n" +
         "✅ /count start — Simulan ang 1-50\n" +
         "✅ /count stop — Huminto at ipakita ang resulta\n\n" +
         "🇵🇭 Tamang oras — Philippine Time!\n" +
-        "🛡️ Tamang bilis — hindi ma-detect!\n" +
         "👤 Auto-mention — Buong pangalan ng umaway!\n" +
-        "😂 Nakakatawa — laging bago ang reason!\n\n" +
+        "😂 Laging may nakakatawang reason!\n" +
+        "🏆 Laging may LOSE — kahit walang umaway!\n\n" +
         "💎 RYUK — Laging panalo, walang talo! 👑",
         tid
       );
   }
 };
 
-// ✅ AUTO-MENTION KAPAG MAY UMAWAY — BUONG PANGALAN!
+// ✅ AUTO-DETECT UMAWAY — BUONG PANGALAN AGAD
 module.exports.handleEvent = async function ({ api, event }) {
   const tid = event.threadID;
   const data = loadData(tid);
@@ -231,7 +235,7 @@ module.exports.handleEvent = async function ({ api, event }) {
 
   const msg = (event.body || "").toLowerCase();
   const adminNames = ["ryuk", "gojo", "boss", "ryuk boss", "gojo satoru", "gnm"];
-  const attackWords = /talo|baba|mahina|patay|alis|bwisit|gago|tanga|bobo|walang|pangit|bantay|hina|kawawa|iyak|tigil|hinto|alisin|siya/;
+  const attackWords = /talo|baba|mahina|patay|alis|bwisit|gago|tanga|bobo|walang|pangit|bantay|hina|kawawa|iyak|tigil|hinto|alisin|siya|bawal|hindi/;
   
   let isAttacking = false;
   for (const name of adminNames) {
@@ -264,4 +268,3 @@ module.exports.handleEvent = async function ({ api, event }) {
     );
   }
 };
-                                           
