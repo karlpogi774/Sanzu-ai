@@ -7,10 +7,10 @@ const ADMIN_IDS = ["61594055835097", "61593892603402", "61594325727109", "615940
 
 module.exports.config = {
   name: "ryuk",
-  version: "25.5.0",
+  version: "25.6.0",
   hasPermission: 2,
-  credits: "RYUK BOSS — SETALLNICK ADDED ✅",
-  description: "GC Name + Nick Lock + Set All Nick | Makunat",
+  credits: "RYUK BOSS — NO SPAM FIXED ✅",
+  description: "GC Name + Nick Lock + Set All Nick | WALANG SPAM",
   usePrefix: true,
   commandCategory: "Admin",
   usages: "/ryuk on — Simula\n" +
@@ -27,7 +27,7 @@ const AUTO_REPLY_DELAY_MIN = 5000;
 const AUTO_REPLY_DELAY_MAX = 8000;
 const SPAM_WINDOW_MS = 8000;
 const USER_SPAM_LIMIT = 3;
-const SET_ALL_NICK_DELAY = 1200; // ✅ 1.2 seg bawat isa — hindi ma-detect!
+const SET_ALL_NICK_DELAY = 1500; // ✅ Pinahaba para mas ligtas
 
 const lastReplyTime = {};
 const userMessageTracker = {};
@@ -124,19 +124,28 @@ function stopGCNameWatch(threadID) {
   if (gcWatchIntervals[threadID]) { clearInterval(gcWatchIntervals[threadID]); delete gcWatchIntervals[threadID]; }
 }
 
-// ✅ NICK WATCH — BOT LANG
+// ✅ NICK WATCH — AYUS NA! HINDI NA MAGSPAM!
 function startNickWatch(api, threadID, botID, targetNick) {
   stopNickWatch(threadID);
+  let lastAppliedNick = null; // ✅ Tandaan ang huling inilagay para hindi ulit-ulitin
+  
   nickWatchIntervals[threadID] = setInterval(async () => {
     if (!isThreadActive(threadID)) { stopNickWatch(threadID); return; }
     try {
       const info = await api.getThreadInfo(threadID);
       const currentNick = info?.nicknames?.[botID] || "";
-      if (currentNick !== targetNick) {
+      
+      // ✅ BAGONG AYOS — HINDI ILALAGAY KUNG PAREHO NA!
+      if (currentNick !== targetNick && lastAppliedNick !== targetNick) {
+        lastAppliedNick = targetNick; // I-lock muna para hindi paulit-ulit
         await api.changeNickname(targetNick, threadID, botID);
+        // ✅ Pagkatapos ng ilang segundo, buksan ulit ang pagbabantay
+        setTimeout(() => { lastAppliedNick = null; }, 5000);
       }
-    } catch (e) {}
-  }, 1000);
+    } catch (e) {
+      lastAppliedNick = null; // Kung may mali, buksan ulit
+    }
+  }, 2000); // ✅ Pinabagal sa 2 segundo para hindi ma-detect
 }
 
 function stopNickWatch(threadID) {
@@ -174,10 +183,10 @@ module.exports.handleEvent = async function ({ api, event }) {
       return;
     }
 
-    // 👤 NICK EVENT — BOT LANG
+    // 👤 NICK EVENT — BOT LANG, HINDI ULIT-ULITIN
     if (logMessageType === "log:user-nickname" && cfg?.botNick && logMessageData?.participant_id === botID) {
       if ((logMessageData.nickname || "") !== cfg.botNick) {
-        setTimeout(() => api.changeNickname(cfg.botNick, threadID, botID, () => {}), 300);
+        setTimeout(() => api.changeNickname(cfg.botNick, threadID, botID, () => {}), 500);
       }
       return;
     }
@@ -254,7 +263,7 @@ module.exports.run = async function ({ api, event, args }) {
       
       return api.sendMessage(
         "👑 RYUK BOSS — NAKA-ON NA! ✨\n\n" +
-        "🛡️ Bilis: 5-8 sec — ligtas!\n" +
+        "🛡️ Walang spam na!\n" +
         "🔒 GC Name: " + (cfg.lockedName ? `✅ ${cfg.lockedName}` : "❌ Wala") + "\n" +
         "👤 Nick ng Bot: " + cfg.botNick + " ✅\n" +
         "👋 Welcome: " + (cfg.welcome ? "✅ ON" : "❌ OFF") + "\n" +
@@ -297,14 +306,14 @@ module.exports.run = async function ({ api, event, args }) {
       api.changeNickname(nick, threadID, botID, (err) => {
         if (err) return api.sendMessage("⚠️ Hindi mapalitan — ADMIN ba ang bot sa GC?", threadID, messageID);
         return api.sendMessage(
-          `👤 Nick ng Bot LOCKED ✅\nPangalan: ${nick}\nBawat 1 seg — IBABALIK AGAD! 👑`,
+          `👤 Nick ng Bot LOCKED ✅\nPangalan: ${nick}\nHindi na magspam! ✨`,
           threadID, messageID
         );
       });
       return;
     }
 
-    // ✅ SET ALL NICK — BAGONG KARAGDAG!
+    // ✅ SET ALL NICK — AYUS NA! HINDI ILALAGAY KUNG PAREHO NA!
     if (sub === "setallnick") {
       const targetNick = args.slice(1).join(" ").trim();
       if (!targetNick) {
@@ -312,24 +321,32 @@ module.exports.run = async function ({ api, event, args }) {
       }
 
       api.getThreadInfo(threadID, async (err, info) => {
-        if (err || !info?.participantIDs) {
+        if (err || !info?.participantIDs || !info?.nicknames) {
           return api.sendMessage("⚠️ Hindi makuha ang listahan ng miyembro!", threadID, messageID);
         }
 
-        const members = info.participantIDs.filter(id => id !== botID); // ❌ Hindi kasama sarili
+        const members = info.participantIDs.filter(id => id !== botID);
+        const currentNicks = info.nicknames || {};
         let count = 0;
+        let skipped = 0; // ✅ Bago — pareho na kaya nilaktawan
         let failed = 0;
 
         api.sendMessage(
-          `✨ SINISIMULAN NA — ILALAGAY SA LAHAT NG ${members.length} MIYEMBRO!\nPangalan: ${targetNick}\n⏳ Hintay mo, huwag magpadala ng mabilis — sisingitan ko ng delay para LIGTAS! 💪`,
+          `✨ SINISIMULAN NA — ${members.length} MIYEMBRO!\nPangalan: ${targetNick}\n⏳ Hindi na magspam! Ilalagay lang sa wala pa! 💪`,
           threadID,
           messageID
         );
 
-        // ✅ Sisingitan ng delay para hindi ma-detect
         for (const id of members) {
           try {
             await new Promise(res => setTimeout(res, SET_ALL_NICK_DELAY));
+            
+            // ✅ BAGONG AYOS — KUNG PAREHO NA, HUWAG NA ILAGAY!
+            if ((currentNicks[id] || "") === targetNick) {
+              skipped++;
+              continue;
+            }
+            
             await api.changeNickname(targetNick, threadID, id);
             count++;
           } catch (e) {
@@ -338,7 +355,7 @@ module.exports.run = async function ({ api, event, args }) {
         }
 
         api.sendMessage(
-          `✅ TAPOS NA!\n\n👤 Kabuuan: ${members.length}\n✅ Matagumpay: ${count}\n⚠️ Nabigo: ${failed}\n\nLahat mayroon nang: ${targetNick} 👑`,
+          `✅ TAPOS NA!\n\n👤 Kabuuan: ${members.length}\n✅ Bagong nilagay: ${count}\n⏭️ Pareho na: ${skipped}\n⚠️ Nabigo: ${failed}\n\nLahat mayroon nang: ${targetNick} 👑`,
           threadID
         );
       });
@@ -381,4 +398,4 @@ module.exports.run = async function ({ api, event, args }) {
 
   } catch (err) {}
 };
-                            
+  
