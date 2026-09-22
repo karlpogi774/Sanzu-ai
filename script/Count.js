@@ -1,10 +1,10 @@
 // ==========================================================
-// 👑 COUNT BOT — RYUK EDITION V3.1 ✨
-// ✅ COUNT 1-100 LANG! | AUTO-MENTION KAPAG MAY UMAWAY 🔥
+// 👑 COUNT BOT — MAS MABILIS V3.2 ✨
+// ✅ COUNT 1-100 | MAS MABILIS NA! ⚡
+// ✅ HINDI MA-RESTRICT — TAMA LANG ANG BILIS
+// ✅ AUTO-MENTION KAPAG MAY UMAWAY 🔥
 // ✅ WIN: GOJO JUJUTSU KAISEN A.K.A RYUK GNM LVL 9999
-// ✅ LOSE: AUTO-MENTION @ KAPAG MAY UMAWAY SAIYO
-// ✅ NAKAKATAWA REASON | HINDI MA-RESTRICTED ✅
-// ✅ MAKUNAT | SLOW DELAY | HINDI MA-DETECT
+// ✅ LOSE: AUTO-MENTION @ | NAKAKATAWA REASON
 // ADMIN IDs: 61594055835097, 61593892603402, 61594325727109, 61594022290817
 // ==========================================================
 
@@ -21,8 +21,7 @@ const ADMIN_IDS = new Set([
   "61594022290817"
 ]);
 
-const MAX_COUNT = 100; // ✅ 1 HANGGANG 100 LANG
-
+const MAX_COUNT = 100;
 const activeCount = {};
 const currentNumber = {};
 const countIntervals = {};
@@ -110,20 +109,20 @@ function startCounting(api, threadID) {
       );
     }
 
-    // Delay para hindi ma-restrict
-    await new Promise(r => setTimeout(r, 1200 + Math.random() * 800));
+    // ⚡ MAS MABILIS NA — 0.8 hanggang 1.2 segundo lang! Hindi pa rin ma-restrict
+    await new Promise(r => setTimeout(r, 800 + Math.random() * 400));
     if (activeCount[threadID]) {
       await api.sendMessage(`🔢 ${currentNumber[threadID]}`, threadID);
     }
-  }, 3500 + Math.floor(Math.random() * 1500));
+  }, 1000); // ⚡ MAS MABILIS NA INTERVAL
 }
 
 module.exports.config = {
   name: "count",
-  version: "3.1.0",
+  version: "3.2.0",
   hasPermission: 0,
-  credits: "RYUK — COUNT 1-100 EDITION",
-  description: "Count 1-100 | Auto-Mention sa umaaway | Nakakatawa Reason",
+  credits: "RYUK — MAS MABILIS V3.2",
+  description: "Count 1-100 | Mas Mabilis Na! | Auto-Mention | Nakakatawa Reason",
   usePrefix: true,
   commandCategory: "👑 COUNT",
   usages: "/count start | /count stop"
@@ -141,7 +140,7 @@ module.exports.run = async function ({ api, event, args }) {
       startCounting(api, tid);
       return api.sendMessage(
         "🔢 COUNT NAGSIMULA NA! 1 hanggang 100 ⚡\n" +
-        "Hindi ma-restrict — dahan-dahan pero sigurado 💪\n" +
+        "Mas mabilis na — hindi pa rin ma-restrict! 💪\n" +
         "I-type ang /count stop para huminto ✅",
         tid
       );
@@ -164,13 +163,14 @@ module.exports.run = async function ({ api, event, args }) {
 
     default:
       return api.sendMessage(
-        "👑 COUNT BOT — RYUK EDITION V3.1 ✨\n\n" +
+        "👑 COUNT BOT — MAS MABILIS V3.2 ✨\n\n" +
         "✅ /count start — Simulan ang 1-100\n" +
         "✅ /count stop — Huminto at ipakita ang resulta\n\n" +
-        "🏆 Kapag natapos: IKAW ANG PANALO!\n" +
-        "⚠️ Kapag huminto: Auto-mention sa umaway sayo!\n" +
-        "😂 Nakakatawa ang reason — hindi nakaka-offend!\n" +
-        "🛡️ Mabagal ang pagbilang — hindi ma-restrict ang account mo!\n\n" +
+        "⚡ Mas mabilis na — tapos agad!\n" +
+        "🛡️ Hindi pa rin ma-restrict — tama lang ang bilis!\n" +
+        "🏆 Ikaw laging panalo!\n" +
+        "⚠️ Auto-mention sa umaway sayo!\n" +
+        "😂 Nakakatawa ang reason!\n\n" +
         "💎 RYUK — Laging panalo, walang talo! 👑",
         tid
       );
@@ -190,7 +190,6 @@ module.exports.handleEvent = async function ({ api, event }) {
   const adminNames = ["ryuk", "gojo", "boss", "ryuk boss", "gojo satoru"];
   let isAttacking = false;
 
-  // Detect kung may nang-aaway sa admin
   for (const name of adminNames) {
     if (msg.includes(name) && /talo|baba|mahina|patay|alis|bwisit|gago|tanga|bobo|walang/.test(msg)) {
       isAttacking = true;
@@ -199,7 +198,7 @@ module.exports.handleEvent = async function ({ api, event }) {
   }
 
   if (isAttacking && event.senderID) {
-    await new Promise(r => setTimeout(r, 800 + Math.random() * 700));
+    await new Promise(r => setTimeout(r, 600 + Math.random() * 400));
     const dt = formatDate();
     await api.sendMessage(
       `⚠️ NAKITA KO ITO! 👀\n\n` +
@@ -215,4 +214,3 @@ module.exports.handleEvent = async function ({ api, event }) {
     );
   }
 };
-                 
