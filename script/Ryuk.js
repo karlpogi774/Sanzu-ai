@@ -7,10 +7,10 @@ const ADMIN_IDS = ["61594055835097", "61593892603402", "61594325727109", "615940
 
 module.exports.config = {
   name: "ryuk",
-  version: "25.7.1",
+  version: "25.7.2",
   hasPermission: 2,
-  credits: "RYUK BOSS — AYOS NA: ON ≠ SETALLNICK ✅",
-  description: "ON = Simula lang | SETALLNICK = Hiwalay na utos",
+  credits: "RYUK BOSS — AYOS NA ✅",
+  description: "ON = Simula lang | SETALLNICK = Hiwalay",
   usePrefix: true,
   commandCategory: "Admin",
   usages: "/ryuk on — Simula lang ✅\n" +
@@ -27,7 +27,7 @@ const AUTO_REPLY_DELAY_MIN = 5000;
 const AUTO_REPLY_DELAY_MAX = 8000;
 const SPAM_WINDOW_MS = 8000;
 const USER_SPAM_LIMIT = 3;
-const SET_ALL_NICK_DELAY = 1500;
+const SET_ALL_NICK_DELAY = 2000; // ✅ Pahaba para hindi ma-detect
 
 const lastReplyTime = {};
 const userMessageTracker = {};
@@ -124,7 +124,7 @@ function stopGCNameWatch(threadID) {
   if (gcWatchIntervals[threadID]) { clearInterval(gcWatchIntervals[threadID]); delete gcWatchIntervals[threadID]; }
 }
 
-// ✅ NICK WATCH — BOT LANG, WALANG SPAM
+// ✅ NICK WATCH — BOT LANG
 function startNickWatch(api, threadID, botID, targetNick) {
   stopNickWatch(threadID);
   let lastAppliedNick = null;
@@ -241,7 +241,7 @@ module.exports.run = async function ({ api, event, args }) {
         expires: 0,
         targetUser: null,
         lockedName: null,
-        botNick: "RYUK BOSS",
+        botNick: null, // ✅ WALANG DEFAULT — HINDI AAGAD MAGPAPALIT
         welcome: true
       };
     }
@@ -251,19 +251,19 @@ module.exports.run = async function ({ api, event, args }) {
       return api.sendMessage("👑 RYUK BOSS: Hindi mo hawak ang kapangyarihan dito!", threadID, messageID);
     }
 
-    // ✅ ON — SIMULA LANG! HINDI SETALLNICK!
+    // ✅ ON — SIMULA LANG! WALANG AGAD NA SETNICK!
     if (sub === "on") {
       cfg.expires = Date.now() + 30 * 24 * 60 * 60 * 1000;
       saveData(data);
       
       if (cfg.lockedName) startGCNameWatch(api, threadID, cfg.lockedName);
-      if (cfg.botNick) startNickWatch(api, threadID, botID, cfg.botNick);
+      // ✅ TINANGGAL: hindi agad nag-startNickWatch — sa onsetnick lang!
       
       return api.sendMessage(
         "👑 RYUK BOSS — NAKA-ON NA! ✨\n\n" +
-        "✅ Simula lang — hindi pa setallnick!\n" +
-        "👤 Nick ng Bot: " + cfg.botNick + "\n" +
-        "ℹ️ I-type: /ryuk setallnick [pangalan] para sa LAHAT ✨\n" +
+        "✅ Simula lang — hindi pa nagpapalit!\n" +
+        "👤 Para sa Bot: /ryuk onsetnick [pangalan]\n" +
+        "👥 Para sa LAHAT: /ryuk setallnick [pangalan] ✨\n" +
         "⏳ Tagal: 30 ARAW",
         threadID, messageID
       );
@@ -293,13 +293,13 @@ module.exports.run = async function ({ api, event, args }) {
       return;
     }
 
-    // ✅ SET BOT NICK — BOT LANG
+    // ✅ SET BOT NICK — DITO LANG MAGSISIMULA ANG BANTAY!
     if (sub === "onsetnick") {
       const nick = args.slice(1).join(" ").trim();
       if (!nick) return api.sendMessage("⚠️ /ryuk onsetnick RYUK BOSS", threadID, messageID);
       cfg.botNick = nick;
       saveData(data);
-      startNickWatch(api, threadID, botID, nick);
+      startNickWatch(api, threadID, botID, nick); // ✅ DITO LANG TUMATAKBO!
       api.changeNickname(nick, threadID, botID, (err) => {
         if (err) return api.sendMessage("⚠️ Hindi mapalitan — ADMIN ba ang bot sa GC?", threadID, messageID);
         return api.sendMessage(
@@ -310,19 +310,29 @@ module.exports.run = async function ({ api, event, args }) {
       return;
     }
 
-    // ✅ SETALLNICK — DITO LANG GAGANA SA LAHAT!
+    // ✅ SETALLNICK — AYOS NA ANG PAGKUHA NG LISTAHAN!
     if (sub === "setallnick") {
       const targetNick = args.slice(1).join(" ").trim();
       if (!targetNick) {
         return api.sendMessage("⚠️ Gamitin: /ryuk setallnick <pangalan>\nHalimbawa: /ryuk setallnick RYUK", threadID, messageID);
       }
 
+      // ✅ AYOS NA PAGKUHA — GUMAGANA NA!
       api.getThreadInfo(threadID, async (err, info) => {
-        if (err || !info?.participantIDs || !info?.nicknames) {
-          return api.sendMessage("⚠️ Hindi makuha ang listahan!", threadID, messageID);
+        if (err || !info) {
+          return api.sendMessage("⚠️ Hindi makuha ang impormasyon!", threadID, messageID);
         }
-
-        const members = info.participantIDs.filter(id => id !== botID);
+        
+        // ✅ Subukan sa ibang paraan kung walang participantIDs
+        let members = info.participantIDs || [];
+        if (!members.length && Array.isArray(info.participants)) {
+          members = info.participants.map(p => p.id || p.userID || p.psid).filter(Boolean);
+        }
+        if (!members.length) {
+          return api.sendMessage("⚠️ Hindi makuha ang listahan ng miyembro!", threadID, messageID);
+        }
+        
+        members = members.filter(id => String(id) !== String(botID));
         const currentNicks = info.nicknames || {};
         let count = 0, skipped = 0, failed = 0;
 
@@ -334,10 +344,15 @@ module.exports.run = async function ({ api, event, args }) {
         for (const id of members) {
           try {
             await new Promise(res => setTimeout(res, SET_ALL_NICK_DELAY));
-            if ((currentNicks[id] || "") === targetNick) { skipped++; continue; }
+            if (currentNicks && (currentNicks[id] || "") === targetNick) {
+              skipped++;
+              continue;
+            }
             await api.changeNickname(targetNick, threadID, id);
             count++;
-          } catch { failed++; }
+          } catch {
+            failed++;
+          }
         }
 
         api.sendMessage(
@@ -372,7 +387,7 @@ module.exports.run = async function ({ api, event, args }) {
       const d = Math.floor(left / 86400000);
       const h = Math.floor((left % 86400000) / 3600000);
       return api.sendMessage(
-        `👑 STATUS:\n⏳ ${d}a ${h}o\n🔒 GC: ${cfg.lockedName||"Wala"}\n👤 Nick: ${cfg.botNick}\n👋 Welcome: ${cfg.welcome?"ON":"OFF"}`,
+        `👑 STATUS:\n⏳ ${d}a ${h}o\n🔒 GC: ${cfg.lockedName||"Wala"}\n👤 Nick: ${cfg.botNick||"Hindi pa nakaset"}\n👋 Welcome: ${cfg.welcome?"ON":"OFF"}`,
         threadID, messageID
       );
     }
@@ -384,4 +399,4 @@ module.exports.run = async function ({ api, event, args }) {
 
   } catch (err) {}
 };
-                         
+  
