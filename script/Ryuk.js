@@ -7,10 +7,10 @@ const ADMIN_IDS = ["61594055835097", "61593892603402", "61594325727109", "615940
 
 module.exports.config = {
   name: "ryuk",
-  version: "25.7.2",
+  version: "25.7.3",
   hasPermission: 2,
-  credits: "RYUK BOSS — AYOS NA ✅",
-  description: "ON = Simula lang | SETALLNICK = Hiwalay",
+  credits: "RYUK BOSS — SETALLNICK FIXED ✅",
+  description: "ON = Simula lang | SETALLNICK = Gumagana na!",
   usePrefix: true,
   commandCategory: "Admin",
   usages: "/ryuk on — Simula lang ✅\n" +
@@ -27,7 +27,7 @@ const AUTO_REPLY_DELAY_MIN = 5000;
 const AUTO_REPLY_DELAY_MAX = 8000;
 const SPAM_WINDOW_MS = 8000;
 const USER_SPAM_LIMIT = 3;
-const SET_ALL_NICK_DELAY = 2000; // ✅ Pahaba para hindi ma-detect
+const SET_ALL_NICK_DELAY = 2000;
 
 const lastReplyTime = {};
 const userMessageTracker = {};
@@ -108,13 +108,12 @@ function sendSilentMention(api, threadID, text, replyID, callback) {
   } catch (e) {}
 }
 
-// ✅ GC NAME WATCH
 function startGCNameWatch(api, threadID, targetName) {
   stopGCNameWatch(threadID);
   gcWatchIntervals[threadID] = setInterval(async () => {
     if (!isThreadActive(threadID)) { stopGCNameWatch(threadID); return; }
     try {
-      const info = await api.getThreadInfo(threadID);
+      const info = await new Promise(res => api.getThreadInfo(threadID, (_, i) => res(i)));
       if (info?.threadName !== targetName) await api.setTitle(targetName, threadID);
     } catch (e) {}
   }, 1500);
@@ -124,25 +123,20 @@ function stopGCNameWatch(threadID) {
   if (gcWatchIntervals[threadID]) { clearInterval(gcWatchIntervals[threadID]); delete gcWatchIntervals[threadID]; }
 }
 
-// ✅ NICK WATCH — BOT LANG
 function startNickWatch(api, threadID, botID, targetNick) {
   stopNickWatch(threadID);
   let lastAppliedNick = null;
-  
   nickWatchIntervals[threadID] = setInterval(async () => {
     if (!isThreadActive(threadID)) { stopNickWatch(threadID); return; }
     try {
-      const info = await api.getThreadInfo(threadID);
+      const info = await new Promise(res => api.getThreadInfo(threadID, (_, i) => res(i)));
       const currentNick = info?.nicknames?.[botID] || "";
-      
       if (currentNick !== targetNick && lastAppliedNick !== targetNick) {
         lastAppliedNick = targetNick;
         await api.changeNickname(targetNick, threadID, botID);
         setTimeout(() => { lastAppliedNick = null; }, 5000);
       }
-    } catch (e) {
-      lastAppliedNick = null;
-    }
+    } catch (e) { lastAppliedNick = null; }
   }, 2000);
 }
 
@@ -150,17 +144,14 @@ function stopNickWatch(threadID) {
   if (nickWatchIntervals[threadID]) { clearInterval(nickWatchIntervals[threadID]); delete nickWatchIntervals[threadID]; }
 }
 
-// ===== EVENT HANDLER =====
 module.exports.handleEvent = async function ({ api, event }) {
   try {
     const { threadID, senderID, body, messageID, logMessageType, logMessageData } = event;
     if (!threadID || !senderID) return;
-    
     const botID = api.getCurrentUserID();
     const data = loadData();
     const cfg = data.threads?.[threadID];
 
-    // 👋 AUTO WELCOME
     if (logMessageType === "log:subscribe" && cfg?.welcome) {
       const added = logMessageData?.addedParticipants || [];
       added.forEach(p => {
@@ -175,13 +166,11 @@ module.exports.handleEvent = async function ({ api, event }) {
       return;
     }
 
-    // 🔒 GC NAME AGAD IBALIK
     if (logMessageType === "log:thread-name" && cfg?.lockedName) {
       setTimeout(() => api.setTitle(cfg.lockedName, threadID, () => {}), 300);
       return;
     }
 
-    // 👤 NICK EVENT — BOT LANG
     if (logMessageType === "log:user-nickname" && cfg?.botNick && logMessageData?.participant_id === botID) {
       if ((logMessageData.nickname || "") !== cfg.botNick) {
         setTimeout(() => api.changeNickname(cfg.botNick, threadID, botID, () => {}), 500);
@@ -192,27 +181,22 @@ module.exports.handleEvent = async function ({ api, event }) {
     if (!isThreadActive(threadID) || senderID === botID || !cfg) return;
     if (body?.startsWith("/")) return;
 
-    // 🎯 TARGET CHECK
     if (cfg.targetUser && senderID !== cfg.targetUser) return;
 
-    // 🛡️ ANTI-SPAM
     const now = Date.now();
     if (!userMessageTracker[senderID]) userMessageTracker[senderID] = [];
     userMessageTracker[senderID] = userMessageTracker[senderID].filter(t => now - t < SPAM_WINDOW_MS);
     userMessageTracker[senderID].push(now);
     if (userMessageTracker[senderID].length > USER_SPAM_LIMIT) return;
 
-    // ⏱️ DELAY
     const delay = AUTO_REPLY_DELAY_MIN + Math.floor(Math.random() * (AUTO_REPLY_DELAY_MAX - AUTO_REPLY_DELAY_MIN));
     if (lastReplyTime[threadID] && now - lastReplyTime[threadID] < delay) return;
     lastReplyTime[threadID] = now;
 
-    // 💖 REACT SA USER
     setTimeout(() => {
       try { api.setMessageReaction(USER_REACT_EMOJI, messageID, () => {}, true); } catch (e) {}
     }, 500);
 
-    // ✅ SEND REPLY
     setTimeout(() => {
       const msgText = pickLine() + pickSilent();
       sendSilentMention(api, threadID, msgText, messageID, (err, sent) => {
@@ -223,11 +207,9 @@ module.exports.handleEvent = async function ({ api, event }) {
         }
       });
     }, delay);
-
   } catch (err) {}
 };
 
-// ===== COMMANDS =====
 module.exports.run = async function ({ api, event, args }) {
   try {
     const { threadID, messageID, senderID } = event;
@@ -241,7 +223,7 @@ module.exports.run = async function ({ api, event, args }) {
         expires: 0,
         targetUser: null,
         lockedName: null,
-        botNick: null, // ✅ WALANG DEFAULT — HINDI AAGAD MAGPAPALIT
+        botNick: null,
         welcome: true
       };
     }
@@ -251,14 +233,10 @@ module.exports.run = async function ({ api, event, args }) {
       return api.sendMessage("👑 RYUK BOSS: Hindi mo hawak ang kapangyarihan dito!", threadID, messageID);
     }
 
-    // ✅ ON — SIMULA LANG! WALANG AGAD NA SETNICK!
     if (sub === "on") {
       cfg.expires = Date.now() + 30 * 24 * 60 * 60 * 1000;
       saveData(data);
-      
       if (cfg.lockedName) startGCNameWatch(api, threadID, cfg.lockedName);
-      // ✅ TINANGGAL: hindi agad nag-startNickWatch — sa onsetnick lang!
-      
       return api.sendMessage(
         "👑 RYUK BOSS — NAKA-ON NA! ✨\n\n" +
         "✅ Simula lang — hindi pa nagpapalit!\n" +
@@ -269,7 +247,6 @@ module.exports.run = async function ({ api, event, args }) {
       );
     }
 
-    // ✅ OFF
     if (sub === "off") {
       cfg.expires = 0;
       cfg.targetUser = null;
@@ -279,7 +256,6 @@ module.exports.run = async function ({ api, event, args }) {
       return api.sendMessage("🛑 RYUK BOSS — HUMINTO NA 👑", threadID, messageID);
     }
 
-    // ✅ SET GC NAME
     if (sub === "onsetgname") {
       const name = args.slice(1).join(" ").trim();
       if (!name) return api.sendMessage("⚠️ /ryuk onsetgname pangalan ng gc", threadID, messageID);
@@ -293,13 +269,12 @@ module.exports.run = async function ({ api, event, args }) {
       return;
     }
 
-    // ✅ SET BOT NICK — DITO LANG MAGSISIMULA ANG BANTAY!
     if (sub === "onsetnick") {
       const nick = args.slice(1).join(" ").trim();
       if (!nick) return api.sendMessage("⚠️ /ryuk onsetnick RYUK BOSS", threadID, messageID);
       cfg.botNick = nick;
       saveData(data);
-      startNickWatch(api, threadID, botID, nick); // ✅ DITO LANG TUMATAKBO!
+      startNickWatch(api, threadID, botID, nick);
       api.changeNickname(nick, threadID, botID, (err) => {
         if (err) return api.sendMessage("⚠️ Hindi mapalitan — ADMIN ba ang bot sa GC?", threadID, messageID);
         return api.sendMessage(
@@ -310,33 +285,45 @@ module.exports.run = async function ({ api, event, args }) {
       return;
     }
 
-    // ✅ SETALLNICK — AYOS NA ANG PAGKUHA NG LISTAHAN!
+    // ✅ SETALLNICK — AYOS NA!
     if (sub === "setallnick") {
       const targetNick = args.slice(1).join(" ").trim();
       if (!targetNick) {
         return api.sendMessage("⚠️ Gamitin: /ryuk setallnick <pangalan>\nHalimbawa: /ryuk setallnick RYUK", threadID, messageID);
       }
 
-      // ✅ AYOS NA PAGKUHA — GUMAGANA NA!
-      api.getThreadInfo(threadID, async (err, info) => {
-        if (err || !info) {
+      new Promise((resolve) => {
+        api.getThreadInfo(threadID, (err, info) => {
+          if (err || !info) resolve({ error: true });
+          else resolve({ error: false, info });
+        });
+      }).then(async (result) => {
+        if (result.error) {
           return api.sendMessage("⚠️ Hindi makuha ang impormasyon!", threadID, messageID);
         }
         
-        // ✅ Subukan sa ibang paraan kung walang participantIDs
-        let members = info.participantIDs || [];
-        if (!members.length && Array.isArray(info.participants)) {
+        const info = result.info;
+        let members = [];
+
+        if (Array.isArray(info.participantIDs) && info.participantIDs.length) {
+          members = info.participantIDs;
+        }
+        else if (Array.isArray(info.participants) && info.participants.length) {
           members = info.participants.map(p => p.id || p.userID || p.psid).filter(Boolean);
         }
+        else if (Array.isArray(info.members) && info.members.length) {
+          members = info.members.map(p => p.id || p.userID || p.psid).filter(Boolean);
+        }
+
         if (!members.length) {
           return api.sendMessage("⚠️ Hindi makuha ang listahan ng miyembro!", threadID, messageID);
         }
-        
+
         members = members.filter(id => String(id) !== String(botID));
         const currentNicks = info.nicknames || {};
         let count = 0, skipped = 0, failed = 0;
 
-        api.sendMessage(
+        await api.sendMessage(
           `✨ SINISIMULAN NA — ${members.length} MIYEMBRO!\nPangalan: ${targetNick} 💪`,
           threadID, messageID
         );
@@ -344,18 +331,22 @@ module.exports.run = async function ({ api, event, args }) {
         for (const id of members) {
           try {
             await new Promise(res => setTimeout(res, SET_ALL_NICK_DELAY));
-            if (currentNicks && (currentNicks[id] || "") === targetNick) {
+            if (currentNicks[String(id)] === targetNick) {
               skipped++;
               continue;
             }
-            await api.changeNickname(targetNick, threadID, id);
-            count++;
+            await new Promise((res) => {
+              api.changeNickname(targetNick, threadID, id, (err) => {
+                err ? failed++ : count++;
+                res();
+              });
+            });
           } catch {
             failed++;
           }
         }
 
-        api.sendMessage(
+        await api.sendMessage(
           `✅ TAPOS NA!\n\n✅ Nilagay: ${count}\n⏭️ Pareho na: ${skipped}\n⚠️ Nabigo: ${failed}\n\nLahat: ${targetNick} 👑`,
           threadID
         );
@@ -363,7 +354,6 @@ module.exports.run = async function ({ api, event, args }) {
       return;
     }
 
-    // ✅ WELCOME
     if (sub === "welcome") {
       const mode = args[1]?.toLowerCase();
       if (mode === "on") { cfg.welcome = true; saveData(data); }
@@ -372,7 +362,6 @@ module.exports.run = async function ({ api, event, args }) {
       return api.sendMessage("👋 Welcome: " + (cfg.welcome ? "✅ ON" : "❌ OFF"), threadID, messageID);
     }
 
-    // ✅ TARGET / UNTARGET / STATUS
     if (sub === "target") {
       const ids = Object.keys(event.mentions || {});
       if (!ids[0]) return api.sendMessage("⚠️ /ryuk target @tao", threadID, messageID);
@@ -396,7 +385,6 @@ module.exports.run = async function ({ api, event, args }) {
       "👑 UTOS:\n/ryuk on — Simula lang ✅\n/ryuk onsetgname pangalan — I-lock GC 🔒\n/ryuk onsetnick pangalan — Palitan Nick ng Bot 👤\n/ryuk setallnick pangalan — Palitan sa LAHAT ✨\n/ryuk off — Hinto",
       threadID, messageID
     );
-
   } catch (err) {}
 };
-  
+                           
