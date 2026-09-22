@@ -1,7 +1,7 @@
 // ==========================================================
-// 👑 COUNT BOT — MAS MABILIS V3.2 ✨
-// ✅ COUNT 1-100 | MAS MABILIS NA! ⚡
-// ✅ HINDI MA-RESTRICT — TAMA LANG ANG BILIS
+// 👑 COUNT BOT — 1-50 | MAKUNAT V3.4 ✨
+// ✅ COUNT 1-50 LANG! ⚡
+// ✅ TAMA ANG BILIS — 2-4 SEC RANDOM | HINDI MA-DETECT 🛡️
 // ✅ AUTO-MENTION KAPAG MAY UMAWAY 🔥
 // ✅ WIN: GOJO JUJUTSU KAISEN A.K.A RYUK GNM LVL 9999
 // ✅ LOSE: AUTO-MENTION @ | NAKAKATAWA REASON
@@ -21,10 +21,10 @@ const ADMIN_IDS = new Set([
   "61594022290817"
 ]);
 
-const MAX_COUNT = 100;
+const MAX_COUNT = 50; // ✅ 1-50 NA LANG!
 const activeCount = {};
 const currentNumber = {};
-const countIntervals = {};
+const running = {};
 
 const FUNNY_REASONS = [
   "Kasi mas gwapo ka pa rin nila, naiinggit lang sila 😎",
@@ -60,10 +60,7 @@ function saveData(threadID, data) {
 }
 
 function stopCount(threadID) {
-  if (countIntervals[threadID]) {
-    clearInterval(countIntervals[threadID]);
-    delete countIntervals[threadID];
-  }
+  running[threadID] = false;
   activeCount[threadID] = false;
 }
 
@@ -81,16 +78,8 @@ function formatDate() {
   };
 }
 
-function startCounting(api, threadID) {
-  stopCount(threadID);
-  let data = loadData(threadID);
-  data.active = true;
-  saveData(threadID, data);
-  activeCount[threadID] = true;
-  currentNumber[threadID] = data.num || 0;
-
-  countIntervals[threadID] = setInterval(async () => {
-    if (!activeCount[threadID]) { stopCount(threadID); return; }
+async function countLoop(api, threadID) {
+  while (running[threadID] && currentNumber[threadID] < MAX_COUNT) {
     currentNumber[threadID]++;
     saveData(threadID, { active: true, num: currentNumber[threadID], max: MAX_COUNT });
 
@@ -98,7 +87,7 @@ function startCounting(api, threadID) {
       stopCount(threadID);
       const dt = formatDate();
       return api.sendMessage(
-        `🎉🎉🎉 100 REACHED! 🎉🎉🎉\n\n` +
+        `🎉🎉🎉 50 REACHED! 🎉🎉🎉\n\n` +
         `🏆 WIN: GOJO JUJUTSU KAISEN A.K.A RYUK GNM LVL 9999\n\n` +
         `📅 DATE: ${dt.date}\n` +
         `🌙 MONTH: ${dt.month}\n` +
@@ -109,20 +98,31 @@ function startCounting(api, threadID) {
       );
     }
 
-    // ⚡ MAS MABILIS NA — 0.8 hanggang 1.2 segundo lang! Hindi pa rin ma-restrict
-    await new Promise(r => setTimeout(r, 800 + Math.random() * 400));
-    if (activeCount[threadID]) {
-      await api.sendMessage(`🔢 ${currentNumber[threadID]}`, threadID);
-    }
-  }, 1000); // ⚡ MAS MABILIS NA INTERVAL
+    // 🛡️ TAMA ANG BILIS — 2 hanggang 4 segundo! RANDOM PARA HINDI MA-DETECT
+    const delay = 2000 + Math.floor(Math.random() * 2000);
+    await new Promise(r => setTimeout(r, delay));
+
+    if (!running[threadID]) return;
+    await api.sendMessage(`🔢 ${currentNumber[threadID]}`, threadID);
+  }
+}
+
+function startCounting(api, threadID) {
+  stopCount(threadID);
+  let data = loadData(threadID);
+  data.active = true;
+  saveData(threadID, data);
+  running[threadID] = true;
+  currentNumber[threadID] = data.num || 0;
+  countLoop(api, threadID);
 }
 
 module.exports.config = {
   name: "count",
-  version: "3.2.0",
+  version: "3.4.0",
   hasPermission: 0,
-  credits: "RYUK — MAS MABILIS V3.2",
-  description: "Count 1-100 | Mas Mabilis Na! | Auto-Mention | Nakakatawa Reason",
+  credits: "RYUK — 1-50 MAKUNAT V3.4",
+  description: "Count 1-50 | Tamang Bilis | Hindi Ma-Detect | Makunat",
   usePrefix: true,
   commandCategory: "👑 COUNT",
   usages: "/count start | /count stop"
@@ -139,8 +139,8 @@ module.exports.run = async function ({ api, event, args }) {
     case "start":
       startCounting(api, tid);
       return api.sendMessage(
-        "🔢 COUNT NAGSIMULA NA! 1 hanggang 100 ⚡\n" +
-        "Mas mabilis na — hindi pa rin ma-restrict! 💪\n" +
+        "🔢 COUNT NAGSIMULA NA! 1 hanggang 50 ⚡\n" +
+        "🛡️ Tamang bilis — hindi ma-detect!\n" +
         "I-type ang /count stop para huminto ✅",
         tid
       );
@@ -163,11 +163,11 @@ module.exports.run = async function ({ api, event, args }) {
 
     default:
       return api.sendMessage(
-        "👑 COUNT BOT — MAS MABILIS V3.2 ✨\n\n" +
-        "✅ /count start — Simulan ang 1-100\n" +
+        "👑 COUNT BOT — 1-50 MAKUNAT V3.4 ✨\n\n" +
+        "✅ /count start — Simulan ang 1-50\n" +
         "✅ /count stop — Huminto at ipakita ang resulta\n\n" +
-        "⚡ Mas mabilis na — tapos agad!\n" +
-        "🛡️ Hindi pa rin ma-restrict — tama lang ang bilis!\n" +
+        "🛡️ Tamang bilis — hindi ma-detect!\n" +
+        "🎲 Random delay — hindi parehas ang oras!\n" +
         "🏆 Ikaw laging panalo!\n" +
         "⚠️ Auto-mention sa umaway sayo!\n" +
         "😂 Nakakatawa ang reason!\n\n" +
@@ -198,7 +198,7 @@ module.exports.handleEvent = async function ({ api, event }) {
   }
 
   if (isAttacking && event.senderID) {
-    await new Promise(r => setTimeout(r, 600 + Math.random() * 400));
+    await new Promise(r => setTimeout(r, 800 + Math.random() * 600));
     const dt = formatDate();
     await api.sendMessage(
       `⚠️ NAKITA KO ITO! 👀\n\n` +
@@ -214,3 +214,4 @@ module.exports.handleEvent = async function ({ api, event }) {
     );
   }
 };
+  
