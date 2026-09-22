@@ -1,5 +1,5 @@
 // ==========================================================
-// 👑 HELP COMMAND — ENGLISH VERSION | ADMIN PROTECTED
+// 👑 HELP COMMAND — DIRECT IN SCRIPT FOLDER | ADMIN PROTECTED
 // ADMIN IDs: 61594055835097, 61593892603402, 61594325727109, 61594022290817
 // ==========================================================
 
@@ -20,7 +20,7 @@ function isAdmin(id) {
 module.exports = {
   config: {
     name: "help",
-    version: "2.1.0",
+    version: "2.2.0",
     author: "RYUK BOSS",
     countDown: 5,
     role: 0,
@@ -136,4 +136,4 @@ function roleTextToString(role) {
   }
   return `${role} (Unknown)`;
   }
-            
+        
