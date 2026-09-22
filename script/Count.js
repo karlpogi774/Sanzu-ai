@@ -1,10 +1,9 @@
 // ==========================================================
-// 👑 COUNT BOT — 1-50 | MAKUNAT V3.4 ✨
+// 👑 COUNT BOT — 1-50 | PHILIPPINE TIME ✅ | AUTO-MENTION FULL NAME
 // ✅ COUNT 1-50 LANG! ⚡
 // ✅ TAMA ANG BILIS — 2-4 SEC RANDOM | HINDI MA-DETECT 🛡️
-// ✅ AUTO-MENTION KAPAG MAY UMAWAY 🔥
-// ✅ WIN: GOJO JUJUTSU KAISEN A.K.A RYUK GNM LVL 9999
-// ✅ LOSE: AUTO-MENTION @ | NAKAKATAWA REASON
+// ✅ PH TIME ZONE — TAMANG ORAS 🇵🇭
+// ✅ LOSE: AUTO-MENTION @FULLNAME | NAKAKATAWA REASON 😂
 // ADMIN IDs: 61594055835097, 61593892603402, 61594325727109, 61594022290817
 // ==========================================================
 
@@ -21,22 +20,28 @@ const ADMIN_IDS = new Set([
   "61594022290817"
 ]);
 
-const MAX_COUNT = 50; // ✅ 1-50 NA LANG!
+const MAX_COUNT = 50;
 const activeCount = {};
 const currentNumber = {};
 const running = {};
+const offenderNames = {}; // ✅ ITATAGO ANG PANGALAN NG UMAWAY
 
 const FUNNY_REASONS = [
-  "Kasi mas gwapo ka pa rin nila, naiinggit lang sila 😎",
-  "Wala silang laban sa'yo — parang langgam sa higante! 🐜➡️🗿",
+  "Kasi mas gwapo/maganda ka pa rin, naiinggit lang sila 😎",
+  "Wala silang laban sayo — parang langgam sa higante! 🐜➡️🗿",
   "Sadyang hindi sila makatalo, hanggang tingin lang sila sayo 😌",
   "Ang lakas mo kasi, napagod na sila bago ka pa matalo 💪",
-  "Baka sa ibang kalaban sila pumunta, hindi sa'yo — hindi ka basta-basta! 💎",
+  "Hindi ka basta-basta, hindi nila kayang abutan ✨",
   "Sobrang tindi ng lakas mo, nanginginig sila sa takot 👑",
   "Wala silang karapatang umaway sayo — ikaw ang hari dito! 👑",
-  "Sadyang hindi sila bagay lumaban, masyado kang malakas ⚡",
-  "Ang galing-galing mo kasi, hindi nila kayang abutan ✨",
-  "Hindi sila natalo — alam na nilang hindi ka matatalo! 💯"
+  "Masyado kang malakas para sa kanila, hindi bagay lumaban ⚡",
+  "Ang galing-galing mo kasi, wala silang tapat sayo 💎",
+  "Alam na nilang hindi ka matatalo kaya sumuko na agad! 💯",
+  "Masyadong maliwanag ang kinabukasan mo, nasilaw sila ✨",
+  "Hindi sila natalo — natabunan lang sila ng lakas mo! 💥",
+  "Mas mataas ka pa sa bundok, paano ka nila aabutin? ⛰️",
+  "Sadyang pinalad ka sa tadhana, ikaw lang ang pinili ✨",
+  "Kahit sino pa sila, hindi ka nila matitibag — bato ka! 🪨"
 ];
 
 function isAdmin(senderID) {
@@ -68,14 +73,44 @@ function pickReason() {
   return FUNNY_REASONS[Math.floor(Math.random() * FUNNY_REASONS.length)];
 }
 
+// ✅ TAMANG ORAS — PHILIPPINE TIME ZONE 🇵🇭
 function formatDate() {
   const now = new Date();
-  return {
-    date: now.toLocaleDateString("en-PH"),
-    time: now.toLocaleTimeString("en-PH"),
-    month: now.toLocaleString("en-PH", { month: "long" }),
-    year: now.getFullYear()
-  };
+  const phTime = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Manila" }));
+  
+  const date = phTime.toLocaleDateString("en-US", { 
+    timeZone: "Asia/Manila",
+    month: "numeric",
+    day: "numeric",
+    year: "numeric"
+  });
+  
+  const time = phTime.toLocaleTimeString("en-US", { 
+    timeZone: "Asia/Manila",
+    hour12: true,
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit"
+  });
+  
+  const month = phTime.toLocaleString("en-US", { 
+    timeZone: "Asia/Manila",
+    month: "long" 
+  });
+  
+  const year = phTime.getFullYear();
+  
+  return { date, month, year, time };
+}
+
+// ✅ KUNIN ANG BUONG PANGALAN NG TAO
+async function getUserName(api, userID) {
+  return new Promise(res => {
+    api.getUserInfo(userID, (err, info) => {
+      if (err || !info || !info[userID]) return res("Hindi Kilala");
+      res(info[userID].name || info[userID].firstName || "Hindi Kilala");
+    });
+  });
 }
 
 async function countLoop(api, threadID) {
@@ -98,7 +133,6 @@ async function countLoop(api, threadID) {
       );
     }
 
-    // 🛡️ TAMA ANG BILIS — 2 hanggang 4 segundo! RANDOM PARA HINDI MA-DETECT
     const delay = 2000 + Math.floor(Math.random() * 2000);
     await new Promise(r => setTimeout(r, delay));
 
@@ -109,6 +143,7 @@ async function countLoop(api, threadID) {
 
 function startCounting(api, threadID) {
   stopCount(threadID);
+  offenderNames[threadID] = null; // ✅ BAGONG SIMULA — WALANG UMAWAY PA
   let data = loadData(threadID);
   data.active = true;
   saveData(threadID, data);
@@ -119,10 +154,10 @@ function startCounting(api, threadID) {
 
 module.exports.config = {
   name: "count",
-  version: "3.4.0",
+  version: "4.0.0",
   hasPermission: 0,
-  credits: "RYUK — 1-50 MAKUNAT V3.4",
-  description: "Count 1-50 | Tamang Bilis | Hindi Ma-Detect | Makunat",
+  credits: "RYUK — PH TIME + FULL NAME V4 ✅",
+  description: "Count 1-50 | PH Time | Auto-Mention Full Name | Funny Reason",
   usePrefix: true,
   commandCategory: "👑 COUNT",
   usages: "/count start | /count stop"
@@ -141,6 +176,7 @@ module.exports.run = async function ({ api, event, args }) {
       return api.sendMessage(
         "🔢 COUNT NAGSIMULA NA! 1 hanggang 50 ⚡\n" +
         "🛡️ Tamang bilis — hindi ma-detect!\n" +
+        "🇵🇭 Tamang oras — Philippine Time!\n" +
         "I-type ang /count stop para huminto ✅",
         tid
       );
@@ -148,10 +184,18 @@ module.exports.run = async function ({ api, event, args }) {
     case "stop":
       stopCount(tid);
       const dt = formatDate();
+      let loseSection = "";
+      
+      if (offenderNames[tid]) {
+        loseSection = `❌ LOSE: ${offenderNames[tid].fullName} (@${offenderNames[tid].id}) — Ikaw ang natalo! 😤\n\n`;
+      } else {
+        loseSection = `❌ LOSE: WALA — Walang nangahas lumaban! 💪\n\n`;
+      }
+      
       return api.sendMessage(
         `🛑 COUNT STOPPED\n\n` +
         `🏆 WIN: GOJO JUJUTSU KAISEN A.K.A RYUK GNM LVL 9999\n\n` +
-        `❌ LOSE: @ — KUNG SINO KA MAN, NAKITA KITA! 👀\n\n` +
+        loseSection +
         `📝 REASON: ${pickReason()}\n\n` +
         `📅 DATE: ${dt.date}\n` +
         `🌙 MONTH: ${dt.month}\n` +
@@ -163,47 +207,53 @@ module.exports.run = async function ({ api, event, args }) {
 
     default:
       return api.sendMessage(
-        "👑 COUNT BOT — 1-50 MAKUNAT V3.4 ✨\n\n" +
+        "👑 COUNT BOT — 1-50 MAKUNAT V4 ✨\n\n" +
         "✅ /count start — Simulan ang 1-50\n" +
         "✅ /count stop — Huminto at ipakita ang resulta\n\n" +
+        "🇵🇭 Tamang oras — Philippine Time!\n" +
         "🛡️ Tamang bilis — hindi ma-detect!\n" +
-        "🎲 Random delay — hindi parehas ang oras!\n" +
-        "🏆 Ikaw laging panalo!\n" +
-        "⚠️ Auto-mention sa umaway sayo!\n" +
-        "😂 Nakakatawa ang reason!\n\n" +
+        "👤 Auto-mention — Buong pangalan ng umaway!\n" +
+        "😂 Nakakatawa — laging bago ang reason!\n\n" +
         "💎 RYUK — Laging panalo, walang talo! 👑",
         tid
       );
   }
 };
 
-// ✅ AUTO-MENTION KAPAG MAY UMAWAY SAIYO
+// ✅ AUTO-MENTION KAPAG MAY UMAWAY — BUONG PANGALAN!
 module.exports.handleEvent = async function ({ api, event }) {
   const tid = event.threadID;
   const data = loadData(tid);
   if (!data.active) return;
 
-  const myID = api.getCurrentUserID ? api.getCurrentUserID() : api.userID;
-  if (event.type !== "message" || event.senderID === myID) return;
+  const myID = String(api.getCurrentUserID ? api.getCurrentUserID() : api.userID);
+  if (event.type !== "message" || String(event.senderID) === myID) return;
 
   const msg = (event.body || "").toLowerCase();
-  const adminNames = ["ryuk", "gojo", "boss", "ryuk boss", "gojo satoru"];
+  const adminNames = ["ryuk", "gojo", "boss", "ryuk boss", "gojo satoru", "gnm"];
+  const attackWords = /talo|baba|mahina|patay|alis|bwisit|gago|tanga|bobo|walang|pangit|bantay|hina|kawawa|iyak|tigil|hinto|alisin|siya/;
+  
   let isAttacking = false;
-
   for (const name of adminNames) {
-    if (msg.includes(name) && /talo|baba|mahina|patay|alis|bwisit|gago|tanga|bobo|walang/.test(msg)) {
+    if (msg.includes(name) && attackWords.test(msg)) {
       isAttacking = true;
       break;
     }
   }
 
   if (isAttacking && event.senderID) {
+    const fullName = await getUserName(api, event.senderID);
+    offenderNames[tid] = { 
+      id: event.senderID, 
+      fullName: fullName 
+    };
+
     await new Promise(r => setTimeout(r, 800 + Math.random() * 600));
     const dt = formatDate();
     await api.sendMessage(
       `⚠️ NAKITA KO ITO! 👀\n\n` +
       `🏆 WIN: GOJO JUJUTSU KAISEN A.K.A RYUK GNM LVL 9999\n\n` +
-      `❌ LOSE: @[${event.senderID}] — NAKITA KITA! HUWAG KA MAGTAGO! 😤\n\n` +
+      `❌ LOSE: ${fullName} (@[${event.senderID}]) — HUWAG KA MAGTAGO! 😤\n\n` +
       `📝 REASON: ${pickReason()}\n\n` +
       `📅 DATE: ${dt.date}\n` +
       `🌙 MONTH: ${dt.month}\n` +
@@ -214,4 +264,4 @@ module.exports.handleEvent = async function ({ api, event }) {
     );
   }
 };
-  
+                                           
