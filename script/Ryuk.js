@@ -7,17 +7,18 @@ const ADMIN_IDS = ["61594055835097", "61593892603402", "61594325727109", "615940
 
 module.exports.config = {
   name: "ryuk",
-  version: "25.4.0",
+  version: "25.5.0",
   hasPermission: 2,
-  credits: "RYUK BOSS — NICK LOCK FINALLY FIXED ✅",
-  description: "GC Name + Nick Lock — IBABALIK TALAGA AGAD!",
+  credits: "RYUK BOSS — SETALLNICK ADDED ✅",
+  description: "GC Name + Nick Lock + Set All Nick | Makunat",
   usePrefix: true,
   commandCategory: "Admin",
-  usages: "/ryuk on — Simulan\n" +
+  usages: "/ryuk on — Simula\n" +
           "/ryuk onsetgname <pangalan> — I-lock GC Name 🔒\n" +
-          "/ryuk onsetnick <pangalan> — I-lock Nick 👤\n" +
+          "/ryuk onsetnick <pangalan> — I-lock Nick ng Bot 👤\n" +
+          "/ryuk setallnick <pangalan> — Ilagay sa LAHAT ng miyembro ✨\n" +
           "/ryuk off — Hinto",
-  cooldowns: 1 // ✅ PINAIGSI ANG PAGHIHINTAY
+  cooldowns: 1
 };
 
 const DATA_PATH = path.join(__dirname, "ryuk_data.json");
@@ -26,6 +27,7 @@ const AUTO_REPLY_DELAY_MIN = 5000;
 const AUTO_REPLY_DELAY_MAX = 8000;
 const SPAM_WINDOW_MS = 8000;
 const USER_SPAM_LIMIT = 3;
+const SET_ALL_NICK_DELAY = 1200; // ✅ 1.2 seg bawat isa — hindi ma-detect!
 
 const lastReplyTime = {};
 const userMessageTracker = {};
@@ -115,30 +117,26 @@ function startGCNameWatch(api, threadID, targetName) {
       const info = await api.getThreadInfo(threadID);
       if (info?.threadName !== targetName) await api.setTitle(targetName, threadID);
     } catch (e) {}
-  }, 1500); // ✅ PINABILIS — 1.5 SEG NA LANG!
+  }, 1500);
 }
 
 function stopGCNameWatch(threadID) {
   if (gcWatchIntervals[threadID]) { clearInterval(gcWatchIntervals[threadID]); delete gcWatchIntervals[threadID]; }
 }
 
-// ✅ NICK WATCH — PINABILIS AT TINIGAS!
+// ✅ NICK WATCH — BOT LANG
 function startNickWatch(api, threadID, botID, targetNick) {
   stopNickWatch(threadID);
-  
-  // ✅ AGAD NA PAGSURI BAWAT 1 SEGUNDO!
   nickWatchIntervals[threadID] = setInterval(async () => {
     if (!isThreadActive(threadID)) { stopNickWatch(threadID); return; }
     try {
       const info = await api.getThreadInfo(threadID);
       const currentNick = info?.nicknames?.[botID] || "";
-      
-      // ✅ KUNG HINDI TUMUGMA — IBALIK AGAD! KAHIT WALANG NAKAKITA NA EVENT!
       if (currentNick !== targetNick) {
         await api.changeNickname(targetNick, threadID, botID);
       }
     } catch (e) {}
-  }, 1000); // ✅ BAWAT 1 SEGUNDO — SOBRANG BILIS!
+  }, 1000);
 }
 
 function stopNickWatch(threadID) {
@@ -176,7 +174,7 @@ module.exports.handleEvent = async function ({ api, event }) {
       return;
     }
 
-    // 👤 NICK EVENT AGAD IBALIK
+    // 👤 NICK EVENT — BOT LANG
     if (logMessageType === "log:user-nickname" && cfg?.botNick && logMessageData?.participant_id === botID) {
       if ((logMessageData.nickname || "") !== cfg.botNick) {
         setTimeout(() => api.changeNickname(cfg.botNick, threadID, botID, () => {}), 300);
@@ -225,7 +223,7 @@ module.exports.handleEvent = async function ({ api, event }) {
 // ===== COMMANDS =====
 module.exports.run = async function ({ api, event, args }) {
   try {
-    const { threadID, messageID, senderID, mentions } = event;
+    const { threadID, messageID, senderID } = event;
     const sub = (args[0] || "").toLowerCase();
     let data = loadData();
     const botID = api.getCurrentUserID();
@@ -246,7 +244,7 @@ module.exports.run = async function ({ api, event, args }) {
       return api.sendMessage("👑 RYUK BOSS: Hindi mo hawak ang kapangyarihan dito!", threadID, messageID);
     }
 
-    // ✅ ON — SIMULANG BANTAY AGAD KUNG MAY NAKA-SET NA!
+    // ✅ ON
     if (sub === "on") {
       cfg.expires = Date.now() + 30 * 24 * 60 * 60 * 1000;
       saveData(data);
@@ -258,7 +256,7 @@ module.exports.run = async function ({ api, event, args }) {
         "👑 RYUK BOSS — NAKA-ON NA! ✨\n\n" +
         "🛡️ Bilis: 5-8 sec — ligtas!\n" +
         "🔒 GC Name: " + (cfg.lockedName ? `✅ ${cfg.lockedName}` : "❌ Wala") + "\n" +
-        "👤 Nick: " + cfg.botNick + " ✅ BAWAT 1 SEG BINABANTAYAN!\n" +
+        "👤 Nick ng Bot: " + cfg.botNick + " ✅\n" +
         "👋 Welcome: " + (cfg.welcome ? "✅ ON" : "❌ OFF") + "\n" +
         "⏳ Tagal: 30 ARAW",
         threadID, messageID
@@ -275,7 +273,7 @@ module.exports.run = async function ({ api, event, args }) {
       return api.sendMessage("🛑 RYUK BOSS — HUMINTO NA 👑", threadID, messageID);
     }
 
-    // ✅ SET & LOCK GC NAME
+    // ✅ SET GC NAME
     if (sub === "onsetgname") {
       const name = args.slice(1).join(" ").trim();
       if (!name) return api.sendMessage("⚠️ /ryuk onsetgname pangalan ng gc", threadID, messageID);
@@ -289,21 +287,59 @@ module.exports.run = async function ({ api, event, args }) {
       return;
     }
 
-    // ✅ SET & LOCK NICK — BAWAT 1 SEG BINABANTAYAN!
+    // ✅ SET BOT NICK
     if (sub === "onsetnick") {
       const nick = args.slice(1).join(" ").trim();
       if (!nick) return api.sendMessage("⚠️ /ryuk onsetnick RYUK BOSS", threadID, messageID);
       cfg.botNick = nick;
       saveData(data);
-      
-      // ✅ SIMULANG BANTAY — AGAD! BAWAT 1 SEG!
       startNickWatch(api, threadID, botID, nick);
-      
       api.changeNickname(nick, threadID, botID, (err) => {
         if (err) return api.sendMessage("⚠️ Hindi mapalitan — ADMIN ba ang bot sa GC?", threadID, messageID);
         return api.sendMessage(
-          `👤 Nickname LOCKED ✅\nPangalan: ${nick}\n🔴 BAWAT 1 SEGUNDONG BINABANTAYAN!\nIBABALIK KO AGAD KUNG TINANGGAL O BINAGO!\nWALANG MAKAKAPALIT! 👑`,
+          `👤 Nick ng Bot LOCKED ✅\nPangalan: ${nick}\nBawat 1 seg — IBABALIK AGAD! 👑`,
           threadID, messageID
+        );
+      });
+      return;
+    }
+
+    // ✅ SET ALL NICK — BAGONG KARAGDAG!
+    if (sub === "setallnick") {
+      const targetNick = args.slice(1).join(" ").trim();
+      if (!targetNick) {
+        return api.sendMessage("⚠️ Gamitin: /ryuk setallnick <pangalan>\nHalimbawa: /ryuk setallnick RYUK", threadID, messageID);
+      }
+
+      api.getThreadInfo(threadID, async (err, info) => {
+        if (err || !info?.participantIDs) {
+          return api.sendMessage("⚠️ Hindi makuha ang listahan ng miyembro!", threadID, messageID);
+        }
+
+        const members = info.participantIDs.filter(id => id !== botID); // ❌ Hindi kasama sarili
+        let count = 0;
+        let failed = 0;
+
+        api.sendMessage(
+          `✨ SINISIMULAN NA — ILALAGAY SA LAHAT NG ${members.length} MIYEMBRO!\nPangalan: ${targetNick}\n⏳ Hintay mo, huwag magpadala ng mabilis — sisingitan ko ng delay para LIGTAS! 💪`,
+          threadID,
+          messageID
+        );
+
+        // ✅ Sisingitan ng delay para hindi ma-detect
+        for (const id of members) {
+          try {
+            await new Promise(res => setTimeout(res, SET_ALL_NICK_DELAY));
+            await api.changeNickname(targetNick, threadID, id);
+            count++;
+          } catch (e) {
+            failed++;
+          }
+        }
+
+        api.sendMessage(
+          `✅ TAPOS NA!\n\n👤 Kabuuan: ${members.length}\n✅ Matagumpay: ${count}\n⚠️ Nabigo: ${failed}\n\nLahat mayroon nang: ${targetNick} 👑`,
+          threadID
         );
       });
       return;
@@ -320,7 +356,7 @@ module.exports.run = async function ({ api, event, args }) {
 
     // ✅ TARGET / UNTARGET / STATUS
     if (sub === "target") {
-      const ids = Object.keys(mentions || {});
+      const ids = Object.keys(event.mentions || {});
       if (!ids[0]) return api.sendMessage("⚠️ /ryuk target @tao", threadID, messageID);
       cfg.targetUser = ids[0];
       saveData(data);
@@ -333,16 +369,16 @@ module.exports.run = async function ({ api, event, args }) {
       const d = Math.floor(left / 86400000);
       const h = Math.floor((left % 86400000) / 3600000);
       return api.sendMessage(
-        `👑 STATUS:\n⏳ ${d}a ${h}o\n🔒 GC: ${cfg.lockedName||"Wala"}\n👤 Nick: ${cfg.botNick}\n👋 Welcome: ${cfg.welcome?"ON":"OFF"}`,
+        `👑 STATUS:\n⏳ ${d}a ${h}o\n🔒 GC: ${cfg.lockedName||"Wala"}\n👤 Nick ng Bot: ${cfg.botNick}\n👋 Welcome: ${cfg.welcome?"ON":"OFF"}`,
         threadID, messageID
       );
     }
 
     return api.sendMessage(
-      "👑 UTOS:\n/ryuk on — Simula\n/ryuk onsetgname pangalan — I-lock GC 🔒\n/ryuk onsetnick pangalan — I-lock Nick 👤\n/ryuk off — Hinto",
+      "👑 UTOS:\n/ryuk on — Simula\n/ryuk onsetgname pangalan — I-lock GC 🔒\n/ryuk onsetnick pangalan — I-lock Nick ng Bot 👤\n/ryuk setallnick pangalan — Ilagay sa LAHAT ✨\n/ryuk off — Hinto",
       threadID, messageID
     );
 
   } catch (err) {}
 };
-  
+                            
