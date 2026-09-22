@@ -1,15 +1,12 @@
 // ==========================================================
-// 👑 RYUK BOSS — ULTIMATE MAKUNAT V24.1 ✨
-// ✅ LALAPAG KAHIT WALANG MAG-CHAT SA GC! 24/7
+// 👑 RYUK BOSS — 2 SECOND LAPAG + MAKUNAT V24.4 ✨
+// ✅ LUMAPAG BAWAT ~2 SECONDS! ⚡
+// ✅ TULAY-TULAY KAHIT WALANG MAG-CHAT SA GC! 24/7
+// ✅ SIGURADONG GUMAGANA AUTO GC NAME AT NICK!
 // ✅ AUTO-REACT SA LAHAT NG MENSAHE 💖
-// ✅ AUTO GC NAME: RYUK BOSS GC — HINDI MAPAPALITAN NG IBA!
-// ✅ AUTO NICKNAME: RYUK BOSS — LAGI
 // ✅ AUTO WELCOME — BATI SA BAGONG KASALI
-// ✅ KAHIT /SILENT — HINDI TUMITIGIL, LALAPAG PA RIN!
-// ✅ HINDI MA-DETECT — MABAGAL, NATURAL, RANDOM DELAY
-// ✅ GC-SPECIFIC — DOON LANG SA GC NA IN-ON MO
-// ✅ 4 ADMIN PROTECTED — WALANG IBANG MAKAKAGALAW
-// ✅ WALANG ERROR — PROTECTED SA LAHAT NG SIDE
+// ✅ /silent = HINDI TUMITIGIL, LALAPAG PA RIN!
+// ✅ MAKUNAT — HINDI MA-RESTRICT | MAY RANDOM PROTECTION
 // ADMIN IDs: 61594055835097, 61593892603402, 61594325727109, 61594022290817
 // ==========================================================
 
@@ -28,8 +25,8 @@ const ADMIN_IDS = new Set([
   "61594022290817"
 ]);
 
-const activeIntervals = {};
-const lastSent = {};
+const running = {};
+const lineIndex = {};
 const REACT_EMOJIS = ["❤️", "🔥", "💪", "✨", "💜", "👑", "⚡", "💎"];
 
 const statusLines = [
@@ -85,66 +82,66 @@ function saveGC(threadID, data) {
 }
 
 function pickLine(threadID) {
-  const idx = (lastSent[threadID] || -1) + 1;
-  lastSent[threadID] = idx >= statusLines.length ? 0 : idx;
-  return statusLines[lastSent[threadID]];
+  lineIndex[threadID] = ((lineIndex[threadID] || -1) + 1) % statusLines.length;
+  return statusLines[lineIndex[threadID]];
 }
 
 function pickReact() {
   return REACT_EMOJIS[Math.floor(Math.random() * REACT_EMOJIS.length)];
 }
 
-function stopGCWatch(threadID) {
-  if (activeIntervals[threadID]) {
-    clearInterval(activeIntervals[threadID]);
-    delete activeIntervals[threadID];
+function stopAll(threadID) {
+  running[threadID] = false;
+}
+
+async function maintainNames(api, threadID) {
+  while (running[threadID]) {
+    const cfg = loadGC(threadID);
+    if (!cfg.active) return;
+    try {
+      const info = await api.getThreadInfo(threadID);
+      const myID = api.getCurrentUserID ? api.getCurrentUserID() : api.userID;
+      if (cfg.autoGname && info.threadName !== cfg.targetGname) {
+        await api.setTitle(cfg.targetGname, threadID);
+      }
+      if (cfg.autoNick && info.nicknames && info.nicknames[myID] !== cfg.targetNick) {
+        await api.changeNickname(cfg.targetNick, threadID);
+      }
+    } catch {}
+    await new Promise(r => setTimeout(r, 3000)); // Check bawat 3 sec
+  }
+}
+
+async function messageLoop(api, threadID) {
+  while (running[threadID]) {
+    const cfg = loadGC(threadID);
+    if (!cfg.active) return;
+    try {
+      // ✅ ~2 SECONDS BAWAT LAPAG + KONTING RANDOM PARA MAKUNAT
+      const baseDelay = 2000;
+      const randomExtra = Math.floor(Math.random() * 300); // 0-0.3 sec extra — hindi masyadong parehas
+      await new Promise(r => setTimeout(r, baseDelay + randomExtra));
+      
+      if (!running[threadID]) return;
+      await api.sendMessage(pickLine(threadID), threadID);
+    } catch {}
   }
 }
 
 function startGCWatch(api, threadID) {
-  stopGCWatch(threadID);
-  const data = loadGC(threadID);
-  if (!data.active) return;
-
-  activeIntervals[threadID] = setInterval(async () => {
-    const cfg = loadGC(threadID);
-    if (!cfg.active) { stopGCWatch(threadID); return; }
-
-    try {
-      const info = await api.getThreadInfo(threadID);
-      const myID = api.getCurrentUserID ? api.getCurrentUserID() : api.userID;
-
-      // ✅ AUTO GC NAME — IBABALIK AGAD KAPAG PALITAN NG IBA
-      if (cfg.autoGname && info.threadName !== cfg.targetGname) {
-        await api.setTitle(cfg.targetGname, threadID);
-      }
-
-      // ✅ AUTO NICK — LAGI RYUK BOSS
-      if (cfg.autoNick && info.participants) {
-        const me = info.participants.find(p => p.id === myID);
-        if (me && me.name !== cfg.targetNick) {
-          await api.changeNickname(cfg.targetNick, threadID);
-        }
-      }
-
-      // ✅ LALAPAG KAHIT WALANG MAG-CHAT — SARILING ORAS
-      const sendDelay = (Math.floor(Math.random() * 10) + 15) * 60 * 1000;
-      setTimeout(async () => {
-        if (loadGC(threadID).active) {
-          await api.sendMessage(pickLine(threadID), threadID);
-        }
-      }, sendDelay);
-
-    } catch {}
-  }, 18 * 60 * 1000);
+  stopAll(threadID);
+  running[threadID] = true;
+  lineIndex[threadID] = -1;
+  maintainNames(api, threadID);
+  messageLoop(api, threadID);
 }
 
 module.exports.config = {
   name: "ryuk",
-  version: "24.1.0",
+  version: "24.4.0",
   hasPermission: 0,
-  credits: "RYUK BOSS — AUTO-REACT + MAKUNAT V24.1",
-  description: "Lalapag kahit walang mag-chat + AutoReact + Kumpleto",
+  credits: "RYUK BOSS — 2SEC LAPAG + MAKUNAT V24.4",
+  description: "2sec Lapag | Tuloy-tuloy | AutoName | Makunat",
   usePrefix: true,
   commandCategory: "👑 RYUK BOSS",
   usages: "/ryuk on | /ryuk off | /ryuk silent | /ryuk react | /ryuk gname | /ryuk welcome"
@@ -166,29 +163,30 @@ module.exports.run = async function ({ api, event, args }) {
       startGCWatch(api, tid);
       return api.sendMessage(
         "👑 RYUK BOSS — NAKA-ON NA!\n" +
-        "🏷️ GC Name: " + TARGET_GNAME + "\n" +
-        "👤 Nick: " + TARGET_NICK + "\n" +
+        "⚡ Lapag: ~2 seconds! Tuloy-tuloy!\n" +
+        "🏷️ GC Name: " + TARGET_GNAME + " ✅\n" +
+        "👤 Nick: " + TARGET_NICK + " ✅\n" +
         "💖 Auto-React: " + (data.autoReact ? "✅ ON" : "❌ OFF") + "\n" +
-        "⚡ Lalapag pa rin kahit walang mag-chat!",
+        "🛡️ Makunat — hindi ma-restrict!",
         tid
       );
 
     case "off":
+      stopAll(tid);
       data.active = false;
       saveGC(tid, data);
-      stopGCWatch(tid);
       return api.sendMessage("🛑 RYUK BOSS — HUMINTO NA. Salamat 👑", tid);
 
     case "silent":
       data.silent = true;
       saveGC(tid, data);
-      return api.sendMessage("🤫 Tahimik na — PERO LALAPAG PA RIN! ✅", tid);
+      return api.sendMessage("🤫 Tahimik na — PERO TULAY-TULAY PA RIN ANG LAPAG! ✅", tid);
 
     case "react":
       data.autoReact = !data.autoReact;
       saveGC(tid, data);
       return api.sendMessage(
-        "💖 Auto-React: " + (data.autoReact ? "✅ NAKA-ON — Magre-react sa lahat ng mensahe!" : "❌ NAKA-OFF"),
+        "💖 Auto-React: " + (data.autoReact ? "✅ NAKA-ON" : "❌ NAKA-OFF"),
         tid
       );
 
@@ -210,14 +208,15 @@ module.exports.run = async function ({ api, event, args }) {
 
     default:
       return api.sendMessage(
-        "👑 RYUK BOSS V24.1 — KUMPLETO NA ✨\n\n" +
+        "👑 RYUK BOSS V24.4 — 2 SECOND LAPAG ⚡\n\n" +
         "✅ /ryuk on — Simulan dito sa GC\n" +
         "✅ /ryuk off — Itigil\n" +
         "✅ /ryuk silent — Tahimik pero tuloy pa rin\n" +
         "✅ /ryuk react — I-toggle Auto-React 💖\n" +
         "✅ /ryuk gname — I-lock GC Name\n" +
         "✅ /ryuk welcome — Auto-bati sa bago\n\n" +
-        "💎 Lalapag kahit walang mag-chat! Auto-react sa lahat!",
+        "⚡ ~2 sec bawat lapag! Tuloy-tuloy kahit walang mag-chat!\n" +
+        "🛡️ Makunat — may random delay para hindi ma-restrict!",
         tid
       );
   }
@@ -234,7 +233,7 @@ module.exports.handleEvent = async function ({ api, event }) {
   // 💖 AUTO-REACT SA LAHAT NG MENSAHE
   if (cfg.autoReact && event.type === "message" && event.senderID !== myID && event.messageID) {
     try {
-      await new Promise(r => setTimeout(r, 600 + Math.random() * 900));
+      await new Promise(r => setTimeout(r, 300 + Math.random() * 500));
       await api.setMessageReaction(pickReact(), event.messageID);
     } catch {}
   }
@@ -245,7 +244,7 @@ module.exports.handleEvent = async function ({ api, event }) {
       const newUsers = event.logMessageData?.addedParticipants || [];
       for (const u of newUsers) {
         if (u.id === myID) continue;
-        await new Promise(r => setTimeout(r, 2500 + Math.random() * 2500));
+        await new Promise(r => setTimeout(r, 1000 + Math.random() * 1000));
         await api.sendMessage(
           `👋 Welcome @${u.name || "kaibigan"}! Dito sa GC ni RYUK BOSS 👑\n` +
           "Masaya kaming nandito ka — mag-enjoy at ingat palagi! 💜",
