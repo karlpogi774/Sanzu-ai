@@ -1,147 +1,216 @@
 // ==========================================================
-// BOT NAME: count | 1-50 | KAPAG STOP AGAD HIHINTO ✅
-// 4 ADMIN PROTECT ✅ | HINDI MA-RESTRICT
-// WIN GOJO JUJUTSU KAISEN A.K.A RYUK GNM LVL 9999
-// ADMIN IDs: 61594055835097, 61593892603402, 61594325727109, 61594022290817 ✅
+// 👑 COUNT BOT — RYUK EDITION V3.0 ✨
+// ✅ COUNT 1-1000 | AUTO-MENTION KAPAG MAY UMAWAY 🔥
+// ✅ WIN: GOJO JUJUTSU KAISEN A.K.A RYUK GNM LVL 9999
+// ✅ LOSE: AUTO-MENTION @ KAPAG MAY UMAWAY SAIYO
+// ✅ NAKAKATAWA REASON | HINDI MA-RESTRICTED ✅
+// ✅ MAKUNAT | SLOW DELAY | HINDI MA-DETECT
+// ADMIN IDs: 61594055835097, 61593892603402, 61594325727109, 61594022290817
 // ==========================================================
 
 const fs = require("fs");
 const path = require("path");
 
-module.exports.config = {
-  name: "count",
-  version: "4.0.0",
-  hasPermission: 0,
-  credits: "RYUK — 1-50 + 4 ADMIN",
-  description: "count 1-50 | kapag stop agad hihinto",
-  usePrefix: true,
-  commandCategory: "count",
-  usages: "/count start",
-  cooldowns: 5
-};
+const DATA_DIR = path.join(__dirname, "count_data");
+if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 
-// ✅ LAHAT NG 4 ADMIN — PROTEKTADO!
-const ADMIN_IDS = [
+const ADMIN_IDS = new Set([
   "61594055835097",
   "61593892603402",
   "61594325727109",
   "61594022290817"
+]);
+
+const activeCount = {};
+const currentNumber = {};
+const countIntervals = {};
+
+const FUNNY_REASONS = [
+  "Kasi mas gwapo ka pa rin nila, naiinggit lang sila 😎",
+  "Wala silang laban sa'yo — parang langgam sa higante! 🐜➡️🗿",
+  "Sadyang hindi sila makatalo, hanggang tingin lang sila sayo 😌",
+  "Ang lakas mo kasi, napagod na sila bago ka pa matalo 💪",
+  "Baka sa ibang kalaban sila pumunta, hindi sa'yo — hindi ka basta-basta! 💎",
+  "Sobrang tindi ng lakas mo, nanginginig sila sa takot 👑",
+  "Wala silang karapatang umaway sayo — ikaw ang hari dito! 👑",
+  "Sadyang hindi sila bagay lumaban, masyado kang malakas ⚡",
+  "Ang galing-galing mo kasi, hindi nila kayang abutan ✨",
+  "Hindi sila natalo — alam na nilang hindi ka matatalo! 💯"
 ];
 
-const DATA_FILE = path.join(__dirname, "count_data.json");
+function isAdmin(senderID) {
+  return ADMIN_IDS.has(String(senderID));
+}
 
-const REASONS = [
-  "kasi mas makinis pa ako sa pader 😎✨",
-  "kasi lvl 9999 ako — ikaw lvl 0 pa naghahanap pa ng buhay 😂",
-  "kasi may 6 na mata ako — ikaw dalawang mata hindi mo pa magamit nang tama 🕶️",
-  "kasi ang tangkad ko sayo — kailangan mo pa umakyat sa hagdan para abutin ako 🏔️",
-  "kasi ako ang hari — ikaw taga-linis lang ng sahig dito 👑🧹",
-  "kasi hindi ka mananalo — kahit buhayin mo pa ang lolo mo para tulungan ka 💀",
-  "kasi mas mabango pa ako kaysa sa pabango mo 🥴🌸",
-  "kasi ang utak ko infinite — sayo wala eh, walang laman 🧠💨",
-  "kasi ako gojo — ikaw go-jo-walang 😂",
-  "kasi tinabihan mo ako — mali ka agad, walang tanong-tanong 😤",
-  "kasi kahit anong gawin mo — hanggang tingin ka lang sa akin 😌",
-  "kasi ako pinili ng tadhana — ikaw pinili ng kawalan 😭",
-  "kasi mas malakas ako sayo PERIOD 🔥",
-  "kasi hindi mo ako kayang talo — tanggapin mo na, hindi masakit 😂",
-  "kasi ako paborito — ikaw yung nakalimutan isama sa imbitasyon 💌",
-  "kasi kahit anong subok mo — bagsak ka pa rin sa akin 📉",
-  "kasi ang ganda ko naman kasi — hindi mo matatalo ang kagandahan ✨",
-  "kasi ryuk ako — hindi ako natatalo, PERIOD, TULDOK 📍",
-  "kasi sinubukan mo — tapos natalo ka na bago ka pa magsimula 😏",
-  "kasi bawal saktan ang hari dito 👑"
-];
+function getFile(threadID) {
+  return path.join(DATA_DIR, `${threadID}.json`);
+}
 
-function loadData() {
+function loadData(threadID) {
   try {
-    if (!fs.existsSync(DATA_FILE)) fs.writeFileSync(DATA_FILE, JSON.stringify({ counting: false, current: 0 }, null, 2));
-    return JSON.parse(fs.readFileSync(DATA_FILE, "utf8"));
-  } catch { return { counting: false, current: 0 }; }
+    const f = getFile(threadID);
+    if (fs.existsSync(f)) return JSON.parse(fs.readFileSync(f, "utf8"));
+  } catch {}
+  return { active: false, num: 0, max: 1000 };
 }
 
-function saveData(d) { fs.writeFileSync(DATA_FILE, JSON.stringify(d, null, 2)); }
-function getReason() { return REASONS[Math.floor(Math.random() * REASONS.length)]; }
-function isAdmin(id) { return ADMIN_IDS.includes(String(id)); }
-function sendMsg(api, msg, tid, mid = null) {
-  return new Promise(r => api.sendMessage(msg, tid, (e,i)=>r(i), mid));
+function saveData(threadID, data) {
+  fs.writeFileSync(getFile(threadID), JSON.stringify(data, null, 2));
 }
 
-// ✅ AUTO PROTECT — LAHAT NG 4 ADMIN
-module.exports.handleEvent = async ({ api, event }) => {
-  const { threadID, senderID, body, mentions } = event;
-  if (!threadID || !body || String(senderID) === String(api.getCurrentUserID())) return;
+function stopCount(threadID) {
+  if (countIntervals[threadID]) {
+    clearInterval(countIntervals[threadID]);
+    delete countIntervals[threadID];
+  }
+  activeCount[threadID] = false;
+}
 
-  const text = String(body).toLowerCase();
-  const bad = ["bwisit","tanga","bobo","ulol","gago","alis","umalis","pangit","ayoko","bastos","sira ulo","hayop","walang hiya","yawa","tangina","peste"];
-  const isBad = bad.some(w => text.includes(w));
-  
-  const mentionedAdmin = (mentions || []).some(m => isAdmin(m.id));
-  const calledAdmin = text.includes("ryuk") || text.includes("gojo") || text.includes("satoru");
+function pickReason() {
+  return FUNNY_REASONS[Math.floor(Math.random() * FUNNY_REASONS.length)];
+}
 
-  if (isBad && (mentionedAdmin || calledAdmin)) {
-    await new Promise(r => setTimeout(r, 500));
-    await sendMsg(api,
-      `WIN GOJO JUJUTSU KAISEN A.K.A RYUK GNM LVL 9999\n` +
-      `LOSE @${senderID}\n` +
-      `REASON: ${getReason()}`,
-      threadID
+function formatDate() {
+  const now = new Date();
+  return {
+    date: now.toLocaleDateString("en-PH"),
+    time: now.toLocaleTimeString("en-PH"),
+    month: now.toLocaleString("en-PH", { month: "long" }),
+    year: now.getFullYear()
+  };
+}
+
+function startCounting(api, threadID) {
+  stopCount(threadID);
+  let data = loadData(threadID);
+  data.active = true;
+  saveData(threadID, data);
+  activeCount[threadID] = true;
+  currentNumber[threadID] = data.num || 0;
+
+  countIntervals[threadID] = setInterval(async () => {
+    if (!activeCount[threadID]) { stopCount(threadID); return; }
+    currentNumber[threadID]++;
+    saveData(threadID, { active: true, num: currentNumber[threadID], max: 1000 });
+
+    if (currentNumber[threadID] > 1000) {
+      stopCount(threadID);
+      const dt = formatDate();
+      return api.sendMessage(
+        `🎉🎉🎉 1000 REACHED! 🎉🎉🎉\n\n` +
+        `🏆 WIN: GOJO JUJUTSU KAISEN A.K.A RYUK GNM LVL 9999\n\n` +
+        `📅 DATE: ${dt.date}\n` +
+        `🌙 MONTH: ${dt.month}\n` +
+        `📆 YEAR: ${dt.year}\n` +
+        `⏰ TIME: ${dt.time}\n\n` +
+        `👑 WALANG KAPANTAYAN — RYUK ANG PINAKAMAKUNAT! 💎`,
+        threadID
+      );
+    }
+
+    // Delay para hindi ma-restrict
+    await new Promise(r => setTimeout(r, 1200 + Math.random() * 800));
+    if (activeCount[threadID]) {
+      await api.sendMessage(`🔢 ${currentNumber[threadID]}`, threadID);
+    }
+  }, 3500 + Math.floor(Math.random() * 1500));
+}
+
+module.exports.config = {
+  name: "count",
+  version: "3.0.0",
+  hasPermission: 0,
+  credits: "RYUK — COUNT EDITION",
+  description: "Count 1-1000 | Auto-Mention sa umaaway | Nakakatawa Reason",
+  usePrefix: true,
+  commandCategory: "👑 COUNT",
+  usages: "/count start | /count stop"
+};
+
+module.exports.run = async function ({ api, event, args }) {
+  const tid = event.threadID;
+  const sid = event.senderID;
+
+  if (!isAdmin(sid)) return;
+
+  const cmd = args[0]?.toLowerCase();
+  switch (cmd) {
+    case "start":
+      startCounting(api, tid);
+      return api.sendMessage(
+        "🔢 COUNT NAGSIMULA NA! 1 hanggang 1000 ⚡\n" +
+        "Hindi ma-restrict — dahan-dahan pero sigurado 💪\n" +
+        "I-type ang /count stop para huminto ✅",
+        tid
+      );
+
+    case "stop":
+      stopCount(tid);
+      const dt = formatDate();
+      return api.sendMessage(
+        `🛑 COUNT STOPPED\n\n` +
+        `🏆 WIN: GOJO JUJUTSU KAISEN A.K.A RYUK GNM LVL 9999\n\n` +
+        `❌ LOSE: @ — KUNG SINO KA MAN, NAKITA KITA! 👀\n\n` +
+        `📝 REASON: ${pickReason()}\n\n` +
+        `📅 DATE: ${dt.date}\n` +
+        `🌙 MONTH: ${dt.month}\n` +
+        `📆 YEAR: ${dt.year}\n` +
+        `⏰ TIME: ${dt.time}\n\n` +
+        `👑 RYUK — LAGING PANALO! 💎`,
+        tid
+      );
+
+    default:
+      return api.sendMessage(
+        "👑 COUNT BOT — RYUK EDITION V3.0 ✨\n\n" +
+        "✅ /count start — Simulan ang 1-1000\n" +
+        "✅ /count stop — Huminto at ipakita ang resulta\n\n" +
+        "🏆 Kapag natapos: IKAW ANG PANALO!\n" +
+        "⚠️ Kapag huminto: Auto-mention sa umaway sayo!\n" +
+        "😂 Nakakatawa ang reason — hindi nakaka-offend!\n" +
+        "🛡️ Mabagal ang pagbilang — hindi ma-restrict ang account mo!\n\n" +
+        "💎 RYUK — Laging panalo, walang talo! 👑",
+        tid
+      );
+  }
+};
+
+// ✅ AUTO-MENTION KAPAG MAY UMAWAY SAIYO
+module.exports.handleEvent = async function ({ api, event }) {
+  const tid = event.threadID;
+  const data = loadData(tid);
+  if (!data.active) return;
+
+  const myID = api.getCurrentUserID ? api.getCurrentUserID() : api.userID;
+  if (event.type !== "message" || event.senderID === myID) return;
+
+  const msg = (event.body || "").toLowerCase();
+  const adminNames = ["ryuk", "gojo", "boss", "ryuk boss", "gojo satoru"];
+  let isAttacking = false;
+
+  // Detect kung may nang-aaway sa admin
+  for (const name of adminNames) {
+    if (msg.includes(name) && /talo|baba|mahina|patay|alis|bwisit|gago|tanga|bobo|walang/.test(msg)) {
+      isAttacking = true;
+      break;
+    }
+  }
+
+  if (isAttacking && event.senderID) {
+    await new Promise(r => setTimeout(r, 800 + Math.random() * 700));
+    const dt = formatDate();
+    await api.sendMessage(
+      `⚠️ NAKITA KO ITO! 👀\n\n` +
+      `🏆 WIN: GOJO JUJUTSU KAISEN A.K.A RYUK GNM LVL 9999\n\n` +
+      `❌ LOSE: @[${event.senderID}] — NAKITA KITA! HUWAG KA MAGTAGO! 😤\n\n` +
+      `📝 REASON: ${pickReason()}\n\n` +
+      `📅 DATE: ${dt.date}\n` +
+      `🌙 MONTH: ${dt.month}\n` +
+      `📆 YEAR: ${dt.year}\n` +
+      `⏰ TIME: ${dt.time}\n\n` +
+      `👑 RYUK — HINDI KAYO MAKAKATAKA SA KANYA! 💎`,
+      tid
     );
   }
 };
-
-// ✅ COUNT 1-50 — KAPAG STOP AGAD HIHINTO!
-module.exports.run = async ({ api, event, args }) => {
-  const { threadID, messageID, senderID } = event;
-  const cmd = String(args?.[0] || "").toLowerCase();
-  const data = loadData();
-
-  if (!isAdmin(senderID)) {
-    return sendMsg(api, "🔒 ikaw hindi ka admin — bawal 😤", threadID, messageID);
-  }
-
-  if (cmd === "start") {
-    if (data.counting) return sendMsg(api, "nagbibilang pa! huwag magmadali 😤", threadID, messageID);
-    data.counting = true; data.current = 0; saveData(data);
-    await sendMsg(api, "nagsisimula na — 1 hanggang 50! dahan-dahan lang 💪\n/i-stop para tumigil agad!", threadID);
-
-    // ✅ 1-50 LANG — KAPAG STOP AGAD TITIGIL!
-    for (let num = 1; num <= 50; num++) {
-      // ✅ KAPAG IN-STOP — AGAD NA HIHINTO!
-      if (!loadData().counting) {
-        await sendMsg(api, `⏸️ tumigil sa ${num - 1} — utos mo! 💪`, threadID);
-        return;
-      }
-      
-      data.current = num; saveData(data);
-      
-      let msg = `${num}`;
-      if (num === 10) msg = "10 — tuloy lang! 💪";
-      if (num === 25) msg = "25 — kalahati na! ⚡";
-      if (num === 40) msg = "40 — malapit na! 🔥";
-      if (num === 50) msg = `50 — TAPOS NA! ✅\n\nWIN GOJO JUJUTSU KAISEN A.K.A RYUK GNM LVL 9999`;
-      
-      await sendMsg(api, msg, threadID);
-      await new Promise(r => setTimeout(r, 800)); // ligtas na bilis
-    }
-    
-    data.counting = false; saveData(data);
-    return;
-  }
-
-  if (cmd === "stop") {
-    const last = data.current;
-    data.counting = false; saveData(data);
-    return sendMsg(api, `⏸️ tumigil sa ${last} — utos mo! babalik ako! 💪`, threadID, messageID);
-  }
-
-  return sendMsg(api,
-    `👑 count — mga utos\n` +
-    `/count start — simulan ang 1-50\n` +
-    `/count stop — itigil AGAD kung saan man nandoon\n\n` +
-    `✅ 4 Admin Protektado\n` +
-    `✅ Kapag stop — hindi na magpapadala pa`,
-    threadID, messageID
-  );
-};
-  
+          
