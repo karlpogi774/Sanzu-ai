@@ -1,5 +1,5 @@
 // ==========================================================
-// 👑 HELP COMMAND — ENGLISH VERSION | ADMIN IDs INCLUDED
+// 👑 HELP COMMAND — ENGLISH VERSION | ADMIN PROTECTED
 // ADMIN IDs: 61594055835097, 61593892603402, 61594325727109, 61594022290817
 // ==========================================================
 
@@ -20,7 +20,7 @@ function isAdmin(id) {
 module.exports = {
   config: {
     name: "help",
-    version: "2.0.0",
+    version: "2.1.0",
     author: "RYUK BOSS",
     countDown: 5,
     role: 0,
@@ -49,7 +49,7 @@ module.exports = {
 
       for (const [name, value] of commands) {
         if (value.config.role > 0 && role < value.config.role && !isUserAdmin) continue;
-        
+
         const category = value.config.category || "Uncategorized";
         categories[category] = categories[category] || { commands: [] };
         if (!categories[category].commands.includes(name)) {
@@ -72,7 +72,7 @@ module.exports = {
              `⭔ Type ${prefix}help <command> to see details.\n`;
 
       if (isUserAdmin) {
-        msg += `\n👑 — ADMIN PANEL ENABLED —\n`;
+        msg += `\n👑 — ADMIN MODE ACTIVE —\n`;
       }
 
       try {
@@ -135,5 +135,5 @@ function roleTextToString(role) {
     return `${role} (${roles[role]})`;
   }
   return `${role} (Unknown)`;
-    }
-    
+  }
+            
